@@ -8,7 +8,5 @@ R/analysis.R
 examples
 .httr-oauth
 .Renviron
-inst/doc
-docs/
-docs
+
 neuronbridger/
