@@ -107,8 +107,7 @@ matches between Flylight Split GAL4 and MCFO vs Hemibrain 1.1. See its
 [release
 notes](https://neuronbridge.janelia.org/releasenotes/NEURONBRIDGE) and
 [data version release
-notes](https://neuronbridge.janelia.org/releasenotes/DATA). This
-computation was performed by
+notes](https://neuronbridge.janelia.org/releasenotes/DATA).
 
 The data is also available on
 [quilt](https://open.quiltdata.com/b/janelia-flylight-color-depth/tree).
@@ -312,11 +311,11 @@ neurons from the hemibrain connectome it might target.
 These are the individual MIPs for different MCFO experiments for the
 GAL4 line MB543B:
 
-<img width="1604" alt="MB543B#1" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#1.png">  
-<img width="1604" alt="MB543B#2" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#2.pngg">
-<img width="1604" alt="MB543B#3" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#3.pngg">
-<img width="1604" alt="MB543B#4" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#4.png">
-<img width="1604" alt="MB543B#5" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#5.png">
+<img width="1604" alt="MB543B#1" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_1.png">  
+<img width="1604" alt="MB543B#2" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_2.pngg">
+<img width="1604" alt="MB543B#3" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_3.pngg">
+<img width="1604" alt="MB543B#4" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_4.png">
+<img width="1604" alt="MB543B#5" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_5.png">
 
 Let us see which connectome neurons have high matching scores:
 
@@ -357,7 +356,7 @@ mips = neuronbridge_mip(line)
 scan_mip(mips,type="images", sleep = 5)
 ```
 
-![em\_mb543b\_hits](https://raw.githubusercontent.com/natverse/neuprintr/main/inst/images/em_mb543b_hits.png)
+![em\_hits](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_hits.png)
 
 We can use this to try to work out how to design a ‘split’ line. The
 split-GAL4 method allows an experimenter to ‘intersect’ the expression
