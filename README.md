@@ -14,7 +14,7 @@ coverage](https://codecov.io/gh/natverse/neuronbridger/branch/master/graph/badge
 neuronbridger
 =============
 
-The goal of **neuronbridger** is to provide R client utilities for
+The goal of `neuronbridger` is to provide R client utilities for
 interacting with the [NeuronBridge](https://neuronbridge.janelia.org/)
 neuron matching service. This can help a user design sparse genetic
 driver lines for *D. melanogaster* neurons (i.e.
@@ -93,14 +93,14 @@ Here is an example of a MIP for a hemibrain neuron
 ([542634818](https://neuprint.janelia.org/view?bodyid=542634818), the
 DM1 olfactory uPN):
 
-![mip\_em\_example](https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/mip_em_example.png)
+![mip\_em\_example](https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/mip_em_example.png)
 
 And for a GAL4 lines that seems to contains that neuron
 ([R84D10](https://v2.virtualflybrain.org/org.geppetto.frontend/geppetto?id=VFBexp_FBtp0063448),
 data from stochastic labelling (MCFO) of line [(Meissener et
 al. 2020)](https://doi.org/10.1101/2020.05.29.080473)):
 
-![mip\_gmr\_example](https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/mip_gmr_example.png)
+![mip\_gmr\_example](https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/mip_gmr_example.png)
 
 [NeuronBridge](https://neuronbridge.janelia.org/) loads precomputed
 matches between Flylight Split GAL4 and MCFO vs Hemibrain 1.1. See its
@@ -133,7 +133,7 @@ investigator, ideally an individual cell type. A cell type may contain
 as little as 1-5 neurons on average [(Bates et
 al. 2019)](https://pubmed.ncbi.nlm.nih.gov/30703584/).
 
-With *neuronbridger* one thing we can try to do is search for lines that
+With `neuronbridger` one thing we can try to do is search for lines that
 are a hit for many neurons we want (e.g. all members of a cell type from
 the hemibrain connectome). Another, is to try to avoid lines that seem
 to contain neurons we do not want (e.g. similar looking hemibrain
@@ -273,7 +273,7 @@ plot3d(all.pns, soma = 500, lwd = 0.5, alpha = 0.25)
 ## However, there is a lot that looks similar that might also be labelled by the same lines.
 ```
 
-![em\_dm1\_upn](https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/em_dm1_upn.png)
+![em\_dm1\_upn](https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/em_dm1_upn.png)
 
 So how can we make sure we only get the PN we want, and not these other
 PNs?
@@ -312,11 +312,11 @@ neurons from the hemibrain connectome it might target.
 These are the individual MIPs for different MCFO experiments for the
 GAL4 line MB543B:
 
-<img width="1604" alt="MB543B#1" src="https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/MB543B#1.png">  
-<img width="1604" alt="MB543B#2" src="https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/MB543B#2.pngg">
-<img width="1604" alt="MB543B#3" src="https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/MB543B#3.pngg">
-<img width="1604" alt="MB543B#4" src="https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/MB543B#4.png">
-<img width="1604" alt="MB543B#5" src="https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/MB543B#5.png">
+<img width="1604" alt="MB543B#1" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#1.png">  
+<img width="1604" alt="MB543B#2" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#2.pngg">
+<img width="1604" alt="MB543B#3" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#3.pngg">
+<img width="1604" alt="MB543B#4" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#4.png">
+<img width="1604" alt="MB543B#5" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#5.png">
 
 Let us see which connectome neurons have high matching scores:
 
