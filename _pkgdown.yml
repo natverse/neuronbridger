@@ -1,0 +1,29 @@
+reference:
+- title: Get information on neuron data items
+  desc: >
+    Use a neuron/line ID to get information about that neuron/line. For example,
+    the MIP files available from NeuronBridge.
+  contents:
+  - '`neuronbridge_ids`'
+  - '`neuronbridge_info`'
+- title: Search for EM-LM hits
+  desc: Take a connectome neuron/line and search for hits.
+  contents:
+  - '`neuronbridge_hits`'
+  - '`neuronbridge_search`'
+  - '`neuronbridge_avoid`'
+- title: What's in a line?
+  desc: >
+    Estimated which connectome neurons are in a genetic driver line. Use this
+    information to plan split combinations for sparser lines.
+  contents:
+  - '`neuronbridge_line_contents`'
+  - '`neuronbridge_predict_split`'
+- title: Plot MIP files
+  desc: Retrieve and plot 2D colour maximal projection images (MIP) files
+  contents:
+  - '`neuronbridge_mip`'
+  - '`plot_mip`'
+  - '`scan_mip`'
+  - '`neuronbridge_remove_mips`'
+

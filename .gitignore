@@ -1,0 +1,14 @@
+packrat/lib*/
+.Rproj.user
+.Rhistory
+.RData
+.RDatatmp
+.RDataTmp
+R/analysis.R
+examples
+.httr-oauth
+.Renviron
+inst/doc
+docs/
+docs
+neuronbridger/
