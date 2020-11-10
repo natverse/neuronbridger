@@ -217,11 +217,11 @@ We may also want to predict which neurons are in a given genetic driver line. Le
 
 These are the individual MIPs for different MCFO experiments for the GAL4 line MB543B:
 
-<img width="1604" alt="MB543B#1" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_1.png"> |  
-<img width="1604" alt="MB543B#2" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_2.png"> |
-<img width="1604" alt="MB543B#3" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_3.png"> |
-<img width="1604" alt="MB543B#4" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_4.png"> |
-<img width="1604" alt="MB543B#5" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_5.png"> 
+<img width="800" alt="MB543B#1" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_1.png">   
+<img width="800" alt="MB543B#2" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_2.png"> 
+<img width="800" alt="MB543B#3" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_3.png"> 
+<img width="800" alt="MB543B#4" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_4.png"> 
+<img width="800" alt="MB543B#5" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B_5.png"> 
 
 Let us see which connectome neurons have high matching scores:
 
