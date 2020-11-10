@@ -11,4 +11,6 @@ test_that("neuronbridger works", {
 
   expect_is(scan.mip <- scan_mip("542634818",sleep=0.1,type="id"), NULL)
 
+  unlink(unlist(options("neuronbridger")), recursive = TRUE)
+
 })
