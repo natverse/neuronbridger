@@ -1,12 +1,12 @@
 Package: neuronbridger
 Type: Package
-Title: R client utilities for interacting with the neuronbridge matching service
+Title: R client utilities for interacting with the NeuronBridge matching service
 Version: 2.1.1
 Authors@R: c(
     person("Alexander", "Bates", email = "alexander.shakeel.bates@gmail.com", 
       role = c("aut", "cre"), comment = c(ORCID = "0000-0002-1195-0445"))
       )
-Description: Use neuronbridge.org results in R for neuron matching across data set. This will help users connect genetic reagents to experimentally target fly neurons with results from connectomics.
+Description: Use neuronbridge.org results in R for neuron matching across data sets. This will help users connect genetic reagents to experimentally target fly neurons with results from connectomics.
 License: GPL-3
 LazyData: true
 Suggests: 
