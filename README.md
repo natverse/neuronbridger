@@ -3,10 +3,10 @@
 [![natverse](https://img.shields.io/badge/natverse-Part%20of%20the%20natverse-a241b6)](https://natverse.github.io)
 [![Docs](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](http://natverse.github.io/neuronbridger/reference/)
 [![Travis-CI Build
-Status](https://api.travis-ci.org/natverse/neuronbridger.svg?branch=master)](https://travis-ci.org/natverse/neuronbridger)
+Status](https://api.travis-ci.org/natverse/neuronbridger.svg?branch=main)](https://travis-ci.org/natverse/neuronbridger)
 <img src="man/figures/logo.svg" align="right" height="139" /> [![Codecov
 test
-coverage](https://codecov.io/gh/natverse/neuronbridger/branch/master/graph/badge.svg)](https://codecov.io/gh/natverse/neuronbridger?branch=master)
+coverage](https://codecov.io/gh/natverse/neuronbridger/branch/main/graph/badge.svg)](https://codecov.io/gh/natverse/neuronbridger?branch=main)
 <!-- [![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://www.tidyverse.org/lifecycle/#stable) -->
 <!-- [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3843544.svg)](https://doi.org/10.5281/zenodo.3843544) -->
 <!-- badges: end -->
@@ -93,14 +93,14 @@ Here is an example of a MIP for a hemibrain neuron
 ([542634818](https://neuprint.janelia.org/view?bodyid=542634818), the
 DM1 olfactory uPN):
 
-![mip\_em\_example](https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/mip_em_example.png)
+![mip\_em\_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_em_example.png)
 
 And for a GAL4 lines that seems to contains that neuron
 ([R84D10](https://v2.virtualflybrain.org/org.geppetto.frontend/geppetto?id=VFBexp_FBtp0063448),
 data from stochastic labelling (MCFO) of line [(Meissener et
 al. 2020)](https://doi.org/10.1101/2020.05.29.080473)):
 
-![mip\_gmr\_example](https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/mip_gmr_example.png)
+![mip\_gmr\_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png)
 
 [NeuronBridge](https://neuronbridge.janelia.org/) loads precomputed
 matches between Flylight Split GAL4 and MCFO vs Hemibrain 1.1. See its
@@ -273,7 +273,7 @@ plot3d(all.pns, soma = 500, lwd = 0.5, alpha = 0.25)
 ## However, there is a lot that looks similar that might also be labelled by the same lines.
 ```
 
-![em\_dm1\_upn](https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/em_dm1_upn.png)
+![em\_dm1\_upn](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_dm1_upn.png)
 
 So how can we make sure we only get the PN we want, and not these other
 PNs?
@@ -312,11 +312,11 @@ neurons from the hemibrain connectome it might target.
 These are the individual MIPs for different MCFO experiments for the
 GAL4 line MB543B:
 
-<img width="1604" alt="MB543B#1" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#1.png">  
-<img width="1604" alt="MB543B#2" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#2.pngg">
-<img width="1604" alt="MB543B#3" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#3.pngg">
-<img width="1604" alt="MB543B#4" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#4.png">
-<img width="1604" alt="MB543B#5" src="https://raw.githubusercontent.com/natverse/neuronbridger/master/inst/images/MB543B#5.png">
+<img width="1604" alt="MB543B#1" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#1.png">  
+<img width="1604" alt="MB543B#2" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#2.pngg">
+<img width="1604" alt="MB543B#3" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#3.pngg">
+<img width="1604" alt="MB543B#4" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#4.png">
+<img width="1604" alt="MB543B#5" src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/MB543B#5.png">
 
 Let us see which connectome neurons have high matching scores:
 
@@ -357,7 +357,7 @@ mips = neuronbridge_mip(line)
 scan_mip(mips,type="images", sleep = 5)
 ```
 
-![em\_mb543b\_hits](https://raw.githubusercontent.com/natverse/neuprintr/master/inst/images/em_mb543b_hits.png)
+![em\_mb543b\_hits](https://raw.githubusercontent.com/natverse/neuprintr/main/inst/images/em_mb543b_hits.png)
 
 We can use this to try to work out how to design a ‘split’ line. The
 split-GAL4 method allows an experimenter to ‘intersect’ the expression
