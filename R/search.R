@@ -48,6 +48,7 @@
 neuronbridge_info <- function(id,
                               dataset = c("detect","by_line","by_body"),
                               version = "v2_1_1"){
+  id = as.character(id)
   dataset = match.arg(dataset)
   nb.df.ids = data.frame()
   rnames = c()
@@ -210,6 +211,7 @@ neuronbridge_search <- function(id,
                                 dataset = c("detect","by_line","by_body"),
                                 threshold = 10000){
   # check dataset
+  id = as.character(id)
   dataset = match.arg(dataset)
   if(dataset=="detect"){
     dataset = guess_dataset(id)
