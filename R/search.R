@@ -79,7 +79,7 @@ neuronbridge_info <- function(id,
     no = length(nb$results)
     nb.df = data.frame()
     for(r in nb$results){
-      nbr = as.data.frame(t(unnest_df(r)))
+      nbr = as.data.frame(t(unnest_df(r)), stringsAsFactors = FALSE)
       nb.df = plyr::rbind.fill(nb.df,nbr)
     }
     nb.df$nb.id = nb.df$id
@@ -184,7 +184,7 @@ neuronbridge_hits <- function(nb.id,
     nb2=neuronbridge_fetch(path2)
     nb.list = list()
     for(r in nb2$results){
-      nbr = as.data.frame(t(unnest_df(r)))
+      nbr = as.data.frame(t(unnest_df(r)), stringsAsFactors = FALSE)
       nb.list[[nbr$id]] = nbr
     }
     nb.df = do.call(plyr::rbind.fill, nb.list)
