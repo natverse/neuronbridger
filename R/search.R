@@ -171,6 +171,7 @@ neuronbridge_info <- function(id,
 neuronbridge_hits <- function(nb.id,
                               version = "v2_1_1"){
   # Get information on MIP hits
+  nb.id = as.character(nb.id)
   nb.hits = data.frame()
   rnames = c()
   pb <- progress::progress_bar$new(format = "  finding hits for MIPs [:bar] :current/:total eta: :eta", total = length(nb.id), clear = FALSE, show_after = 1)
