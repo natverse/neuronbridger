@@ -2,8 +2,8 @@
 <!-- badges: start -->
 [![natverse](https://img.shields.io/badge/natverse-Part%20of%20the%20natverse-a241b6)](https://natverse.github.io)
 [![Docs](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](http://natverse.github.io/neuronbridger/reference/)
-[![Travis-CI Build
-Status](https://api.travis-ci.org/natverse/neuronbridger.svg?branch=main)](https://travis-ci.org/natverse/neuronbridger)
+[![Travis build
+status](https://travis-ci.com/natverse/neuronbridger.svg?branch=main)](https://travis-ci.com/natverse/neuronbridger)
 <img src="man/figures/logo.svg" align="right" height="139" /> [![Codecov
 test
 coverage](https://codecov.io/gh/natverse/neuronbridger/branch/main/graph/badge.svg)](https://codecov.io/gh/natverse/neuronbridger?branch=main)
