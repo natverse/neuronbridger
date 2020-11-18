@@ -34,20 +34,22 @@
 #'
 #' }
 #' @examples
-#'
+#' \donttest{
+#' \dontrun{
 #' # Get information on a mushroombody related GMR GAL4 driver line
 #' nb.info.lm = neuronbridge_info("MB543B")
 #'
 #' # Get information on the hemibrain neuron,
 #' nb.info.em = neuronbridge_info("542634818")
-#'
+#' }}
 #' @seealso \code{\link{neuronbridge_hits}},
 #'   \code{\link{neuronbridge_line_contents}},
 #'   \code{\link{neuronbridge_mip}}
 #' @export
 neuronbridge_info <- function(id,
                               dataset = c("detect","by_line","by_body"),
-                              version = "v2_1_1"){
+                              version = "v2_1_1",
+                              ...){
   id = as.character(id)
   dataset = match.arg(dataset)
   nb.df.ids = data.frame()
@@ -66,7 +68,7 @@ neuronbridge_info <- function(id,
                  version,
                  dataset,
                  item)
-    nb=tryCatch(neuronbridge_fetch(path, parse = "json"), error = function(e) NULL)
+    nb=tryCatch(neuronbridge_fetch(path, parse = "json", ...), error = function(e) NULL)
     if(is.null(nb)){
       dataset = c("by_line","by_body")[!c("by_line","by_body")%in%dataset]
       warning("dataset field might be problematic, trying ", dataset)
@@ -95,13 +97,13 @@ neuronbridge_info <- function(id,
 
 #' @title Get EM-LM neuron matches for fly brain neurons from neuronbridge.janelia.org
 #'
-#' @description The function \code{neuronbridge_hits} retreives a ranked list of hits for a MIP file search.
+#' @description The function \code{neuronbridge_hits} retrieves a ranked list of hits for a MIP file search.
 #' Specify the MIP file you want to search for by using its \code{nb.id}. This can be found by
 #' using \code{\link{neuronbridge_info}}. \code{neuronbridge_search} will run \code{neuronbridge_info} and then \code{neuronbridge_hits}, to make things easier.
 #' The function \code{neuronbridge_search} can also handle being given multiple IDs, i.e. searching for multiple data items at once.
 #' MIP options can be fetched and visualised with \code{\link{neuronbridge_mip}}.
 #'
-#' @param nb.id an internal ID used by \href{https://neuronbridge.janelia.org/}{neuronbridge.janelia.org} to identigy neurons/lines. This
+#' @param nb.id an internal ID used by \href{https://neuronbridge.janelia.org/}{neuronbridge.janelia.org} to identify neurons/lines. This
 #' differs from \code{id} used by other functions, and can be found using \code{\link{neuronbridge_info}}.
 #' @param threshold LM-EM matches with a \code{normalizedScore} below this value are not returned. If set to \code{NULL}, the results are not filtered.
 #' @inherit neuronbridge_info params
@@ -150,7 +152,8 @@ neuronbridge_info <- function(id,
 #'}
 #'
 #' @examples
-#'
+#'\donttest{
+#' \dontrun{
 #' nb.info.em = neuronbridge_info("542634818")
 #' nb.hits = neuronbridge_hits(nb.info.em$nb.id[1])
 #' # View(nb.hits[1:10,]) # see the top 10 hits
@@ -164,7 +167,7 @@ neuronbridge_info <- function(id,
 #'
 #' # Note that nb.info.em here is actually an attribute you can see
 #' nb.info.em = attr(nb.search,"search")
-#'
+#' }}
 #' @seealso \code{\link{neuronbridge_info}},
 #'   \code{\link{neuronbridge_mip}},
 #'   \code{\link{neuronbridge_ids}}

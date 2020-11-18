@@ -5,7 +5,7 @@
 #'
 #' @inherit neuronbridge_info params
 #'
-#' @return a \code{vector} of identifiers
+#' @return a \code{vector} of identifiers.
 #'
 #' @examples
 #' \donttest{

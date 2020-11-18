@@ -15,7 +15,7 @@ neuronbridge_search(
 )
 }
 \arguments{
-\item{nb.id}{an internal ID used by \href{https://neuronbridge.janelia.org/}{neuronbridge.janelia.org} to identigy neurons/lines. This
+\item{nb.id}{an internal ID used by \href{https://neuronbridge.janelia.org/}{neuronbridge.janelia.org} to identify neurons/lines. This
 differs from \code{id} used by other functions, and can be found using \code{\link{neuronbridge_info}}.}
 
 \item{version}{the precomputed scores to search. For example, \code{"v2_1_1"} refers to this \href{https://neuronbridge.janelia.org/releasenotes/DATA}{release}.}
@@ -78,14 +78,15 @@ Top scores (better match) are at the top of the data frame. The columns mean:
 }
 }
 \description{
-The function \code{neuronbridge_hits} retreives a ranked list of hits for a MIP file search.
+The function \code{neuronbridge_hits} retrieves a ranked list of hits for a MIP file search.
 Specify the MIP file you want to search for by using its \code{nb.id}. This can be found by
 using \code{\link{neuronbridge_info}}. \code{neuronbridge_search} will run \code{neuronbridge_info} and then \code{neuronbridge_hits}, to make things easier.
 The function \code{neuronbridge_search} can also handle being given multiple IDs, i.e. searching for multiple data items at once.
 MIP options can be fetched and visualised with \code{\link{neuronbridge_mip}}.
 }
 \examples{
-
+\donttest{
+\dontrun{
 nb.info.em = neuronbridge_info("542634818")
 nb.hits = neuronbridge_hits(nb.info.em$nb.id[1])
 # View(nb.hits[1:10,]) # see the top 10 hits
@@ -99,7 +100,7 @@ nb.search = neuronbridge_search("542634818")
 
 # Note that nb.info.em here is actually an attribute you can see
 nb.info.em = attr(nb.search,"search")
-
+}}
 }
 \seealso{
 \code{\link{neuronbridge_info}},

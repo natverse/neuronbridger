@@ -7,6 +7,8 @@ status](https://travis-ci.com/natverse/neuronbridger.svg?branch=main)](https://t
 <img src="man/figures/logo.svg" align="right" height="139" /> [![Codecov
 test
 coverage](https://codecov.io/gh/natverse/neuronbridger/branch/main/graph/badge.svg)](https://codecov.io/gh/natverse/neuronbridger?branch=main)
+[![R build
+status](https://github.com/natverse/neuronbridger/workflows/R-CMD-check/badge.svg)](https://github.com/natverse/neuronbridger/actions)
 <!-- [![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://www.tidyverse.org/lifecycle/#stable) -->
 <!-- [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3843544.svg)](https://doi.org/10.5281/zenodo.3843544) -->
 <!-- badges: end -->
@@ -74,15 +76,15 @@ them to results from the connectome enables researchers to
 experimentally manipulate components of the fly brain’s ‘wiring
 diagram’.
 
-How have these searches been perfomed?
---------------------------------------
+How have these searches been performed?
+---------------------------------------
 
 [NeuronBridge](https://neuronbridge.janelia.org/) uses results from a
-‘color depth mask search’. The methodology has recently been published
+‘colour depth mask search’. The methodology has recently been published
 [(Otsuna et
 al. 2018)](https://www.biorxiv.org/content/10.1101/318006v1). This
 method represents 3d voxel space in a 2d image by encoding depth as
-color, and allows for a fast pixel-based comparison across specimens.
+colour, and allows for a fast pixel-based comparison across specimens.
 Both LM image volumes and EM reconstructions can be represented in this
 space, leading to efficient LM-&gt;EM and EM-&gt;LM searching.
 
@@ -103,7 +105,7 @@ al. 2020)](https://doi.org/10.1101/2020.05.29.080473)):
 ![mip\_gmr\_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png)
 
 [NeuronBridge](https://neuronbridge.janelia.org/) loads precomputed
-matches between Flylight Split GAL4 and MCFO vs Hemibrain 1.1. See its
+matches between FlyLight Split GAL4 and MCFO vs Hemibrain 1.1. See its
 [release
 notes](https://neuronbridge.janelia.org/releasenotes/NEURONBRIDGE) and
 [data version release
@@ -139,7 +141,7 @@ to contain neurons we do not want (e.g. similar looking hemibrain
 neurons, or common line contaminant you do not want, for some
 experimental reason). This could be critical for some experiments.
 Ultimately clean lines enable one to see neurons better during, for
-example, calcium imaging, or allow experimentors to only manipulate
+example, calcium imaging, or allow experimenters to only manipulate
 those cells when performing, for example, optogenetic behavioural
 experiments.
 
@@ -303,7 +305,7 @@ is pretty ‘sparse’ and seems to label neurons from the mushroom body
 are 5 ‘MCFO’ images for this neuron. This means that the FlyLight team
 has stochastically labelled a subset of neurons in this line five times
 [(Meissener et al. 2020)](https://doi.org/10.1101/2020.05.29.080473).
-Each time they took a confocal stack, which was later covnerted into a
+Each time they took a confocal stack, which was later converted into a
 colour MIP. We can examine the ‘MIP search matches’ for each of these
 images to try to determine the ‘contents’ of this line i.e. which
 neurons from the hemibrain connectome it might target.
@@ -381,13 +383,13 @@ View(potential.split)
 
 ### Conclusions
 
-Bear in mind that this function and some others are very senstivie to
+Bear in mind that this function and some others are very sensitive to
 the value you give the threshold argument!! You will have to empirically
 determine a good value for this - it might differ given the kind of
 neurons you are looking at for example.
 
 Of course - do not go planning any experiments based on the results of
-this package without looking at the 3D stackso for GAL4 lines first! The
+this package without looking at the 3D stacks for GAL4 lines first! The
 results from these functions are only as good as the LM-EM matching
 scores from the colour MIP searches performed by FlyLight. In addition,
 the more stochastic labelling (MCFO) that has been performed on a line,
@@ -412,7 +414,7 @@ this package, you should cite this package, [Clements et
 al. 2020](https://janelia.figshare.com/articles/NeuronBridge_Codebase/12159378/1)
 for the NeuronBridge codebase, [Ostsuna et
 al. 2018](https://www.biorxiv.org/content/10.1101/318006v1) for the
-methodolody, and the [relevant
+methodology, and the [relevant
 publications](https://neuronbridge.janelia.org/usage) for any data sets
 used. See below.
 

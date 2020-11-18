@@ -50,8 +50,8 @@ Top scores (better match) are at the top of the data frame. The columns mean:
 
   \item{"libraryName"}{ - the data set from which this data item came.}
 #'
-  \item{"normalizedScore"}{ - the matching score, created by examining the overlapped pixel number and color depth.
-  If the color and xy position of the pixel match between the mask and the searching data,
+  \item{"normalizedScore"}{ - the matching score, created by examining the overlapped pixel number and colourdepth.
+  If the colourand xy position of the pixel match between the mask and the searching data,
   then the approach here will count it as a positive matching score}
 
   \item{"searched"}{ - the \code{line} you searched with, i.e. given to the function call}
@@ -60,7 +60,7 @@ Top scores (better match) are at the top of the data frame. The columns mean:
 }
 \description{
 This function uses \code{\link{neuronbridge_search}} to get potential connectime matches for the given genetic driver line (\code{line}).
-Each line may have multiple images associated with it, likely because it has undergoen stochastic labelling to better see what the line contains. Each
+Each line may have multiple images associated with it, likely because it has undergone stochastic labelling to better see what the line contains. Each
 of these images is searched and potential connectome hits returned. Each is assigned its highest score. The final output is filtered to that the LM-EM matching score
 is below the given \code{threshold}.
 }

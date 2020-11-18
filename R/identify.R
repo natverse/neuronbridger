@@ -12,11 +12,11 @@
 #'
 #' @inherit neuronbridge_info params
 #'
-#' @return a \code{data.frame} of hits. Each row idnciates a separate MIP file with its own \code{nb.id}. The \code{data.frame} is already ranked by \code{normalizedScore}.
+#' @return a \code{data.frame} of hits. Each row indicates a separate MIP file with its own \code{nb.id}. The \code{data.frame} is already ranked by \code{normalizedScore}.
 #' Top scores (better match) are at the top of the data frame. The columns mean:
 #' \itemize{
 #'
-#'   \item{"publishedName"} { - the \code{id} for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
+#'   \item{"publishedName"} { - the \code{id} for the potential hit neuron/line. I.e. specifies a genetic driver resource or a connectome neuron.
 #'   these are the same ids that can be seen with \code{\link{neuronbridge_ids}}.}
 #'
 #'   \item{"libraryName"}{ - the data set from which this data item came.}
@@ -27,7 +27,7 @@
 #'
 #'   \item{"slideCode"}{ - the unique identifier for the sample from which the MIP came. The first number indicates the date the image was taken by FlyLight.}
 #'
-#'   \item{"objective"}{ - the magnification under which the imasge was taken.}
+#'   \item{"objective"}{ - the magnification under which the image was taken.}
 #'
 #'   \item{"gender"}{ - the sex of the fly brain which this data item derives. f = female, m = male.}
 #'
@@ -40,14 +40,14 @@
 #'
 #'   \item{"mountingProtocol"}{ - the protocol used to prepare brain sample for imaging.}
 #'
-#'   \item{"matchingPixels"}{ - the number of overlapping pixels between query (\code{searched.id}) and taregt (\code{nb.id}).}
+#'   \item{"matchingPixels"}{ - the number of overlapping pixels between query (\code{searched.id}) and target (\code{nb.id}).}
 #'
 #'   \item{"gradientAreaGap "}{ - unsure, seeking clarification from NeuronBridge}
 #'
 #'   \item{"normalizedGapScore"}{ - unsure, seeking clarification from NeuronBridge}
 #'
-#'   \item{"normalizedScore"}{ - the matching score, created by examining the overlapped pixel number and color depth.
-#'   If the color and xy position of the pixel match between the mask and the searching data,
+#'   \item{"normalizedScore"}{ - the matching score, created by examining the overlapped pixel number and colourdepth.
+#'   If the colourand xy position of the pixel match between the mask and the searching data,
 #'   then the approach here will count it as a positive matching score}
 #'
 #'   \item{"searched.id"}{ - the \code{nb.id} you searched with, i.e. given to the function call}
@@ -126,7 +126,7 @@ neuronbridge_avoid <- function(search,
 #' @title Use NeuronBridge to estimate which hemibrain connectome neurons are taregted by a genetic driver line
 #'
 #' @description This function uses \code{\link{neuronbridge_search}} to get potential connectime matches for the given genetic driver line (\code{line}).
-#' Each line may have multiple images associated with it, likely because it has undergoen stochastic labelling to better see what the line contains. Each
+#' Each line may have multiple images associated with it, likely because it has undergone stochastic labelling to better see what the line contains. Each
 #' of these images is searched and potential connectome hits returned. Each is assigned its highest score. The final output is filtered to that the LM-EM matching score
 #' is below the given \code{threshold}.
 #'
@@ -151,8 +151,8 @@ neuronbridge_avoid <- function(search,
 #'
 #'   \item{"libraryName"}{ - the data set from which this data item came.}
 #'#'
-#'   \item{"normalizedScore"}{ - the matching score, created by examining the overlapped pixel number and color depth.
-#'   If the color and xy position of the pixel match between the mask and the searching data,
+#'   \item{"normalizedScore"}{ - the matching score, created by examining the overlapped pixel number and colourdepth.
+#'   If the colourand xy position of the pixel match between the mask and the searching data,
 #'   then the approach here will count it as a positive matching score}
 #'
 #'   \item{"searched"}{ - the \code{line} you searched with, i.e. given to the function call}

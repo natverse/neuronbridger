@@ -10,7 +10,7 @@ neuronbridge_ids(version = "v2_1_1")
 \item{version}{the precomputed scores to search. For example, \code{"v2_1_1"} refers to this \href{https://neuronbridge.janelia.org/releasenotes/DATA}{release}.}
 }
 \value{
-a \code{vector} of identifiers
+a \code{vector} of identifiers.
 }
 \description{
 This function gets all of the neuron identifiers or line codes (e.g.R24A02 is a generation 1 GMR GLA4 line, LH173 is a split-GAL4 line, 5813055865 is a hemibrain neuron)

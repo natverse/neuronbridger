@@ -19,6 +19,7 @@ knitr::opts_chunk$set(
 [![Travis build status](https://travis-ci.com/natverse/neuronbridger.svg?branch=main)](https://travis-ci.com/natverse/neuronbridger)
 <img src="man/figures/logo.svg" align="right" height="139" /> 
 [![Codecov test coverage](https://codecov.io/gh/natverse/neuronbridger/branch/main/graph/badge.svg)](https://codecov.io/gh/natverse/neuronbridger?branch=main)
+[![R build status](https://github.com/natverse/neuronbridger/workflows/R-CMD-check/badge.svg)](https://github.com/natverse/neuronbridger/actions)
 <!-- [![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://www.tidyverse.org/lifecycle/#stable) -->
 <!-- [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3843544.svg)](https://doi.org/10.5281/zenodo.3843544) -->
 <!-- badges: end -->
@@ -43,9 +44,9 @@ Users of [NeuronBridge](https://neuronbridge.janelia.org/) can discover which
 [Genaration 1 GAL4 lines](https://gen1mcfo.janelia.org/cgi-bin/gen1mcfo.cgi) and [split-GAL4 lines](https://splitgal4.janelia.org/cgi-bin/splitgal4.cgi) contain which hemibrain connectome neurons. GAL4 lines are genetic driver lines that can be used to express transgenes (e.g. flourescent proteins) in relatively small numbers of neurons in live flies. Linking them to 
 results from the connectome enables researchers to experimentally manipulate components of the fly brain's 'wiring diagram'.
 
-## How have these searches been perfomed?
+## How have these searches been performed?
 
-[NeuronBridge](https://neuronbridge.janelia.org/) uses results from a 'color depth mask search'. The methodology has recently been published [(Otsuna et al. 2018)](https://www.biorxiv.org/content/10.1101/318006v1). This method represents 3d voxel space in a 2d image by encoding depth as color, and allows for a fast pixel-based comparison across specimens. 
+[NeuronBridge](https://neuronbridge.janelia.org/) uses results from a 'colour depth mask search'. The methodology has recently been published [(Otsuna et al. 2018)](https://www.biorxiv.org/content/10.1101/318006v1). This method represents 3d voxel space in a 2d image by encoding depth as colour, and allows for a fast pixel-based comparison across specimens. 
 Both LM image volumes and EM reconstructions can be represented in this space, leading to efficient LM->EM and EM->LM searching.
 
 Images are represented as colour 'maximum	intensity	projection	images' (MIPs). A MIP is there not a 'stack' of images, but a single pane. 
@@ -60,7 +61,7 @@ data from stochastic labelling (MCFO) of line [(Meissener et al. 2020)](https://
 
 ![mip_gmr_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png)
 
-[NeuronBridge](https://neuronbridge.janelia.org/) loads precomputed matches between Flylight Split GAL4 and MCFO vs Hemibrain 1.1. See its [release notes](https://neuronbridge.janelia.org/releasenotes/NEURONBRIDGE) and [data version release notes](https://neuronbridge.janelia.org/releasenotes/DATA). 
+[NeuronBridge](https://neuronbridge.janelia.org/) loads precomputed matches between FlyLight Split GAL4 and MCFO vs Hemibrain 1.1. See its [release notes](https://neuronbridge.janelia.org/releasenotes/NEURONBRIDGE) and [data version release notes](https://neuronbridge.janelia.org/releasenotes/DATA). 
 
 The data is also available on [quilt](https://open.quiltdata.com/b/janelia-flylight-color-depth/tree).
 
@@ -70,7 +71,7 @@ The data is also available on [quilt](https://open.quiltdata.com/b/janelia-flyli
 
 The [NeuronBridge website](https://neuronbridge.janelia.org/) is great for examining results. However, if we want to consider many neurons are once it is easiest to do so in an environment like R. A common goal these days is to use tools such as NeuronBridge to design 'split-GAL4' lines to sparsely target neurons of experimental interest to an investigator, ideally an individual cell type. A cell type may contain as little as 1-5 neurons on average [(Bates et al. 2019)](https://pubmed.ncbi.nlm.nih.gov/30703584/).
 
-With `neuronbridger` one thing we can try to do is search for lines that are a hit for many neurons we want (e.g. all members of a cell type from the hemibrain connectome). Another, is to try to avoid lines that seem to contain neurons we do not want (e.g. similar looking hemibrain neurons, or common line contaminant you do not want, for some experimental reason). This could be critical for some experiments. Ultimately clean lines enable one to see neurons better during, for example, calcium imaging, or allow experimentors to only manipulate those cells when performing, for example, optogenetic behavioural experiments.
+With `neuronbridger` one thing we can try to do is search for lines that are a hit for many neurons we want (e.g. all members of a cell type from the hemibrain connectome). Another, is to try to avoid lines that seem to contain neurons we do not want (e.g. similar looking hemibrain neurons, or common line contaminant you do not want, for some experimental reason). This could be critical for some experiments. Ultimately clean lines enable one to see neurons better during, for example, calcium imaging, or allow experimenters to only manipulate those cells when performing, for example, optogenetic behavioural experiments.
 
 # Tutorial
 
@@ -213,7 +214,7 @@ View(nb.a)
 
 ### Which connectome neurons are inside each genetic driver line?
 
-We may also want to predict which neurons are in a given genetic driver line. Let us consider the case of MB543B, a generation 1 GMR line that is pretty 'sparse' and seems to label neurons from the mushroom body [(Aso et al., 2014)](https://elifesciences.org/articles/04577). There are 5 'MCFO' images for this neuron. This means that the FlyLight team has stochastically labelled a subset of neurons in this line five times [(Meissener et al. 2020)](https://doi.org/10.1101/2020.05.29.080473). Each time they took a confocal stack, which was later covnerted into a colour MIP. We can examine the 'MIP search matches' for each of these images to try to determine the 'contents' of this line i.e. which neurons from the hemibrain connectome it might target.
+We may also want to predict which neurons are in a given genetic driver line. Let us consider the case of MB543B, a generation 1 GMR line that is pretty 'sparse' and seems to label neurons from the mushroom body [(Aso et al., 2014)](https://elifesciences.org/articles/04577). There are 5 'MCFO' images for this neuron. This means that the FlyLight team has stochastically labelled a subset of neurons in this line five times [(Meissener et al. 2020)](https://doi.org/10.1101/2020.05.29.080473). Each time they took a confocal stack, which was later converted into a colour MIP. We can examine the 'MIP search matches' for each of these images to try to determine the 'contents' of this line i.e. which neurons from the hemibrain connectome it might target.
 
 These are the individual MIPs for different MCFO experiments for the GAL4 line MB543B:
 
@@ -282,9 +283,9 @@ View(potential.split)
 
 ### Conclusions
 
-Bear in mind that this function and some others are very senstivie to the value you give the threshold argument!! You will have to empirically determine a good value for this - it might differ given the kind of neurons you are looking at for example.
+Bear in mind that this function and some others are very sensitive to the value you give the threshold argument!! You will have to empirically determine a good value for this - it might differ given the kind of neurons you are looking at for example.
 
-Of course - do not go planning any experiments based on the results of this package without looking at the 3D stackso for GAL4 lines first! The results from these functions are only as good as the LM-EM matching scores from the colour MIP searches performed by FlyLight. In addition, the more stochastic labelling (MCFO) that has been performed on a line, the more certain we can be of its contents - but many lines need a lot more MCFO.
+Of course - do not go planning any experiments based on the results of this package without looking at the 3D stacks for GAL4 lines first! The results from these functions are only as good as the LM-EM matching scores from the colour MIP searches performed by FlyLight. In addition, the more stochastic labelling (MCFO) that has been performed on a line, the more certain we can be of its contents - but many lines need a lot more MCFO.
 
 # Acknowledgments
 
@@ -292,7 +293,7 @@ Of course - do not go planning any experiments based on the results of this pack
 
 [NeuronBridge](https://neuronbridge.janelia.org/) was developed by scientific advisors (Geoffrey Meissner, Wyatt Korff, Gudrun Ihrke), data scientists (Hideo Otsuna) and software developers (Jody Clements, Cristian Goina, Rob Svirskas, Konrad Rokicki, Antje Kazimiers) at [Janelia Research Campus](https://www.janelia.org/).
 
-Please examine the [NeuronBridge usage terms](https://neuronbridge.janelia.org/usage). If you use results from this package, you should cite this package, [Clements et al. 2020](https://janelia.figshare.com/articles/NeuronBridge_Codebase/12159378/1) for the NeuronBridge codebase, [Ostsuna et al. 2018](https://www.biorxiv.org/content/10.1101/318006v1) for the methodolody, and the [relevant publications](https://neuronbridge.janelia.org/usage) for any data sets used. See below.
+Please examine the [NeuronBridge usage terms](https://neuronbridge.janelia.org/usage). If you use results from this package, you should cite this package, [Clements et al. 2020](https://janelia.figshare.com/articles/NeuronBridge_Codebase/12159378/1) for the NeuronBridge codebase, [Ostsuna et al. 2018](https://www.biorxiv.org/content/10.1101/318006v1) for the methodology, and the [relevant publications](https://neuronbridge.janelia.org/usage) for any data sets used. See below.
 
 This package was created by [Alexander Shakeel Bates](https://scholar.google.com/citations?user=BOVTiXIAAAAJ&hl=en) while in the group of [Rachel Wilson](https://neuro.hms.harvard.edu/faculty-staff/rachel-wilson). Note the package version mirrors the [version of NeuronBridge data]((https://neuronbridge.janelia.org/releasenotes/DATA)) it was made to work with. You can cite this package as:
 

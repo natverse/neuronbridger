@@ -5,7 +5,7 @@
 \alias{plot_mip}
 \alias{scan_mip}
 \alias{neuronbridge_remove_mips}
-\title{Get and plot colour MIPs for neurons fron NeuronBridge}
+\title{Get and plot colour MIPs for neurons from NeuronBridge}
 \usage{
 neuronbridge_mip(
   id,
@@ -52,14 +52,14 @@ directory: \code{file.path(tempdir(),"neuronbridger")}.}
 
 \item{file.delete}{logical, whether or not to delete the saved \code{.png} file after plotting.}
 
-\item{mips}{either a data frame of 'hits' (e.g. as porduced by \code{\link{neuronbridge_search}}), a vector of file paths to saved MIP .png files
+\item{mips}{either a data frame of 'hits' (e.g. as produced by \code{\link{neuronbridge_search}}), a vector of file paths to saved MIP .png files
 or ids for data items (i.e. from \code{\link{neuronbridge_ids}}).}
 
 \item{no.hits}{the number of hits to visualise if \code{type="hits"}.}
 
 \item{type}{the type of argument given as \code{mips}.}
 
-\item{sleep}{defaults to \code{NULL}. User needs to press a key to move to the nex MIP. If a numeric value, then MIPs progress automatically and
+\item{sleep}{defaults to \code{NULL}. User needs to press a key to move to the next MIP. If a numeric value, then MIPs progress automatically and
 a pause of \code{sleep} seconds occurs before the next MIP is shown.}
 
 \item{interactive}{logical. When using \code{neuronbridge_remove_mips}, whether or not to be accosted with an 'are you sure'?.}
@@ -70,11 +70,11 @@ a named list of \code{.png} (\code{neuronbridge_mip}) or visualisation of a \cod
 \description{
 These functions allow one to get (\code{neuronbridge_mip}) and plot (\code{plot_mip}) colour MIPs (maximum projection images).
 MIPs are not 'stacks' of images, but a single image plane where colour encodes depth. The bluer the hue, the more anterior (front of the brain) the signal.
-The redder the hue, the more posterior (back fo the brain). There may be differences/difficulties plotting images between different operating systems.
+The redder the hue, the more posterior (back of the brain). There may be differences/difficulties plotting images between different operating systems.
 Only extensively tested on MacOS Catalina.
 }
 \details{
-By default MIPs are saved to your R session's temporary directory. However, you cna specify an alternative directory (argument: \code{db}).
+By default MIPs are saved to your R session's temporary directory. However, you can specify an alternative directory (argument: \code{db}).
 MIPs are saved as \code{.png} files, where the file names are given as \code{id_number.png}.
 
 FlyLight file names contain metadata as follows:
@@ -83,7 +83,8 @@ FlyLight file names contain metadata as follows:
 Find information on these meta data entries by examining \code{?neuronbridge_hits}.
 }
 \examples{
-
+\donttest{
+\dontrun{
 # Let us now see the related MIP file
 mip = neuronbridge_mip("542634818")
 ## This gets every MIP file associated with id
@@ -91,7 +92,7 @@ mip = neuronbridge_mip("542634818")
 
 # Plot the MIP image in an rgl viewer
 plot_mip(mip)
-
+}}
 }
 \seealso{
 \code{\link{neuronbridge_ids}},

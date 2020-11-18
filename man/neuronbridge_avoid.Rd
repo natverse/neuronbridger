@@ -16,11 +16,11 @@ neuronbridge_avoid(search, avoid, version = "v2_1_1", threshold = 23000)
 \item{threshold}{LM-EM matches with a \code{normalizedScore} below this value are not returned.}
 }
 \value{
-a \code{data.frame} of hits. Each row idnciates a separate MIP file with its own \code{nb.id}. The \code{data.frame} is already ranked by \code{normalizedScore}.
+a \code{data.frame} of hits. Each row indicates a separate MIP file with its own \code{nb.id}. The \code{data.frame} is already ranked by \code{normalizedScore}.
 Top scores (better match) are at the top of the data frame. The columns mean:
 \itemize{
 
-  \item{"publishedName"} { - the \code{id} for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
+  \item{"publishedName"} { - the \code{id} for the potential hit neuron/line. I.e. specifies a genetic driver resource or a connectome neuron.
   these are the same ids that can be seen with \code{\link{neuronbridge_ids}}.}
 
   \item{"libraryName"}{ - the data set from which this data item came.}
@@ -31,7 +31,7 @@ Top scores (better match) are at the top of the data frame. The columns mean:
 
   \item{"slideCode"}{ - the unique identifier for the sample from which the MIP came. The first number indicates the date the image was taken by FlyLight.}
 
-  \item{"objective"}{ - the magnification under which the imasge was taken.}
+  \item{"objective"}{ - the magnification under which the image was taken.}
 
   \item{"gender"}{ - the sex of the fly brain which this data item derives. f = female, m = male.}
 
@@ -44,14 +44,14 @@ Top scores (better match) are at the top of the data frame. The columns mean:
 
   \item{"mountingProtocol"}{ - the protocol used to prepare brain sample for imaging.}
 
-  \item{"matchingPixels"}{ - the number of overlapping pixels between query (\code{searched.id}) and taregt (\code{nb.id}).}
+  \item{"matchingPixels"}{ - the number of overlapping pixels between query (\code{searched.id}) and target (\code{nb.id}).}
 
   \item{"gradientAreaGap "}{ - unsure, seeking clarification from NeuronBridge}
 
   \item{"normalizedGapScore"}{ - unsure, seeking clarification from NeuronBridge}
 
-  \item{"normalizedScore"}{ - the matching score, created by examining the overlapped pixel number and color depth.
-  If the color and xy position of the pixel match between the mask and the searching data,
+  \item{"normalizedScore"}{ - the matching score, created by examining the overlapped pixel number and colourdepth.
+  If the colourand xy position of the pixel match between the mask and the searching data,
   then the approach here will count it as a positive matching score}
 
   \item{"searched.id"}{ - the \code{nb.id} you searched with, i.e. given to the function call}
