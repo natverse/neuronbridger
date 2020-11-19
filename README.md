@@ -7,8 +7,6 @@ status](https://travis-ci.com/natverse/neuronbridger.svg?branch=main)](https://t
 <img src="man/figures/logo.svg" align="right" height="139" /> [![Codecov
 test
 coverage](https://codecov.io/gh/natverse/neuronbridger/branch/main/graph/badge.svg)](https://codecov.io/gh/natverse/neuronbridger?branch=main)
-[![R build
-status](https://github.com/natverse/neuronbridger/workflows/R-CMD-check/badge.svg)](https://github.com/natverse/neuronbridger/actions)
 <!-- [![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://www.tidyverse.org/lifecycle/#stable) -->
 <!-- [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3843544.svg)](https://doi.org/10.5281/zenodo.3843544) -->
 <!-- badges: end -->
