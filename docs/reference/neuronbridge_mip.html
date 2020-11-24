@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Get and plot colour MIPs for neurons fron NeuronBridge — neuronbridge_mip • neuronbridger</title>
+<title>Get and plot colour MIPs for neurons from NeuronBridge — neuronbridge_mip • neuronbridger</title>
 
 <!-- favicons -->
 <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
@@ -46,10 +46,10 @@
 
 
 
-<meta property="og:title" content="Get and plot colour MIPs for neurons fron NeuronBridge — neuronbridge_mip" />
+<meta property="og:title" content="Get and plot colour MIPs for neurons from NeuronBridge — neuronbridge_mip" />
 <meta property="og:description" content="These functions allow one to get (neuronbridge_mip) and plot (plot_mip) colour MIPs (maximum projection images).
 MIPs are not 'stacks' of images, but a single image plane where colour encodes depth. The bluer the hue, the more anterior (front of the brain) the signal.
-The redder the hue, the more posterior (back fo the brain). There may be differences/difficulties plotting images between different operating systems.
+The redder the hue, the more posterior (back of the brain). There may be differences/difficulties plotting images between different operating systems.
 Only extensively tested on MacOS Catalina." />
 <meta property="og:image" content="/logo.svg" />
 
@@ -92,6 +92,18 @@ Only extensively tested on MacOS Catalina." />
         <li>
   <a href="../reference/index.html">Reference</a>
 </li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Articles
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="../articles/split_design.html">split GAL4 design</a>
+    </li>
+  </ul>
+</li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
         <li>
@@ -113,7 +125,7 @@ Only extensively tested on MacOS Catalina." />
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Get and plot colour MIPs for neurons fron NeuronBridge</h1>
+    <h1>Get and plot colour MIPs for neurons from NeuronBridge</h1>
     <small class="dont-index">Source: <a href='https://github.com/natverse/neuronbridger/blob/master/R/mip.R'><code>R/mip.R</code></a></small>
     <div class="hidden name"><code>neuronbridge_mip.Rd</code></div>
     </div>
@@ -121,7 +133,7 @@ Only extensively tested on MacOS Catalina." />
     <div class="ref-description">
     <p>These functions allow one to get (<code>neuronbridge_mip</code>) and plot (<code>plot_mip</code>) colour MIPs (maximum projection images).
 MIPs are not 'stacks' of images, but a single image plane where colour encodes depth. The bluer the hue, the more anterior (front of the brain) the signal.
-The redder the hue, the more posterior (back fo the brain). There may be differences/difficulties plotting images between different operating systems.
+The redder the hue, the more posterior (back of the brain). There may be differences/difficulties plotting images between different operating systems.
 Only extensively tested on MacOS Catalina.</p>
     </div>
 
@@ -188,7 +200,7 @@ directory: <code><a href='https://rdrr.io/r/base/file.path.html'>file.path(tempd
     </tr>
     <tr>
       <th>mips</th>
-      <td><p>either a data frame of 'hits' (e.g. as porduced by <code><a href='neuronbridge_hits.html'>neuronbridge_search</a></code>), a vector of file paths to saved MIP .png files
+      <td><p>either a data frame of 'hits' (e.g. as produced by <code><a href='neuronbridge_hits.html'>neuronbridge_search</a></code>), a vector of file paths to saved MIP .png files
 or ids for data items (i.e. from <code><a href='neuronbridge_ids.html'>neuronbridge_ids</a></code>).</p></td>
     </tr>
     <tr>
@@ -201,7 +213,7 @@ or ids for data items (i.e. from <code><a href='neuronbridge_ids.html'>neuronbri
     </tr>
     <tr>
       <th>sleep</th>
-      <td><p>defaults to <code>NULL</code>. User needs to press a key to move to the nex MIP. If a numeric value, then MIPs progress automatically and
+      <td><p>defaults to <code>NULL</code>. User needs to press a key to move to the next MIP. If a numeric value, then MIPs progress automatically and
 a pause of <code>sleep</code> seconds occurs before the next MIP is shown.</p></td>
     </tr>
     <tr>
@@ -215,7 +227,7 @@ a pause of <code>sleep</code> seconds occurs before the next MIP is shown.</p></
     <p>a named list of <code>.png</code> (<code>neuronbridge_mip</code>) or visualisation of a <code>.png</code> MIP in an <code>rgl</code> display (<code>plot_mip</code>).</p>
     <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
 
-    <p>By default MIPs are saved to your R session's temporary directory. However, you cna specify an alternative directory (argument: <code>db</code>).
+    <p>By default MIPs are saved to your R session's temporary directory. However, you can specify an alternative directory (argument: <code>db</code>).
 MIPs are saved as <code>.png</code> files, where the file names are given as <code>id_number.png</code>.</p>
 <p>FlyLight file names contain metadata as follows:
 <code>'[Publishing Name]-[Slide Code]-[Driver]-[Gender]-[Objective]-[Area/Tile]-[Alignment Space]-CDM_[Channel].png'</code></p>
@@ -227,15 +239,16 @@ MIPs are saved as <code>.png</code> files, where the file names are given as <co
   <code><a href='neuronbridge_hits.html'>neuronbridge_search</a></code></p></div>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
-    <pre class="examples"><div class='input'>
+    <pre class="examples"><div class='input'><span class='co'># \donttest{</span>
+<span class='kw'>if</span> <span class='op'>(</span><span class='cn'>FALSE</span><span class='op'>)</span> <span class='op'>{</span>
 <span class='co'># Let us now see the related MIP file</span>
 <span class='va'>mip</span> <span class='op'>=</span> <span class='fu'>neuronbridge_mip</span><span class='op'>(</span><span class='st'>"542634818"</span><span class='op'>)</span>
-</div><div class='output co'>#&gt; <span class='warning'>Warning: invalid factor level, NA generated</span></div><div class='input'><span class='co'>## This gets every MIP file associated with id</span>
+<span class='co'>## This gets every MIP file associated with id</span>
 <span class='co'>## In this case, just one</span>
 
 <span class='co'># Plot the MIP image in an rgl viewer</span>
 <span class='fu'>plot_mip</span><span class='op'>(</span><span class='va'>mip</span><span class='op'>)</span>
-
+<span class='op'>}</span><span class='co'># }</span>
 </div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

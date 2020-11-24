@@ -48,7 +48,7 @@
 
 <meta property="og:title" content="Use NeuronBridge to estimate which hemibrain connectome neurons are taregted by a genetic driver line — neuronbridge_line_contents" />
 <meta property="og:description" content="This function uses neuronbridge_search to get potential connectime matches for the given genetic driver line (line).
-Each line may have multiple images associated with it, likely because it has undergoen stochastic labelling to better see what the line contains. Each
+Each line may have multiple images associated with it, likely because it has undergone stochastic labelling to better see what the line contains. Each
 of these images is searched and potential connectome hits returned. Each is assigned its highest score. The final output is filtered to that the LM-EM matching score
 is below the given threshold." />
 <meta property="og:image" content="/logo.svg" />
@@ -92,6 +92,18 @@ is below the given threshold." />
         <li>
   <a href="../reference/index.html">Reference</a>
 </li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Articles
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="../articles/split_design.html">split GAL4 design</a>
+    </li>
+  </ul>
+</li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
         <li>
@@ -120,7 +132,7 @@ is below the given threshold." />
 
     <div class="ref-description">
     <p>This function uses <code><a href='neuronbridge_hits.html'>neuronbridge_search</a></code> to get potential connectime matches for the given genetic driver line (<code>line</code>).
-Each line may have multiple images associated with it, likely because it has undergoen stochastic labelling to better see what the line contains. Each
+Each line may have multiple images associated with it, likely because it has undergone stochastic labelling to better see what the line contains. Each
 of these images is searched and potential connectome hits returned. Each is assigned its highest score. The final output is filtered to that the LM-EM matching score
 is below the given <code>threshold</code>.</p>
     </div>
@@ -188,8 +200,8 @@ Top scores (better match) are at the top of the data frame. The columns mean:</p
   these are the same ids that can be seen with <code><a href='neuronbridge_ids.html'>neuronbridge_ids</a></code>.</p></li>
 <li><p>"libraryName" - the data set from which this data item came.
 #'</p></li>
-<li><p>"normalizedScore" - the matching score, created by examining the overlapped pixel number and color depth.
-  If the color and xy position of the pixel match between the mask and the searching data,
+<li><p>"normalizedScore" - the matching score, created by examining the overlapped pixel number and colourdepth.
+  If the colourand xy position of the pixel match between the mask and the searching data,
   then the approach here will count it as a positive matching score</p></li>
 <li><p>"searched" - the <code>line</code> you searched with, i.e. given to the function call</p></li>
 </ul>

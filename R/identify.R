@@ -262,12 +262,14 @@ neuronbridge_predict_split <-function(line1,
   l2 = neuronbridge_line_contents(line = line2, neuprintr = neuprintr, version = version, threshold = threshold2)
 
   # Intersect
-  split = l1[l1$publishedName%in%l2$publishedName,]
-  split$line1 = line1
-  split$line2 = line2
-  split$normalizedScore.line1 = split$normalizedScore
-  split$normalizedScore.line2 = l2[match(split$publishedName,l2$publishedName),"normalizedScore"]
-  split$searched = split$normalizedScore = NULL
+  if(nrow(split)){
+    split = l1[l1$publishedName%in%l2$publishedName,]
+    split$line1 = line1
+    split$line2 = line2
+    split$normalizedScore.line1 = split$normalizedScore
+    split$normalizedScore.line2 = l2[match(split$publishedName,l2$publishedName),"normalizedScore"]
+    split$searched = split$normalizedScore = NULL
+  }
   split
 
 }

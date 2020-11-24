@@ -157,7 +157,7 @@ scan_mip(mips = nb.hits, no.hits = 10)
 
 # Good, some nice looking possibilities there.
 ## We have saved a lot of MIP files in our local directory.
-## Which is good if we wish to keep acccessing them, but we can clear with:
+## Which is good if we wish to keep accessing them, but we can clear with:
 neuronbridge_remove_mips()
 
 # This said, best practice would be to set the option 'neuronbridger' to a location

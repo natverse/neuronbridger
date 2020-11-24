@@ -93,6 +93,18 @@ See details below." />
         <li>
   <a href="../reference/index.html">Reference</a>
 </li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Articles
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="../articles/split_design.html">split GAL4 design</a>
+    </li>
+  </ul>
+</li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
         <li>
@@ -152,26 +164,26 @@ See details below.</p>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>a <code>data.frame</code> of hits. Each row idnciates a separate MIP file with its own <code>nb.id</code>. The <code>data.frame</code> is already ranked by <code>normalizedScore</code>.
+    <p>a <code>data.frame</code> of hits. Each row indicates a separate MIP file with its own <code>nb.id</code>. The <code>data.frame</code> is already ranked by <code>normalizedScore</code>.
 Top scores (better match) are at the top of the data frame. The columns mean:</p><ul>
-<li><p>"publishedName"  - the <code>id</code> for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
+<li><p>"publishedName"  - the <code>id</code> for the potential hit neuron/line. I.e. specifies a genetic driver resource or a connectome neuron.
   these are the same ids that can be seen with <code><a href='neuronbridge_ids.html'>neuronbridge_ids</a></code>.</p></li>
 <li><p>"libraryName" - the data set from which this data item came.</p></li>
 <li><p>"imageURL" - the path on https://s3.amazonaws.com/, at which one can find a 'high res' .png of the MIP file for this data item.</p></li>
 <li><p>"thumbnailURL" - the path on https://s3.amazonaws.com/, at which one can find a 'low res' .jpg thumbnail of the MIP file for this data item.</p></li>
 <li><p>"slideCode" - the unique identifier for the sample from which the MIP came. The first number indicates the date the image was taken by FlyLight.</p></li>
-<li><p>"objective" - the magnification under which the imasge was taken.</p></li>
+<li><p>"objective" - the magnification under which the image was taken.</p></li>
 <li><p>"gender" - the sex of the fly brain which this data item derives. f = female, m = male.</p></li>
 <li><p>"anatomicalArea" - the gross part of the nervous system images, e.g. brain or ventral nervous system.</p></li>
 <li><p>"alignmentSpace" - the template brain to which the image that formed this MIP, was aligned.
   Typically, this is the JR2018 standard template brain from <a href='https://doi.org/10.1101/376384'>Bogovic et al. 2018</a>.</p></li>
 <li><p>"channel" - number of the channel from the aligned image stack that is represented by this MIP.</p></li>
 <li><p>"mountingProtocol" - the protocol used to prepare brain sample for imaging.</p></li>
-<li><p>"matchingPixels" - the number of overlapping pixels between query (<code>searched.id</code>) and taregt (<code>nb.id</code>).</p></li>
+<li><p>"matchingPixels" - the number of overlapping pixels between query (<code>searched.id</code>) and target (<code>nb.id</code>).</p></li>
 <li><p>"gradientAreaGap " - unsure, seeking clarification from NeuronBridge</p></li>
 <li><p>"normalizedGapScore" - unsure, seeking clarification from NeuronBridge</p></li>
-<li><p>"normalizedScore" - the matching score, created by examining the overlapped pixel number and color depth.
-  If the color and xy position of the pixel match between the mask and the searching data,
+<li><p>"normalizedScore" - the matching score, created by examining the overlapped pixel number and colourdepth.
+  If the colourand xy position of the pixel match between the mask and the searching data,
   then the approach here will count it as a positive matching score</p></li>
 <li><p>"searched.id" - the <code>nb.id</code> you searched with, i.e. given to the function call</p></li>
 <li><p>"nb.id" - the 'NeuronBridge ID' for the MIP file.</p></li>

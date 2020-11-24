@@ -90,6 +90,18 @@ for *D. melanogaster* neurons and genetic driver lines that have been used in EM
         <li>
   <a href="../reference/index.html">Reference</a>
 </li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Articles
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="../articles/split_design.html">split GAL4 design</a>
+    </li>
+  </ul>
+</li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
         <li>
@@ -124,7 +136,8 @@ for *D. melanogaster* neurons and genetic driver lines that have been used in EM
     <pre class="usage"><span class='fu'>neuronbridge_info</span><span class='op'>(</span>
   <span class='va'>id</span>,
   dataset <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"detect"</span>, <span class='st'>"by_line"</span>, <span class='st'>"by_body"</span><span class='op'>)</span>,
-  version <span class='op'>=</span> <span class='st'>"v2_1_1"</span>
+  version <span class='op'>=</span> <span class='st'>"v2_1_1"</span>,
+  <span class='va'>...</span>
 <span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
@@ -174,13 +187,14 @@ Each relates to the <code>id</code> you gave in the function call, but each also
   <code><a href='neuronbridge_mip.html'>neuronbridge_mip</a></code></p></div>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
-    <pre class="examples"><div class='input'>
+    <pre class="examples"><div class='input'><span class='co'># \donttest{</span>
+<span class='kw'>if</span> <span class='op'>(</span><span class='cn'>FALSE</span><span class='op'>)</span> <span class='op'>{</span>
 <span class='co'># Get information on a mushroombody related GMR GAL4 driver line</span>
 <span class='va'>nb.info.lm</span> <span class='op'>=</span> <span class='fu'>neuronbridge_info</span><span class='op'>(</span><span class='st'>"MB543B"</span><span class='op'>)</span>
-</div><div class='output co'>#&gt; <span class='warning'>Warning: invalid factor level, NA generated</span></div><div class='input'>
+
 <span class='co'># Get information on the hemibrain neuron,</span>
 <span class='va'>nb.info.em</span> <span class='op'>=</span> <span class='fu'>neuronbridge_info</span><span class='op'>(</span><span class='st'>"542634818"</span><span class='op'>)</span>
-</div><div class='output co'>#&gt; <span class='warning'>Warning: invalid factor level, NA generated</span></div><div class='input'>
+<span class='op'>}</span><span class='co'># }</span>
 </div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

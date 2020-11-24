@@ -47,7 +47,7 @@
 
 
 <meta property="og:title" content="Get EM-LM neuron matches for fly brain neurons from neuronbridge.janelia.org — neuronbridge_hits" />
-<meta property="og:description" content="The function neuronbridge_hits retreives a ranked list of hits for a MIP file search.
+<meta property="og:description" content="The function neuronbridge_hits retrieves a ranked list of hits for a MIP file search.
 Specify the MIP file you want to search for by using its nb.id. This can be found by
 using neuronbridge_info. neuronbridge_search will run neuronbridge_info and then neuronbridge_hits, to make things easier.
 The function neuronbridge_search can also handle being given multiple IDs, i.e. searching for multiple data items at once.
@@ -93,6 +93,18 @@ MIP options can be fetched and visualised with neuronbridge_mip." />
         <li>
   <a href="../reference/index.html">Reference</a>
 </li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Articles
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="../articles/split_design.html">split GAL4 design</a>
+    </li>
+  </ul>
+</li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
         <li>
@@ -120,7 +132,7 @@ MIP options can be fetched and visualised with neuronbridge_mip." />
     </div>
 
     <div class="ref-description">
-    <p>The function <code>neuronbridge_hits</code> retreives a ranked list of hits for a MIP file search.
+    <p>The function <code>neuronbridge_hits</code> retrieves a ranked list of hits for a MIP file search.
 Specify the MIP file you want to search for by using its <code>nb.id</code>. This can be found by
 using <code><a href='neuronbridge_info.html'>neuronbridge_info</a></code>. <code>neuronbridge_search</code> will run <code>neuronbridge_info</code> and then <code>neuronbridge_hits</code>, to make things easier.
 The function <code>neuronbridge_search</code> can also handle being given multiple IDs, i.e. searching for multiple data items at once.
@@ -141,7 +153,7 @@ MIP options can be fetched and visualised with <code><a href='neuronbridge_mip.h
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
       <th>nb.id</th>
-      <td><p>an internal ID used by <a href='https://neuronbridge.janelia.org/'>neuronbridge.janelia.org</a> to identigy neurons/lines. This
+      <td><p>an internal ID used by <a href='https://neuronbridge.janelia.org/'>neuronbridge.janelia.org</a> to identify neurons/lines. This
 differs from <code>id</code> used by other functions, and can be found using <code><a href='neuronbridge_info.html'>neuronbridge_info</a></code>.</p></td>
     </tr>
     <tr>
@@ -202,21 +214,22 @@ Top scores (better match) are at the top of the data frame. The columns mean:</p
   <code><a href='neuronbridge_ids.html'>neuronbridge_ids</a></code></p></div>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
-    <pre class="examples"><div class='input'>
+    <pre class="examples"><div class='input'><span class='co'># \donttest{</span>
+<span class='kw'>if</span> <span class='op'>(</span><span class='cn'>FALSE</span><span class='op'>)</span> <span class='op'>{</span>
 <span class='va'>nb.info.em</span> <span class='op'>=</span> <span class='fu'><a href='neuronbridge_info.html'>neuronbridge_info</a></span><span class='op'>(</span><span class='st'>"542634818"</span><span class='op'>)</span>
-</div><div class='output co'>#&gt; <span class='warning'>Warning: invalid factor level, NA generated</span></div><div class='input'><span class='va'>nb.hits</span> <span class='op'>=</span> <span class='fu'>neuronbridge_hits</span><span class='op'>(</span><span class='va'>nb.info.em</span><span class='op'>$</span><span class='va'>nb.id</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>
-</div><div class='output co'>#&gt; <span class='warning'>Warning: invalid factor level, NA generated</span></div><div class='input'><span class='co'># View(nb.hits[1:10,]) # see the top 10 hits</span>
+<span class='va'>nb.hits</span> <span class='op'>=</span> <span class='fu'>neuronbridge_hits</span><span class='op'>(</span><span class='va'>nb.info.em</span><span class='op'>$</span><span class='va'>nb.id</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>
+<span class='co'># View(nb.hits[1:10,]) # see the top 10 hits</span>
 
 <span class='co'># One can also do this in one with:</span>
 <span class='va'>nb.search</span> <span class='op'>=</span> <span class='fu'>neuronbridge_search</span><span class='op'>(</span><span class='st'>"542634818"</span><span class='op'>)</span>
-</div><div class='output co'>#&gt; <span class='warning'>Warning: invalid factor level, NA generated</span></div><div class='output co'>#&gt; <span class='warning'>Warning: invalid factor level, NA generated</span></div><div class='input'><span class='co'>## However, this differs from the above in that every MIP</span>
+<span class='co'>## However, this differs from the above in that every MIP</span>
 <span class='co'>## associated with the given id, is searched. For a connectome</span>
 <span class='co'>## neuron this is just 1, but for a GAL4 line with MCFO data it</span>
 <span class='co'>## can be many quite different images.</span>
 
 <span class='co'># Note that nb.info.em here is actually an attribute you can see</span>
 <span class='va'>nb.info.em</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/attr.html'>attr</a></span><span class='op'>(</span><span class='va'>nb.search</span>,<span class='st'>"search"</span><span class='op'>)</span>
-
+<span class='op'>}</span><span class='co'># }</span>
 </div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
