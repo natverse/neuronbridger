@@ -64,7 +64,7 @@ data from stochastic labelling (MCFO) of line [(Meissener et al. 2020)](https://
 
 The data is also available on [quilt](https://open.quiltdata.com/b/janelia-flylight-color-depth/tree).
 
-[NBLAST](https://github.com/natverse/nat.nblast) can also be used to match EM and LM neurons. However, it works best with 'skeletonised' neurons. Using 'colour depth mask search' circumvents this 'skeletonisation' step for both volumetric EM data and LM data. This step is still non-trivial. We have used NBLAST to match skeletons between two EM dataset, see: [neuron matching with hemibrainr](https://flyconnectome.github.io/hemibrainr/articles/match_making.html).
+[NBLAST](https://github.com/natverse/nat.nblast) can also be used to match EM and LM neurons. However, it works best with 'skeletonised' neurons. Using 'colour depth mask search' circumvents this 'skeletonisation' step for both volumetric EM data and LM data. This step is still non-trivial. We have used NBLAST to match skeletons between two EM dataset, see: [neuron matching with hemibrainr](https://natverse.github.io/hemibrainr/articles/match_making.html).
 
 ## Why would I need to look at these results in R?
 

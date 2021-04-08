@@ -1,5 +1,6 @@
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 <!-- badges: start -->
+
 [![natverse](https://img.shields.io/badge/natverse-Part%20of%20the%20natverse-a241b6)](https://natverse.github.io)
 [![Docs](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](http://natverse.github.io/neuronbridger/reference/)
 [![Travis build
@@ -11,14 +12,13 @@ coverage](https://codecov.io/gh/natverse/neuronbridger/branch/main/graph/badge.s
 <!-- [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3843544.svg)](https://doi.org/10.5281/zenodo.3843544) -->
 <!-- badges: end -->
 
-neuronbridger
-=============
+# neuronbridger
 
 The goal of `neuronbridger` is to provide R client utilities for
 interacting with the [NeuronBridge](https://neuronbridge.janelia.org/)
 neuron matching service. This can help a user design sparse genetic
-driver lines for *D. melanogaster* neurons (i.e.
-[split-GAL4](https://www.janelia.org/lab/rubin-lab/our-research/gal4-driver-lines/split-gal4-lines)
+driver lines for *D. melanogaster* neurons
+(i.e. [split-GAL4](https://www.janelia.org/lab/rubin-lab/our-research/gal4-driver-lines/split-gal4-lines)
 lines) and discover what connectome-derived neuronal cell types are
 targetted by which extant genetic driver lines. This is becoming
 increasingly important as wet-lab biologists attempt to make sense of
@@ -52,8 +52,7 @@ lines. The package
 specific tools for annotations and analysis of the [hemibrain
 connectome](https://www.janelia.org/project-team/flyem/hemibrain).
 
-Data sets
----------
+## Data sets
 
 The major EM dataset at the time when this package was built was the
 [hemibrain
@@ -74,8 +73,7 @@ them to results from the connectome enables researchers to
 experimentally manipulate components of the fly brain’s ‘wiring
 diagram’.
 
-How have these searches been performed?
----------------------------------------
+## How have these searches been performed?
 
 [NeuronBridge](https://neuronbridge.janelia.org/) uses results from a
 ‘colour depth mask search’. The methodology has recently been published
@@ -84,7 +82,7 @@ al. 2018)](https://www.biorxiv.org/content/10.1101/318006v1). This
 method represents 3d voxel space in a 2d image by encoding depth as
 colour, and allows for a fast pixel-based comparison across specimens.
 Both LM image volumes and EM reconstructions can be represented in this
-space, leading to efficient LM-&gt;EM and EM-&gt;LM searching.
+space, leading to efficient LM-\>EM and EM-\>LM searching.
 
 Images are represented as colour ‘maximum intensity projection images’
 (MIPs). A MIP is there not a ‘stack’ of images, but a single pane.
@@ -93,14 +91,14 @@ Here is an example of a MIP for a hemibrain neuron
 ([542634818](https://neuprint.janelia.org/view?bodyid=542634818), the
 DM1 olfactory uPN):
 
-![mip\_em\_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_em_example.png)
+![mip_em_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_em_example.png)
 
 And for a GAL4 lines that seems to contains that neuron
 ([R84D10](https://v2.virtualflybrain.org/org.geppetto.frontend/geppetto?id=VFBexp_FBtp0063448),
 data from stochastic labelling (MCFO) of line [(Meissener et
 al. 2020)](https://doi.org/10.1101/2020.05.29.080473)):
 
-![mip\_gmr\_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png)
+![mip_gmr_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png)
 
 [NeuronBridge](https://neuronbridge.janelia.org/) loads precomputed
 matches between FlyLight Split GAL4 and MCFO vs Hemibrain 1.1. See its
@@ -118,10 +116,9 @@ neurons. Using ‘colour depth mask search’ circumvents this
 ‘skeletonisation’ step for both volumetric EM data and LM data. This
 step is still non-trivial. We have used NBLAST to match skeletons
 between two EM dataset, see: [neuron matching with
-hemibrainr](https://flyconnectome.github.io/hemibrainr/articles/match_making.html).
+hemibrainr](https://natverse.github.io/hemibrainr/articles/match_making.html).
 
-Why would I need to look at these results in R?
------------------------------------------------
+## Why would I need to look at these results in R?
 
 The [NeuronBridge website](https://neuronbridge.janelia.org/) is great
 for examining results. However, if we want to consider many neurons are
@@ -143,13 +140,11 @@ example, calcium imaging, or allow experimenters to only manipulate
 those cells when performing, for example, optogenetic behavioural
 experiments.
 
-Tutorial
-========
+# Tutorial
 
 Let us to grips with `neuronbridger`.
 
-Installation
-------------
+## Installation
 
 ``` r
 # install
@@ -160,8 +155,7 @@ remotes::install_github("natverse/neuronbridger")
 library(neuronbridger)
 ```
 
-Example
--------
+## Example
 
 Now we can have a look at what is available. Let us be interested in the
 hemibrain neuron 542634818, the DM1 uPN. This neuron is an olfactory
@@ -272,7 +266,7 @@ plot3d(all.pns, soma = 500, lwd = 0.5, alpha = 0.25)
 ## However, there is a lot that looks similar that might also be labelled by the same lines.
 ```
 
-![em\_dm1\_upn](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_dm1_upn.png)
+![em_dm1_upn](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_dm1_upn.png)
 
 So how can we make sure we only get the PN we want, and not these other
 PNs?
@@ -356,7 +350,7 @@ mips = neuronbridge_mip(line)
 scan_mip(mips,type="images", sleep = 5)
 ```
 
-![em\_hits](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_hits.png)
+![em_hits](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_hits.png)
 
 We can use this to try to work out how to design a ‘split’ line. The
 split-GAL4 method allows an experimenter to ‘intersect’ the expression
@@ -394,11 +388,9 @@ the more stochastic labelling (MCFO) that has been performed on a line,
 the more certain we can be of its contents - but many lines need a lot
 more MCFO.
 
-Acknowledgments
-===============
+# Acknowledgments
 
-Data and tools
---------------
+## Data and tools
 
 [NeuronBridge](https://neuronbridge.janelia.org/) was developed by
 scientific advisors (Geoffrey Meissner, Wyatt Korff, Gudrun Ihrke), data
@@ -430,21 +422,20 @@ citation(package = "neuronbridger")
 
 **Bates AS** (2020). *neuronbridger: R client utilities for interacting
 with the neuronbridge matching service.* **R package** version 2.1.1.
-<a href="https://github.com/natverse/neuronbridger" class="uri">https://github.com/natverse/neuronbridger</a>
+<https://github.com/natverse/neuronbridger>
 
-Citations
----------
+## Citations
 
 -   **The hemibrain connectome (hemibrain:v1.1)**: Scheffer, L.K., Xu,
     C.S., Januszewski, M., Lu, Z., Takemura, S.-Y., Hayworth, K.J.,
-    Huang, G.B., Shinomiya, K., Maitlin-Shepard, J., Berg, S., et al.
-    (2020). A connectome and analysis of the adult Drosophila central
-    brain. Elife 9. [doi:
+    Huang, G.B., Shinomiya, K., Maitlin-Shepard, J., Berg, S., et
+    al. (2020). A connectome and analysis of the adult Drosophila
+    central brain. Elife 9. [doi:
     https://doi.org/10.1101/2020.05.29.080473](https://doi.org/10.1101/2020.05.29.080473)
 
 -   **Gen 1 GAL4 line MCFO**: Meissner, G.W., Dorman, Z., Nern, A.,
     Forster, K., Gibney, T., Jeter, J., Johnson, L., He, Y., Lee, K.,
-    Melton, B., et al. (2020). An image resource of subdivided
+    Melton, B., et al. (2020). An image resource of subdivided
     Drosophila GAL4-driver expression patterns for neuron-level
     searches. bioRxiv. [doi:
     https://doi.org/10.1101/2020.05.29.080473](https://doi.org/10.1101/2020.05.29.080473)
@@ -457,7 +448,7 @@ Citations
 
 -   **Gen 1 GMR GAL4 lines**: Jenett, A., Rubin, G.M., Ngo, T.-T.B.,
     Shepherd, D., Murphy, C., Dionne, H., Pfeiffer, B.D., Cavallaro, A.,
-    Hall, D., Jeter, J., et al. (2012). A GAL4-Driver Line Resource for
+    Hall, D., Jeter, J., et al. (2012). A GAL4-Driver Line Resource for
     Drosophila Neurobiology. Cell Rep. 2, 991–1001. [doi:
     https://doi.org/10.1016/j.celrep.2012.09.011](https://doi.org/10.1016/j.celrep.2012.09.011)
 
@@ -468,7 +459,7 @@ Citations
 
 -   **JRC2018F brain and VNS templates**: Bogovic, J.A., Otsuna, H.,
     Heinrich, L., Ito, M., Jeter, J., Meissner, G.W., Nern, A.,
-    Colonell, J., Malkesman, O., Ito, K., et al. (2018). An unbiased
+    Colonell, J., Malkesman, O., Ito, K., et al. (2018). An unbiased
     template of the Drosophila brain and ventral nerve cord. bioRxiv.
     [doi:
     https://doi.org/10.1101/376384](https://doi.org/10.1101/376384)
