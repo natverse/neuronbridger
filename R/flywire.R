@@ -122,8 +122,14 @@ mesh_to_nrrd <- function(fw.meshes,
 nrrd_to_mip <- function(fiji.path = NULL, MinMem = MaxMem, MaxMem = "2500m"){
   fiji.path = fiji(fijiPath  = fiji.path) # e.g. fiji.path = 'C:\\Program Files\\Fiji.app\\ImageJ-win64.exe'
   message('fiji: ', fiji.path)
+  os <- get_os()
+  if (os == "windows"){
+    macro = normalizePath(file.path(dirname(fiji.path), 'plugins\\Macros\\Color_Depth_MIP_batch_0308_2021.ijm'))
+  }else{
+    macro = normalizePath('/Applications/Fiji.app/plugins/Macros/Color_Depth_MIP_batch_0308_2021.ijm')
+  }
   runFijiMacro(
-    macro = normalizePath(file.path(dirname(fiji.path), 'plugins\\Macros\\Color_Depth_MIP_batch_0308_2021.ijm')),
+    macro = macro,
     macroArg = "",
     headless = FALSE,
     batch = FALSE,
