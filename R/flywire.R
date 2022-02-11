@@ -61,6 +61,8 @@ mesh_to_nrrd <- function(fw.meshes,
                          file = NULL){
   # Download requried registrations
   # nat.jrcbrains::download_saalfeldlab_registrations()
+  fafbseg:::check_package_available('nat.flybrains')
+  fafbseg:::check_package_available('nat.templatebrains')
   if(grepl("JRC2018",reference)){
     nat.jrcbrains::register_saalfeldlab_registrations()
   }
