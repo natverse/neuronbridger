@@ -81,10 +81,9 @@ mesh_to_nrrd <- function(fw.meshes,
   # make im3d
   x <- get(brain, pos = c("package:nat.flybrains"))
   if(janelia.mip){
-    points=nat::xyzmatrix(fw.reg)#*(0.38/0.5189161)
-    I=nat::as.im3d(points,
-                  voxdims =c(0.5195,0.52, 1.0000000),
-                  BoundingBox = structure(c(0, 627.8885, 0, 293.7065, 0, 174), .Dim = 2:3, class = "boundingbox"))
+    JRC2018U_HR = templatebrain("JRC2018U_HR", dims = c(1210,566,174), voxdims = c(0.519,0.519,1), units = "microns")
+    points=nat::xyzmatrix(fw.reg)
+    I=nat::as.im3d(points,JRC2018U_HR)
   }else{
     points=nat::xyzmatrix(fw.reg)
     I=nat::as.im3d(points,x)
