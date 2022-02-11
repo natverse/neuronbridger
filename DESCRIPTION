@@ -1,7 +1,7 @@
 Package: neuronbridger
 Type: Package
 Title: R client utilities for interacting with the NeuronBridge matching service
-Version: 2.1.1
+Version: 2.2.0
 Authors@R: c(
     person("Alexander", "Bates", email = "alexander.shakeel.bates@gmail.com", 
       role = c("aut", "cre"), comment = c(ORCID = "0000-0002-1195-0445"))
@@ -15,8 +15,14 @@ Suggests:
     knitr,
     rmarkdown,
     XML,
+    nat,
     neuprintr,
-    covr
+    covr,
+    fafbseg,
+    elmr,
+    nat.flybrains,
+    nat.jrcbrains,
+    nat.templatebrains
 VignetteBuilder: knitr
 Depends: R (>= 2.10)
 Imports: 
@@ -31,9 +37,15 @@ Imports:
     utils,
     stats
 Remotes: 
+    natverse/nat
+    natverse/nat.templatebrains
     natverse/neuprintr
+    natverse/fafbseg
+    natverse/elmr
+    natverse/nat.flybrains
+    natverse/nat.jrcbrains
 Encoding: UTF-8
 Language: en-GB
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2
 URL: https://github.com/natverse/neuronbridger
 BugReports: https://github.com/natverse/neuronbridger/issues
