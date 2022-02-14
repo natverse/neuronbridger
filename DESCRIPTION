@@ -37,12 +37,12 @@ Imports:
     utils,
     stats
 Remotes: 
-    natverse/nat
-    natverse/nat.templatebrains
-    natverse/neuprintr
-    natverse/fafbseg
-    natverse/elmr
-    natverse/nat.flybrains
+    natverse/nat,
+    natverse/nat.templatebrains,
+    natverse/neuprintr,
+    natverse/fafbseg,
+    natverse/elmr,
+    natverse/nat.flybrains,
     natverse/nat.jrcbrains
 Encoding: UTF-8
 Language: en-GB
