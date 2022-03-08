@@ -160,19 +160,19 @@ get_mip <- function(nb.info,
     }
     temp = file.path(db,paste0(nam,extension))
     if(!file.exists(temp)){
-      tryCatch(utils::download.file(url = img.path, destfile = temp, quiet = TRUE),
+      tryCatch(utils::download.file(url = img.path, destfile = temp, quiet = TRUE, method = "curl"),
                error = function(e){
                  warning(as.character(e))
                  })
-    }else{
-      if(extension==".png"){
-        img = png::readPNG(temp)
-      }else{
-        img = jpeg::readJPEG(temp)
-      }
-      names(img) = rownames(nb.info)[i]
-      img.list[[rownames(nb.info)[i]]] = img
     }
+    if(extension==".png"){
+      img = png::readPNG(temp)
+    }else{
+      img = jpeg::readJPEG(temp)
+    }
+    names(img) = rownames(nb.info)[i]
+    img.list[[rownames(nb.info)[i]]] = img
+
   }
   img.list
 }
