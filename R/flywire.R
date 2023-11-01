@@ -81,7 +81,7 @@ mesh_to_nrrd <- function(fw.meshes,
   # make im3d
   x <- get(brain, pos = c("package:nat.flybrains"))
   if(janelia.mip){
-    JRC2018U_HR = templatebrain("JRC2018U_HR", dims = c(1210,566,174), voxdims = c(0.519,0.519,1), units = "microns")
+    JRC2018U_HR = nat.templatebrains::templatebrain("JRC2018U_HR", dims = c(1210,566,174), voxdims = c(0.519,0.519,1), units = "microns")
     points=nat::xyzmatrix(fw.reg)
     I=nat::as.im3d(points,JRC2018U_HR)
   }else{
@@ -107,6 +107,7 @@ mesh_to_nrrd <- function(fw.meshes,
 #' then select directory for saving MIPs. Pay attention to the parameters you can then adjust. Skeleton bolded MIP can be useful for data coming from skeleton or even mesh sources.
 #'
 #' @param fiji.path path to your system's Fiji. If NULL, attempts to find using \code{getOption("jimpipeline.fiji")}.
+#' @param macro path to the Fiji macro used to create the MIP file. Defaults to the macro contained within this R package: \code{Color_Depth_MIP_batch_0308_2021.ijm}.
 #' @param MinMem lower memory limit
 #' @param MaxMem upper memory limit
 #'
@@ -114,18 +115,25 @@ mesh_to_nrrd <- function(fw.meshes,
 #'
 #' @examples
 #' \donttest{
-#' nrrd_to_mip(fiji.path = "C:/Program Files/Fiji.app/ImageJ-win64.exe")
+#' nrrd_to_mip()
 #' }
 #' @seealso \code{\link{nrrd_to_mip}}
 #' @export
-nrrd_to_mip <- function(fiji.path = NULL, MinMem = MaxMem, MaxMem = "2500m"){
+nrrd_to_mip <- function(fiji.path = NULL,
+                        macro = system.file(file.path("exdata","macros"),"Color_Depth_MIP_batch_0308_2021.ijm", package="neuronbridger"),
+                        MinMem = MaxMem,
+                        MaxMem = "2500m"){
   fiji.path = fiji(fijiPath  = fiji.path) # e.g. fiji.path = 'C:\\Program Files\\Fiji.app\\ImageJ-win64.exe'
   message('fiji: ', fiji.path)
-  os <- get_os()
-  if (os == "windows"){
-    macro = normalizePath(file.path(dirname(fiji.path), 'plugins\\Macros\\Color_Depth_MIP_batch_0308_2021.ijm'))
+  if(is.null(macro)){
+    os <- get_os()
+    if (os == "windows"){
+      macro = normalizePath(file.path(dirname(fiji.path), 'plugins\\Macros\\Color_Depth_MIP_batch_0308_2021.ijm'))
+    }else{
+      macro = normalizePath('/Applications/Fiji.app/plugins/Macros/Color_Depth_MIP_batch_0308_2021.ijm')
+    }
   }else{
-    macro = normalizePath('/Applications/Fiji.app/plugins/Macros/Color_Depth_MIP_batch_0308_2021.ijm')
+    macro = normalizePath(macro)
   }
   runFijiMacro(
     macro = macro,

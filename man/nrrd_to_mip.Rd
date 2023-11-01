@@ -4,10 +4,18 @@
 \alias{nrrd_to_mip}
 \title{Open Fiji on your computer and use it to convert your .nrrd files into color MIPs}
 \usage{
-nrrd_to_mip(fiji.path = NULL, MinMem = MaxMem, MaxMem = "2500m")
+nrrd_to_mip(
+  fiji.path = NULL,
+  macro = system.file("macros", "Color_Depth_MIP_batch_0308_2021.ijm", package =
+    "neuronbridger"),
+  MinMem = MaxMem,
+  MaxMem = "2500m"
+)
 }
 \arguments{
 \item{fiji.path}{path to your system's Fiji. If NULL, attempts to find using \code{getOption("jimpipeline.fiji")}.}
+
+\item{macro}{path to the Fiji macro used to create the MIP file. Defaults to the macro contained within this R package: \code{Color_Depth_MIP_batch_0308_2021.ijm}.}
 
 \item{MinMem}{lower memory limit}
 
@@ -24,7 +32,7 @@ then select directory for saving MIPs. Pay attention to the parameters you can t
 }
 \examples{
 \donttest{
-nrrd_to_mip(fiji.path = "C:/Program Files/Fiji.app/ImageJ-win64.exe")
+nrrd_to_mip()
 }
 }
 \seealso{
