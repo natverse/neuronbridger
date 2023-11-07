@@ -120,7 +120,7 @@ mesh_to_nrrd <- function(fw.meshes,
 #' @seealso \code{\link{nrrd_to_mip}}
 #' @export
 nrrd_to_mip <- function(fiji.path = NULL,
-                        macro = system.file(file.path("exdata","macros"),"Color_Depth_MIP_batch_0308_2021.ijm", package="neuronbridger"),
+                        macro = NULL, #system.file(file.path("exdata","macros"),"Color_Depth_MIP_batch_0308_2021.ijm", package="neuronbridger"),
                         MinMem = MaxMem,
                         MaxMem = "2500m"){
   fiji.path = fiji(fijiPath  = fiji.path) # e.g. fiji.path = 'C:\\Program Files\\Fiji.app\\ImageJ-win64.exe'

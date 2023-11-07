@@ -4,13 +4,7 @@
 \alias{nrrd_to_mip}
 \title{Open Fiji on your computer and use it to convert your .nrrd files into color MIPs}
 \usage{
-nrrd_to_mip(
-  fiji.path = NULL,
-  macro = system.file("macros", "Color_Depth_MIP_batch_0308_2021.ijm", package =
-    "neuronbridger"),
-  MinMem = MaxMem,
-  MaxMem = "2500m"
-)
+nrrd_to_mip(fiji.path = NULL, macro = NULL, MinMem = MaxMem, MaxMem = "2500m")
 }
 \arguments{
 \item{fiji.path}{path to your system's Fiji. If NULL, attempts to find using \code{getOption("jimpipeline.fiji")}.}
