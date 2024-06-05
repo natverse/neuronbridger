@@ -194,11 +194,15 @@ neuronbridge_hits <- function(nb.id,
     nb.df$searched.id = n
     nb.df$nb.id = nb.df$id
     nb.df$id = NULL
-    for(column in c("matchingPixels", "matchingRatio", "gradientAreaGap", "normalizedGapScore", "normalizedScore")){
+    poss_cols=c("matchingPixels", "matchingRatio", "gradientAreaGap", "normalizedGapScore", "normalizedScore")
+    for(column in intersect(poss_cols, colnames(nb.df))){
       nb.df[,column] = as.numeric(unlist(nb.df[,column]))
     }
     nb.df$normalizedScore = as.numeric(nb.df$normalizedScore)
-    nb.df = nb.df[order(nb.df$normalizedGapScore, decreasing = TRUE),]
+    if("normalizedGapScore" %in% colnames(nb.df))
+      nb.df = nb.df[order(nb.df$normalizedGapScore, decreasing = TRUE),]
+    else
+      nb.df = nb.df[order(nb.df$normalizedScore, decreasing = TRUE),]
     nb.hits = plyr::rbind.fill(nb.hits,nb.df)
     rnames = c(rnames, rep_name(nb.df$publishedName))
   }
