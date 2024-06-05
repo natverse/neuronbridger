@@ -35,9 +35,9 @@ or a genetic driver line (\code{"by_line"}). If left at \code{"detect"} then \co
 \value{
 a \code{data.frame} of hits. Each row idnciates a separate MIP file with its own \code{nb.id}. The \code{data.frame} is already ranked by \code{normalizedScore}.
 Top scores (better match) are at the top of the data frame. The columns mean:
-\itemize{
+\describe{
 
-  \item{"publishedName"} { - the \code{id} for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
+  \item{"publishedName"}{ - the \code{id} for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
   these are the same ids that can be seen with \code{\link{neuronbridge_ids}}.}
 
   \item{"libraryName"}{ - the data set from which this data item came.}

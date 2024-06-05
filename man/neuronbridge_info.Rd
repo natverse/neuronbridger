@@ -29,9 +29,9 @@ or a genetic driver line (\code{"by_line"}). If left at \code{"detect"} then \co
 \value{
 a \code{data.frame} where each row corresponds to a MIP file that has been used to compute matching scores.
 Each relates to the \code{id} you gave in the function call, but each also has its own unique \code{nb.id}.
-\itemize{
+\describe{
 
-  \item{"publishedName"} { - the \code{id} you gave in the function call.}
+  \item{"publishedName"}{ - the \code{id} you gave in the function call.}
 
   \item{"libraryName"}{ - the data set from which this data item came.}
 
