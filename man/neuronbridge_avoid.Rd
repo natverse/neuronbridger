@@ -68,7 +68,6 @@ on your use-case, you may want to read a series of table with \code{\link{neuron
 See details below.
 }
 \examples{
-\donttest{
 \dontrun{
 
 # Get helpful package with some classe hemibrain neuron IDs
@@ -87,7 +86,7 @@ avoid = setdiff(hemibrainr::pn.ids,search)
 hits = neuronbridge_avoid(search = search, avoid = avoid)
 # View(hits[1:20,])
 
-}}
+}
 }
 \seealso{
 \code{\link{neuronbridge_info}},

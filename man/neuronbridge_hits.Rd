@@ -85,7 +85,6 @@ The function \code{neuronbridge_search} can also handle being given multiple IDs
 MIP options can be fetched and visualised with \code{\link{neuronbridge_mip}}.
 }
 \examples{
-\donttest{
 \dontrun{
 nb.info.em = neuronbridge_info("542634818")
 nb.hits = neuronbridge_hits(nb.info.em$nb.id[1])
@@ -100,7 +99,7 @@ nb.search = neuronbridge_search("542634818")
 
 # Note that nb.info.em here is actually an attribute you can see
 nb.info.em = attr(nb.search,"search")
-}}
+}
 }
 \seealso{
 \code{\link{neuronbridge_info}},

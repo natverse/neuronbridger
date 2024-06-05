@@ -25,7 +25,7 @@ from Scientific Computing at Janelia Research Campus, for the Color MIP Search. 
 then select directory for saving MIPs. Pay attention to the parameters you can then adjust. Skeleton bolded MIP can be useful for data coming from skeleton or even mesh sources.
 }
 \examples{
-\donttest{
+\dontrun{
 nrrd_to_mip()
 }
 }

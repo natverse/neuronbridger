@@ -65,7 +65,6 @@ of these images is searched and potential connectome hits returned. Each is assi
 is below the given \code{threshold}.
 }
 \examples{
-\donttest{
 \dontrun{
 # Interesting line that labels mushroom body neurons
 ## But which ones?
@@ -98,7 +97,7 @@ open3d()
 mips = neuronbridge_mip(line)
 scan_mip(mips,type="images", sleep = 5)
 
-}}
+}
 }
 \seealso{
 \code{\link{neuronbridge_info}},

@@ -57,7 +57,6 @@
 #'}
 #'
 #' @examples
-#' \donttest{
 #' \dontrun{
 #'
 #' # Get helpful package with some classe hemibrain neuron IDs
@@ -76,7 +75,7 @@
 #' hits = neuronbridge_avoid(search = search, avoid = avoid)
 #' # View(hits[1:20,])
 #'
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_info}},
 #'   \code{\link{neuronbridge_mip}},
 #'   \code{\link{neuronbridge_search}}
@@ -159,7 +158,6 @@ neuronbridge_avoid <- function(search,
 #'
 #'}
 #' @examples
-#' \donttest{
 #' \dontrun{
 #' # Interesting line that labels mushroom body neurons
 #' ## But which ones?
@@ -192,7 +190,7 @@ neuronbridge_avoid <- function(search,
 #' mips = neuronbridge_mip(line)
 #' scan_mip(mips,type="images", sleep = 5)
 #'
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_info}},
 #'   \code{\link{neuronbridge_avoid}},
 #'   \code{\link{neuronbridge_search}}

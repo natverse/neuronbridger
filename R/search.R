@@ -34,14 +34,13 @@
 #'
 #' }
 #' @examples
-#' \donttest{
 #' \dontrun{
 #' # Get information on a mushroombody related GMR GAL4 driver line
 #' nb.info.lm = neuronbridge_info("MB543B")
 #'
 #' # Get information on the hemibrain neuron,
 #' nb.info.em = neuronbridge_info("542634818")
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_hits}},
 #'   \code{\link{neuronbridge_line_contents}},
 #'   \code{\link{neuronbridge_mip}}
@@ -152,7 +151,6 @@ neuronbridge_info <- function(id,
 #'}
 #'
 #' @examples
-#'\donttest{
 #' \dontrun{
 #' nb.info.em = neuronbridge_info("542634818")
 #' nb.hits = neuronbridge_hits(nb.info.em$nb.id[1])
@@ -167,7 +165,7 @@ neuronbridge_info <- function(id,
 #'
 #' # Note that nb.info.em here is actually an attribute you can see
 #' nb.info.em = attr(nb.search,"search")
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_info}},
 #'   \code{\link{neuronbridge_mip}},
 #'   \code{\link{neuronbridge_ids}}

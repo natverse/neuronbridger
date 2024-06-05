@@ -52,14 +52,13 @@ This function gets information stored on \href{https://neuronbridge.janelia.org/
 for *D. melanogaster* neurons and genetic driver lines that have been used in EM-LM searches.
 }
 \examples{
-\donttest{
 \dontrun{
 # Get information on a mushroombody related GMR GAL4 driver line
 nb.info.lm = neuronbridge_info("MB543B")
 
 # Get information on the hemibrain neuron,
 nb.info.em = neuronbridge_info("542634818")
-}}
+}
 }
 \seealso{
 \code{\link{neuronbridge_hits}},
