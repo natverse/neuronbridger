@@ -1,0 +1,393 @@
+---
+title: "Abdominal motor and endocrine neurons: from MANC to GAL4 lines to peripheral targets"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Abdominal motor and endocrine neurons: from MANC to GAL4 lines to peripheral targets}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Overview
+
+This vignette chains three resources to go from connectome cell types to candidate genetic reagents and, finally, to a peripheral tissue where those reagents might label something useful:
+
+1.  The [MANC](https://www.janelia.org/project-team/flyem/manc-connectome) (Male Adult Nerve Cord) connectome, accessed via the [`malevnc`](https://github.com/natverse/malevnc) R package. We pick up two classes of neuron that leave the central nervous system through abdominal nerves:
+
+    -   **Abdominal motor neurons** — cell types whose name starts with `MNad` (motor neuron, abdominal).
+    -   **Abdominal endocrine / efferent neurons** — cell types whose name starts with `EN` (efferent neuron) and whose soma sits in an abdominal neuromere (`A1`–`A8`). Note the prefix is `EN`, not `ENN`.
+
+2.  [NeuronBridge](https://neuronbridge.janelia.org/), accessed via `neuronbridger`, to find GAL4 and split-GAL4 lines that match those EM neurons on colour-depth MIP search. We use NeuronBridge data release **`v3_9_0`**, which is the first release to include MANC MIPs. Earlier releases (the package default `v2_1_1`) only cover the hemibrain brain dataset.
+
+3.  The [KDRC KGutProject](https://flyinfo.kr/FlexForm_KGutProject_Load.do?tmpl=template/E) database of GAL4-line expression in the adult *Drosophila* gut ([Lim et al. 2021](https://doi.org/10.1080/01677063.2020.1853722)). For any NeuronBridge hit that also appears in KGutProject, we learn which gut region the line marks — a strong clue that the matched abdominal neuron projects to that tissue.
+
+Very few motor or endocrine neurons in the nerve cord have been pinned to a specific peripheral organ, so this pipeline is meant as a way to generate hypotheses you can follow up experimentally.
+
+# Prerequisites
+
+-   A neuPrint authentication token (see `?neuprintr::neuprint_login`). Put it in `.Renviron` as `neuprint_token=...`.
+-   Companion natverse packages:
+
+```{r install}
+if (!require("remotes")) install.packages("remotes")
+remotes::install_github("natverse/neuronbridger")
+remotes::install_github("natverse/malevnc")
+remotes::install_github("natverse/neuprintr")
+```
+
+```{r libs}
+library(neuronbridger)
+library(malevnc)
+library(neuprintr)
+library(dplyr)
+
+NB_VERSION <- "v3_9_0"   # first NB release that includes MANC MIPs
+```
+
+# Step 1: Pick target neurons from MANC
+
+`manc_neuprint()` opens a connection against the public MANC release (`manc:v1.2.3` at time of writing). `manc_neuprint_meta()` returns one row per body, with columns including `bodyid`, `type`, `class`, `somaSide`, `somaNeuromere` (values `T1`–`T3`, `A1`–`A10`), `entryNerve`, `exitNerve` and `predictedNt`.
+
+```{r manc-meta}
+conn <- manc_neuprint()
+
+# Motor neurons whose cell type starts "MNad" — these exit through abdominal
+# nerves (AbN1–AbN4) to innervate abdominal muscles.
+mn.ad <- manc_neuprint_meta("/type:MNad.*", conn = conn)
+
+# Efferent neurons (EN*) with somata in an abdominal segment. These include
+# neurosecretory / endocrine cells that project out of the CNS through
+# peripheral nerves.
+en.ab <- manc_neuprint_meta("/type:EN.*", conn = conn) |>
+  filter(somaNeuromere %in% paste0("A", 1:8))
+
+targets <- bind_rows(
+  mn.ad |> mutate(group = "MNad motor"),
+  en.ab |> mutate(group = "abdominal EN")
+) |>
+  mutate(bodyid = as.character(bodyid)) |>
+  select(bodyid, type, group, somaNeuromere, somaSide, exitNerve, predictedNt)
+
+targets
+# MANC has 229 MNad* motor neurons and 44 abdominal EN* efferents
+# at the v1.2.3 release — 273 targets in total.
+```
+
+As a sanity check, plot a handful:
+
+```{r manc-plot}
+library(nat)
+nopen3d()
+neurons <- manc_read_neurons(targets$bodyid[1:10], conn = conn)
+plot3d(neurons, soma = 1000, lwd = 2)
+```
+
+# Step 2: Find NeuronBridge matches
+
+## 2a — Resolve each body's MANC MIP
+
+`neuronbridge_info()` queries the per-body JSON and returns one row per MIP that NeuronBridge holds for that body. A single MANC neuron typically shows up in three libraries (MANC, VNC, male-CNS); we want the MANC one, because that is the MIP whose hits were precomputed against the FlyLight VNC libraries.
+
+```{r nb-info}
+mip.map <- list()
+for (bid in targets$bodyid) {
+  info <- try(neuronbridge_info(bid, dataset = "by_body",
+                                version = NB_VERSION), silent = TRUE)
+  if (inherits(info, "try-error") || !nrow(info)) next
+  manc <- info[grepl("MANC", info$libraryName, ignore.case = TRUE), ]
+  if (!nrow(manc)) next
+  manc$bodyid <- bid
+  mip.map[[bid]] <- manc[1, c("bodyid", "nb.id", "libraryName")]
+}
+mip.map <- do.call(rbind, mip.map)
+nrow(mip.map)        # ~ all 273 targets resolve
+```
+
+## 2b — Pull precomputed colour-depth hits
+
+```{r nb-hits}
+hits <- list()
+for (i in seq_len(nrow(mip.map))) {
+  h <- try(neuronbridge_hits(mip.map$nb.id[i], version = NB_VERSION),
+           silent = TRUE)
+  if (inherits(h, "try-error") || is.null(h) || !nrow(h)) next
+  h$bodyid <- mip.map$bodyid[i]
+  # Best MIP per line for this one neuron.
+  h <- h[order(h$normalizedScore, decreasing = TRUE), , drop = FALSE]
+  h <- h[!duplicated(h$publishedName), , drop = FALSE]
+  hits[[i]] <- h
+}
+hits <- do.call(plyr::rbind.fill, hits)
+```
+
+Restrict to FlyLight VNC LM libraries (brain libraries are not informative for a motor or endocrine neuron):
+
+```{r nb-vnc}
+hits.vnc <- hits |>
+  filter(grepl("FlyLight|Split", libraryName, ignore.case = TRUE),
+         !grepl("Brain",        libraryName, ignore.case = TRUE)) |>
+  mutate(normalizedScore = as.numeric(normalizedScore))
+
+# Annotate back with the target-neuron side of the join.
+hits.vnc <- merge(hits.vnc,
+                  targets[, c("bodyid", "type", "group",
+                              "somaNeuromere", "exitNerve")],
+                  by = "bodyid", all.x = TRUE)
+```
+
+## 2c — Per-neuron top-5 with an elbow cutoff
+
+`normalizedScore` in NeuronBridge is clipped at **50000**, and for a well-targeted neuron the top few lines often cluster within ~10% of each other — so a fixed absolute score threshold (`23000`, as in the split-design vignette) is the wrong tool. Instead, for each target neuron we:
+
+1.  Rank candidate lines by `normalizedScore` (best MIP per line, from step 2b).
+2.  Always keep the top line.
+3.  Keep line *k* only if its score is ≥ **75%** of line *k-1* (no sharp drop) *and* ≥ **20%** of the top score (no absolute collapse).
+4.  Cap at **5** lines.
+
+```{r elbow}
+top_with_elbow <- function(df, cap = 5,
+                           drop_frac  = 0.75,
+                           floor_frac = 0.20) {
+  df <- df[order(df$normalizedScore, decreasing = TRUE), , drop = FALSE]
+  if (!nrow(df)) return(df)
+  keep <- TRUE
+  if (nrow(df) > 1) {
+    ratios <- df$normalizedScore[-1] / df$normalizedScore[-nrow(df)]
+    keep <- c(TRUE,
+              cumprod(ratios >= drop_frac) == 1 &
+              df$normalizedScore[-1] / df$normalizedScore[1] >= floor_frac)
+  }
+  head(df[keep, , drop = FALSE], cap)
+}
+
+hits.top <- hits.vnc |>
+  group_by(bodyid) |>
+  group_modify(~ top_with_elbow(.x)) |>
+  ungroup()
+
+# Lines kept per neuron:
+table(table(hits.top$bodyid))
+# In practice, most neurons hit the cap of 5 (top-5 scores are close together)
+# and only a handful collapse to 1 line.
+```
+
+Quick eyeball of a few top hits:
+
+```{r scan}
+open3d()
+scan_mip(mips = head(hits.top, 20), no.hits = 20)
+```
+
+If you want to be selective — for instance, dropping lines that also label nearby motor neurons you do *not* want — `neuronbridge_avoid()` is useful: pass the one `bodyid` you want in `search` and a vector of IDs you want to stay clear of in `avoid`.
+
+```{r avoid}
+favourite <- targets$bodyid[1]
+avoid     <- setdiff(targets$bodyid, favourite)
+
+clean <- neuronbridge_avoid(search = favourite, avoid = avoid,
+                            threshold = 23000)
+```
+
+Collect the unique candidate line set for the KDRC cross-reference:
+
+```{r lines}
+candidate.lines <- sort(unique(hits.top$publishedName))
+length(candidate.lines)
+```
+
+# Step 3: Cross-reference against KDRC KGutProject
+
+The [KGutProject](https://flyinfo.kr/FlexForm_KGutProject_Load.do?tmpl=template/E) is a database of 353 GAL4 (and a handful of split-GAL4) driver lines screened by [Lim et al. 2021](https://doi.org/10.1080/01677063.2020.1853722) for expression across ten regions of the adult gut: **Crop, PV** (proventriculus), **R1**–**R5** (midgut), **MHJ** (midgut–hindgut junction), **Hindgut/ileum** and **Rectum**. If one of our NeuronBridge hits is listed there, that is a direct clue that the line — and by extension the abdominal neuron it labels — may project to that gut region.
+
+The `neuronbridger` package ships a small set of helpers (`kdrc_start_session()`, `kdrc_search_line()`, `kdrc_line_regions()`, `kdrc_lookup_lines()`, `kdrc_close_session()`) that drive a headless Chrome session via [`chromote`](https://rstudio.github.io/chromote/) to run the site's own search and detail look-ups. KDRC has no public REST API — its `AUIquery.do` endpoint is gated by proprietary client-side signing — but reusing the page's own JavaScript works cleanly.
+
+## Look up every candidate line
+
+```{r kdrc-lookup}
+if (!requireNamespace("chromote", quietly = TRUE))
+  install.packages("chromote")
+
+# One-shot batch lookup. This drives a headless Chrome; expect roughly
+# 8 seconds per line (search) plus ~3 seconds per hit (detail page), so a
+# 500-line run is about an hour.
+session <- kdrc_start_session()
+kdrc    <- kdrc_lookup_lines(candidate.lines, session = session)
+kdrc_close_session(session)
+
+# Each hit row has Y/N flags for the ten KDRC regions plus BDSC ID,
+# associated gene, and the stable `p_seq` you can paste into
+# https://flyinfo.kr/FlexForm_KGut_Detail_Load.do?tmpl=template/E&p_seq=<p_seq>
+# to see the expression images.
+head(subset(kdrc, kgut_hit == "Y"))
+```
+
+Most candidates in our set are Janelia split-GAL4 (`SS*`, `IS*`), which KDRC did not screen — those come back as `kgut_hit = "N"`. In the live run for 510 candidate lines we picked up only **6 direct hits** (all Gen1 GMR lines), which on its own is thin. Two of those — R15D08 (`rut`) and R71D08 (`dally`) — broadly label the midgut + hindgut, so where they overlap our top-5 MANC hits they are still strong leads, but the abdominal `EN*` efferents get no direct hits at all because their top-5 matches are nearly all split-GAL4 lines.
+
+## Expand coverage through split-GAL4 hemidrivers
+
+A split-GAL4 line is an intersection of two enhancer-driven transgenes: an **AD** (activation domain) half and a **DBD** (DNA-binding domain) half. Each half is itself a Gen1 GMR (`R*`) or VT (`VT*`) enhancer, so even when a split is absent from KDRC, one of its halves may be in there — and any gut expression seen in that half is a hint about what the split is labelling in the abdomen.
+
+`split_halves()` resolves every `SS* / IS* / MB*` line in the candidate list to its AD and DBD enhancer codes from the FlyLight Split-GAL4 image-release metadata on S3:
+
+```{r split-halves}
+halves <- split_halves(candidate.lines)
+head(halves[halves$is_split & !is.na(halves$ad), ])
+
+# Gather every distinct hemidriver enhancer we haven't already queried,
+# then re-run the KDRC look-up against them.
+extra.lines <- setdiff(
+  unique(c(halves$ad, halves$dbd)),
+  c(candidate.lines, NA_character_)
+)
+session  <- kdrc_start_session()
+kdrc_ext <- kdrc_lookup_lines(extra.lines, session = session)
+kdrc_close_session(session)
+```
+
+In our live run, `split_halves()` resolved the AD/DBD codes for 396 of 452 splits (~88%) — the remaining 56 are mostly `IS*` samples whose metadata predates FlyLight publishing components in its S3 JSON. Of the 561 new hemidriver enhancers we queried, **124** showed up as KDRC hits — vastly more than the six direct matches, and enough to bring the abdominal `EN*` group into the heatmap.
+
+## Join back onto the neuron table
+
+Now we build a long-form KDRC table covering both direct hits and hemidriver hits, then expand every (neuron, line) pair into three possible match routes — the line itself (`direct`), its AD half, or its DBD half — and join against the KDRC regions:
+
+```{r kdrc-join}
+REGIONS <- c("Crop","PV","R1","R2","R3","R4","R5","MHJ","Hindgut","Rectum")
+
+to_long <- function(tab) {
+  tab |>
+    filter(kgut_hit == "Y") |>
+    select(publishedName = query_line, all_of(REGIONS)) |>
+    pivot_longer(all_of(REGIONS), names_to = "region", values_to = "flag") |>
+    filter(flag == "Y") |>
+    select(publishedName, region)
+}
+kdrc_all <- dplyr::bind_rows(to_long(kdrc), to_long(kdrc_ext)) |>
+  distinct()
+
+# For each NeuronBridge top-5 pair, emit one row per possible match route.
+direct <- hits.top |> mutate(match_key = publishedName, match_kind = "direct")
+ad  <- hits.top |>
+  left_join(halves |> select(publishedName = line, ad), by = "publishedName") |>
+  filter(!is.na(ad)) |>
+  mutate(match_key = ad, match_kind = "AD") |>
+  select(-ad)
+dbd <- hits.top |>
+  left_join(halves |> select(publishedName = line, dbd), by = "publishedName") |>
+  filter(!is.na(dbd)) |>
+  mutate(match_key = dbd, match_kind = "DBD") |>
+  select(-dbd)
+
+expanded <- dplyr::bind_rows(direct, ad, dbd)
+
+peripheral <- expanded |>
+  inner_join(kdrc_all, by = c("match_key" = "publishedName")) |>
+  select(bodyid, type, group, publishedName, match_key, match_kind,
+         normalizedScore, region)
+
+peripheral
+```
+
+Each row is a (MANC neuron, GAL4 line, match route, gut region) tuple: the neuron's top-5 GAL4 line matches on colour-depth MIP search, and either that line itself or one of its hemidrivers is documented in KDRC as expressed in that region — a testable hypothesis that this `MNad*` motor or `EN*` endocrine cell projects to that part of the gut. Hemidriver matches are indirect evidence, so always inspect the relevant expression images before committing to an experiment.
+
+## Summary heatmap and line-hit CSV
+
+Two useful summary artefacts:
+
+-   a cell-type × gut-region **heatmap** showing, per MANC cell type, how many (neuron, line) pairs land on each KDRC region;
+-   a flat **CSV** suitable for sharing — one row per (cell type, candidate line) pair with its best colour-depth score and the KDRC regions that line is flagged for.
+
+```{r heatmap}
+library(tidyr)
+
+# Per cell-type × region count — using the `peripheral` table we built
+# above (direct + AD + DBD match routes combined).
+mat.df <- peripheral |>
+  count(type, region, name = "n") |>
+  complete(type   = sort(unique(hits.top$type)),
+           region = REGIONS, fill = list(n = 0))
+
+mat <- mat.df |>
+  pivot_wider(names_from = region, values_from = n) |>
+  as.data.frame()
+rownames(mat) <- mat$type
+mat <- as.matrix(mat[, REGIONS, drop = FALSE])
+
+# Order rows: MNad* first, then EN*; drop all-zero rows so the heatmap
+# only shows cell types that have at least one KDRC hit.
+row_group <- ifelse(startsWith(rownames(mat), "MNad"), "MNad", "EN")
+mat       <- mat[order(row_group, rownames(mat)), , drop = FALSE]
+row_group <- row_group[order(row_group, rownames(mat))]
+keep      <- rowSums(mat) > 0
+mat       <- mat[keep, , drop = FALSE]
+row_group <- row_group[keep]
+
+# Render: base-R image() plus text() so the counts are drawn inside cells.
+max.n <- max(mat, 1)
+pal   <- colorRampPalette(c("#f7fbff", "#6baed6", "#08306b"))(max.n + 1)
+par(mar = c(4, 7, 4, 6))
+image(seq_len(ncol(mat)), seq_len(nrow(mat)), t(mat),
+      col = pal, axes = FALSE, xlab = "", ylab = "",
+      main = "Abdominal MANC types × KDRC gut regions\n(direct + AD/DBD hemidriver matches)")
+axis(1, at = seq_len(ncol(mat)), labels = colnames(mat), las = 1)
+axis(2, at = seq_len(nrow(mat)), labels = rownames(mat), las = 1,
+     cex.axis = 0.7)
+for (i in seq_along(row_group))
+  rect(ncol(mat) + 0.6, i - 0.5, ncol(mat) + 0.9, i + 0.5,
+       col = ifelse(row_group[i] == "MNad", "steelblue", "orange"),
+       border = NA, xpd = TRUE)
+legend("bottomright", inset = c(-0.18, 0), xpd = TRUE,
+       legend = c("MNad motor", "abdominal EN"),
+       fill   = c("steelblue", "orange"), cex = 0.75, bty = "n",
+       title  = "group")
+for (i in seq_len(nrow(mat))) for (j in seq_len(ncol(mat))) {
+  v <- mat[i, j]
+  text(j, i, v,
+       col = if (v > max.n / 2) "white" else "black",
+       cex = 0.75)
+}
+box()
+```
+
+The CSV: one row per (cell type, candidate line, match route), with the best MIP score across neurons of that type, which enhancer mediated the match, and the comma-joined list of gut regions the line is flagged for. Written into `~/Downloads/` so it's easy to share.
+
+```{r line-hit-csv}
+csv_out <- peripheral |>
+  mutate(normalizedScore = as.numeric(normalizedScore)) |>
+  group_by(type, publishedName, match_key, match_kind) |>
+  summarise(
+    group            = dplyr::first(group),
+    best_score       = max(normalizedScore, na.rm = TRUE),
+    n_bodies_of_type = dplyr::n_distinct(bodyid),
+    kdrc_regions     = paste(sort(unique(region)), collapse = ", "),
+    .groups = "drop"
+  ) |>
+  arrange(group, type, desc(best_score))
+
+write.csv(csv_out,
+          file.path(path.expand("~/Downloads"),
+                    "abdominal_peripheral_line_hits.csv"),
+          row.names = FALSE)
+```
+
+# Caveats
+
+-   **NeuronBridge data version.** The package's default `v2_1_1` is hemibrain-only; MANC MIPs are in `v3_9_0` onwards. Always pass `version = "v3_9_0"` for a VNC workflow.
+-   **`normalizedScore` ceiling.** Scores are clipped at 50000. For well-matched MANC neurons the top handful of VNC lines often sit at or near the ceiling and are essentially tied — inspect the MIPs visually rather than trusting rank order blindly.
+-   **Match quality.** Always eyeball the MIPs via `scan_mip()` and, ideally, the 3-D stack for the GAL4 line before committing to an experiment.
+-   **Line contamination.** A split-GAL4 that matches a single motor neuron often also labels dozens of others. `neuronbridge_avoid()` and `neuronbridge_line_contents()` help you find cleaner drivers.
+-   **KGutProject scope.** KGutProject is a gut screen, so absence from the database means "not tested for gut expression", not "does not label gut". Other peripheral targets (reproductive tract, heart, fat body, epidermis) are not covered here and would need a different resource.
+-   **Hemidriver matches are indirect.** An AD or DBD hemidriver that labels part of the gut on its own (as an enhancer-GAL4) tells you the enhancer fragment is active in that tissue. The split-GAL4 built from that half will only label the intersection with the other half, so the split may not actually mark the gut even when one of its halves does. Treat hemidriver-mediated KDRC hits as hypotheses to confirm in the split itself, not as direct evidence.
+
+# Citations
+
+-   **MANC connectome / `malevnc`**: Marin, E.C., Morris, B.J., Stürner, T., Champion, A.S., Krzeminski, D., Badalamente, G., Gkantia, M., Dunne, C.R., Eichler, K., et al. (2023). *Systematic annotation of a complete adult male Drosophila nerve cord connectome reveals principles of functional organisation.* eLife.
+-   **MANC motor neurons (MNad etc.)**: Cheong, H.S.J., Eichler, K., Stürner, T., Asinof, S.K., Champion, A.S., Marin, E.C., Oram, T.B., Sumathipala, M., et al. (2023). *Transforming descending input into behavior: The organization of premotor circuits in the Drosophila Male Adult Nerve Cord connectome.* eLife.
+-   **NeuronBridge**: Clements, J., Goina, C., Kazimiers, A., Otsuna, H., Svirskas, R., Rokicki, K. (2020). *NeuronBridge Codebase.*
+-   **KGutProject / KDRC**: Lim, S.Y., You, H., Lee, J., Lee, T.H., Jang, Y., Lee, S., Nicolas, P., Park, B.S., Namkoong, S., Yoon, J., Jung, H., Ahn, C., Shim, Y.-H., Park, D., Kwon, J.Y., Lee, W.-J., Kim, Y.-J., Suh, G.S.B. (2021). *Identification and characterization of GAL4 drivers that mark distinct cell types and regions in the Drosophila adult gut.* [J. Neurogenet. 35(1):33–44](https://doi.org/10.1080/01677063.2020.1853722).

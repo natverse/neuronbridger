@@ -26,4 +26,33 @@ reference:
   - '`plot_mip`'
   - '`scan_mip`'
   - '`neuronbridge_remove_mips`'
+  - '`nrrd_to_mip`'
+- title: FlyWire helpers
+  desc: Utilities for converting FlyWire / Neuroglancer volumes to MIP images.
+  contents:
+  - '`ngl_scene_to_nrrd`'
+  - '`root_id_to_nrrd`'
+- title: Cross-reference lines against the KDRC KGutProject
+  desc: >
+    Helpers that drive a headless Chrome session (via the `chromote` package)
+    to query the Korea Drosophila Resource Center KGutProject for expression
+    of a given GAL4 line across ten regions of the adult gut.
+  contents:
+  - '`kdrc_lookup_lines`'
+  - '`kdrc_search_line`'
+  - '`kdrc_line_regions`'
+  - '`kdrc_start_session`'
+  - '`kdrc_close_session`'
+- title: Resolve split-GAL4 lines to their hemidriver halves
+  desc: >
+    Look up the AD and DBD component enhancers of a published split-GAL4
+    line (SS, IS, MB, ...) from FlyLight's S3 metadata.
+  contents:
+  - '`split_halves`'
 
+articles:
+- title: Tutorials
+  navbar: ~
+  contents:
+  - split_design
+  - abdominal_peripheral_targets

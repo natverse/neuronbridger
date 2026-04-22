@@ -187,18 +187,30 @@ neuronbridge_hits <- function(nb.id,
     nb2=neuronbridge_fetch(path2)
     nb.list = list()
     for(r in nb2$results){
+      # NeuronBridge v3 schema nests hit info under "image"; lift it so the
+      # rest of this function sees the same flat fields as in v2.
+      if(is.list(r$image) && is.null(r$publishedName)){
+        img = r$image
+        r$image = NULL
+        r = c(r, img)
+      }
       nbr = as.data.frame(t(unnest_df(r)), stringsAsFactors = FALSE)
+      if(is.null(nbr$id) || !length(nbr$id)) next
       nb.list[[nbr$id]] = nbr
     }
+    if(!length(nb.list)) next
     nb.df = do.call(plyr::rbind.fill, nb.list)
     nb.df$searched.id = n
     nb.df$nb.id = nb.df$id
     nb.df$id = NULL
-    for(column in c("matchingPixels", "matchingRatio", "gradientAreaGap", "normalizedGapScore", "normalizedScore")){
-      nb.df[,column] = as.numeric(unlist(nb.df[,column]))
+    for(column in c("matchingPixels", "matchingRatio", "gradientAreaGap",
+                    "normalizedGapScore", "normalizedScore")){
+      if(column %in% colnames(nb.df)){
+        nb.df[,column] = as.numeric(unlist(nb.df[,column]))
+      }
     }
-    nb.df$normalizedScore = as.numeric(nb.df$normalizedScore)
-    nb.df = nb.df[order(nb.df$normalizedGapScore, decreasing = TRUE),]
+    ord.col = if("normalizedGapScore" %in% colnames(nb.df)) "normalizedGapScore" else "normalizedScore"
+    nb.df = nb.df[order(nb.df[[ord.col]], decreasing = TRUE),]
     nb.hits = plyr::rbind.fill(nb.hits,nb.df)
     rnames = c(rnames, rep_name(nb.df$publishedName))
   }
