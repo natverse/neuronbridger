@@ -83,7 +83,6 @@ FlyLight file names contain metadata as follows:
 Find information on these meta data entries by examining \code{?neuronbridge_hits}.
 }
 \examples{
-\donttest{
 \dontrun{
 # Let us now see the related MIP file
 mip = neuronbridge_mip("542634818")
@@ -92,7 +91,7 @@ mip = neuronbridge_mip("542634818")
 
 # Plot the MIP image in an rgl viewer
 plot_mip(mip)
-}}
+}
 }
 \seealso{
 \code{\link{neuronbridge_ids}},

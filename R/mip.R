@@ -32,7 +32,6 @@
 #' @return a named list of \code{.png} (\code{neuronbridge_mip}) or visualisation of a \code{.png} MIP in an \code{rgl} display (\code{plot_mip}).
 #'
 #' @examples
-#' \donttest{
 #' \dontrun{
 #' # Let us now see the related MIP file
 #' mip = neuronbridge_mip("542634818")
@@ -41,7 +40,7 @@
 #'
 #' # Plot the MIP image in an rgl viewer
 #' plot_mip(mip)
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_ids}},
 #'   \code{\link{neuronbridge_info}},
 #'   \code{\link{neuronbridge_search}}

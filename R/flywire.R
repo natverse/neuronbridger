@@ -114,7 +114,7 @@ mesh_to_nrrd <- function(fw.meshes,
 #' @return a MIP files, saved as .tif, converted from a folder of selected .nrrd files
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #' nrrd_to_mip()
 #' }
 #' @seealso \code{\link{nrrd_to_mip}}

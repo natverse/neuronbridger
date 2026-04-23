@@ -14,9 +14,9 @@
 #'
 #' @return a \code{data.frame} of hits. Each row indicates a separate MIP file with its own \code{nb.id}. The \code{data.frame} is already ranked by \code{normalizedScore}.
 #' Top scores (better match) are at the top of the data frame. The columns mean:
-#' \itemize{
+#' \describe{
 #'
-#'   \item{"publishedName"} { - the \code{id} for the potential hit neuron/line. I.e. specifies a genetic driver resource or a connectome neuron.
+#'   \item{"publishedName"}{ - the \code{id} for the potential hit neuron/line. I.e. specifies a genetic driver resource or a connectome neuron.
 #'   these are the same ids that can be seen with \code{\link{neuronbridge_ids}}.}
 #'
 #'   \item{"libraryName"}{ - the data set from which this data item came.}
@@ -57,7 +57,6 @@
 #'}
 #'
 #' @examples
-#' \donttest{
 #' \dontrun{
 #'
 #' # Get helpful package with some classe hemibrain neuron IDs
@@ -76,7 +75,7 @@
 #' hits = neuronbridge_avoid(search = search, avoid = avoid)
 #' # View(hits[1:20,])
 #'
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_info}},
 #'   \code{\link{neuronbridge_mip}},
 #'   \code{\link{neuronbridge_search}}
@@ -144,9 +143,9 @@ neuronbridge_avoid <- function(search,
 #'
 #' @return a \code{data.frame} of hits. Each row idnciates a separate MIP file with its own \code{nb.id}. The \code{data.frame} is already ranked by \code{normalizedScore}.
 #' Top scores (better match) are at the top of the data frame. The columns mean:
-#' \itemize{
+#' \describe{
 #'
-#'   \item{"publishedName"} { - the \code{id} for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
+#'   \item{"publishedName"}{ - the \code{id} for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
 #'   these are the same ids that can be seen with \code{\link{neuronbridge_ids}}.}
 #'
 #'   \item{"libraryName"}{ - the data set from which this data item came.}
@@ -159,7 +158,6 @@ neuronbridge_avoid <- function(search,
 #'
 #'}
 #' @examples
-#' \donttest{
 #' \dontrun{
 #' # Interesting line that labels mushroom body neurons
 #' ## But which ones?
@@ -192,7 +190,7 @@ neuronbridge_avoid <- function(search,
 #' mips = neuronbridge_mip(line)
 #' scan_mip(mips,type="images", sleep = 5)
 #'
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_info}},
 #'   \code{\link{neuronbridge_avoid}},
 #'   \code{\link{neuronbridge_search}}

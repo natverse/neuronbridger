@@ -16,9 +16,9 @@
 #'
 #' @return a \code{data.frame} where each row corresponds to a MIP file that has been used to compute matching scores.
 #' Each relates to the \code{id} you gave in the function call, but each also has its own unique \code{nb.id}.
-#' \itemize{
+#' \describe{
 #'
-#'   \item{"publishedName"} { - the \code{id} you gave in the function call.}
+#'   \item{"publishedName"}{ - the \code{id} you gave in the function call.}
 #'
 #'   \item{"libraryName"}{ - the data set from which this data item came.}
 #'
@@ -34,14 +34,13 @@
 #'
 #' }
 #' @examples
-#' \donttest{
 #' \dontrun{
 #' # Get information on a mushroombody related GMR GAL4 driver line
 #' nb.info.lm = neuronbridge_info("MB543B")
 #'
 #' # Get information on the hemibrain neuron,
 #' nb.info.em = neuronbridge_info("542634818")
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_hits}},
 #'   \code{\link{neuronbridge_line_contents}},
 #'   \code{\link{neuronbridge_mip}}
@@ -109,9 +108,9 @@ neuronbridge_info <- function(id,
 #' @inherit neuronbridge_info params
 #' @return a \code{data.frame} of hits. Each row idnciates a separate MIP file with its own \code{nb.id}. The \code{data.frame} is already ranked by \code{normalizedScore}.
 #' Top scores (better match) are at the top of the data frame. The columns mean:
-#' \itemize{
+#' \describe{
 #'
-#'   \item{"publishedName"} { - the \code{id} for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
+#'   \item{"publishedName"}{ - the \code{id} for the potential hit neuron/line. I.e. specififes a genetic driver resource or a connectome neuron.
 #'   these are the same ids that can be seen with \code{\link{neuronbridge_ids}}.}
 #'
 #'   \item{"libraryName"}{ - the data set from which this data item came.}
@@ -152,7 +151,6 @@ neuronbridge_info <- function(id,
 #'}
 #'
 #' @examples
-#'\donttest{
 #' \dontrun{
 #' nb.info.em = neuronbridge_info("542634818")
 #' nb.hits = neuronbridge_hits(nb.info.em$nb.id[1])
@@ -167,7 +165,7 @@ neuronbridge_info <- function(id,
 #'
 #' # Note that nb.info.em here is actually an attribute you can see
 #' nb.info.em = attr(nb.search,"search")
-#' }}
+#' }
 #' @seealso \code{\link{neuronbridge_info}},
 #'   \code{\link{neuronbridge_mip}},
 #'   \code{\link{neuronbridge_ids}}
