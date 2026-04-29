@@ -1,0 +1,8 @@
+pandoc: 3.1.11
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles:
+  abdominal_peripheral_targets: abdominal_peripheral_targets.html
+  asta_sez: asta_sez.html
+  split_design: split_design.html
+last_built: 2026-04-29T21:43Z
