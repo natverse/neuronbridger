@@ -9,10 +9,26 @@ examples
 .httr-oauth
 .Renviron
 inst/doc
-docs/
-docs
+# Note: docs/ is intentionally NOT ignored — GitHub Pages serves
+# https://natverse.org/neuronbridger/ from main:/docs. Run
+# pkgdown::build_site() and commit docs/ alongside any vignette change.
 neuronbridger/
 nrrd/
 mip/
 results/
 /.claude
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+*.Rcheck/
+*.tar.gz
+vignettes/*.html
+vignettes/*_files/
+vignettes/*_cache/
+vignettes/cache/
+vignettes/figure/
+# Vignette-script derived data — regenerable by inst/scripts/run_asta_sez.R.
+# Cached NB API calls and ranked tables; the figures embedded in the
+# vignette are kept under inst/images/ (not ignored).
+inst/extdata/asta_sez/
+.DS_Store
