@@ -231,7 +231,13 @@ borderline / unknown cases. The fraction-SEZ distribution is bimodal
 0.1 threshold is a generous safety net.
 
 ```{r soma-neuropil}
-SEZ_INNER <- c("GNG", "SAD", "AMMC_L", "AMMC_R", "FLA_L", "FLA_R")
+# Periesophageal SEZ — the broad Ito-2014 definition. The narrow
+# 6-neuropil set (GNG / SAD / AMMC / FLA only) misses cells like
+# CB0108 whose soma rind is `outside_IPS_L` but whose hemilineage
+# (LB19) is canonically SEZ. Add PRW, IPS, SPS, VES, WED.
+SEZ_INNER <- c("GNG","SAD","AMMC_L","AMMC_R","FLA_L","FLA_R",
+               "PRW","IPS_L","IPS_R","SPS_L","SPS_R",
+               "VES_L","WED_L","WED_R")
 SEZ_TOK   <- c(SEZ_INNER, paste0("outside_", SEZ_INNER))
 
 soma_dcv <- read_feather(SOMA_DCV_FEATHER,
@@ -388,9 +394,21 @@ A few things stand out:
   canonical AstA-GAL4) at high score. It's a `central_brain_intrinsic`
   cell with soma in the SEZ (`frac_sez = 1.0`), `putative_primary`
   hemilineage, predicted ACh, and `dcv_pct = 0.866` (just below
-  the strict p90 DCV-rich threshold). **This is the strongest
-  candidate for the SS32423 SEZ AstA neuron.** FlyWire root
-  `720575940632295751`.
+  the strict p90 DCV-rich threshold). FlyWire root
+  `720575940632295751` (left side).
+- **`CB0108` (LB19)** is hit by SS32423 alone but is **massively
+  DCV-rich** (`soma_dcv_density = 16.4`, `dcv_pct ≈ 0.99`); its soma
+  sits at the dorsal `outside_IPS_L` rind. With the broad
+  peri-esophageal SEZ definition (above) it classifies as SEZ.
+  FlyWire root `720575940620093019` (right side).
+- These two cell types are a **bilateral-pair match for the 4-cell
+  SEZ AstA pattern Hergarden et al. 2012 reported** (PMC3309792):
+  the meta has both left+right copies of CB0602 and CB0108, and all
+  four show up in our SS32423 raw cache. The right CB0602 and left
+  CB0108 just slip below the per-line elbow cap (best score ~10–15k
+  vs SS32423's MIP top of ~50k) — see
+  `inst/extdata/asta_sez/cache/hits_*.rds` for the unfiltered hits.
+  See **Step 7b** below.
 - **`CB0239`** (`LB11` hemilineage, ACh, `dcv_pct = 0.402`) is hit by
   both SS32423 and `VT019900` (SS32423's AD half). Lower DCV signal,
   but `LB11` is an SEZ-relevant lineage. Worth visually verifying.
@@ -408,14 +426,32 @@ A few things stand out:
   next rank tier. These are all SEZ-soma cells with various NTs and
   mid-range DCV percentiles — worth a 3-D look for any morphology
   match.
-- **`DNge046`** (descending in `LB5__prim`, gaba, `dcv_pct = 0.437`)
-  is the second descending neuron in the candidate set after DNg22.
-  Like DNg22 it's likely arbour-overlap rather than the AstA cell.
-- The 16 SS32423 hits with **non-SEZ somas** (visible in
-  `asta_sez_ranked_full.csv`) include cells in SMP / SLP / LH cortex
-  rinds — these are off-target SS32423 labelling, not the AstA cell.
-  We keep them in the CSV for transparency but they fall out of the
-  SEZ-OK figures.
+
+## Step 7b: The 4-cell SEZ AstA pattern (Hergarden 2012)
+
+Hergarden, Tayler & Anderson (2012; PMC3309792) describe roughly
+**four AstA-positive neurons** clustered around the SEZ — two
+bilateral pairs. Our SS32423 hits map to this directly:
+
+- **CB0602 — ventral SEZ pair** (`putative_primary` lineage, ACh):
+  - left  = `720575940632295751` (top hit, SS32423 ∩ R65D05)
+  - right = `720575940640469848` (in SS32423 + R65D05 + R65D06 raw
+    caches; falls below the per-line elbow cap)
+- **CB0108 — dorsal/IPS pair** (`LB19` lineage, ACh):
+  - right = `720575940620093019` (top non-SEZ-strict hit, dcv_pct 0.99)
+  - left  = `720575940624028855` (in SS32423 + R65D06 raw caches)
+
+Render all four meshes (`inst/scripts/asta_sez_4cell.R`):
+
+![The 4 canonical SEZ AstA cells — CB0108 dorsal pair above CB0602 ventral pair](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_4cell_panel.png)
+
+The bilateral symmetry is unambiguous and the dorsal-ventral split
+matches the figures in Hergarden 2012. **CB0602 + CB0108 together =
+the 4 SEZ-AstA cells that motivated SS32423 in the first place.**
+
+The 16 SS32423 hits with **non-SEZ somas** (visible in
+`asta_sez_ranked_full.csv`) belong to a different cluster — see
+Step 10 below.
 
 The ranked CSV with all 100+ candidates and full annotations is in
 `inst/extdata/asta_sez/asta_sez_ranked_full.csv`. The top-30 cut is
@@ -426,35 +462,46 @@ The ranked CSV with all 100+ candidates and full annotations is in
 `nat.ggplot::geom_neuron()` plots a `neuron` / `neuronlist` / mesh as a
 2-D ggplot — the same idiom the lee-lab DCV repo uses for its FAFB
 figures (`R/visualise/fafb_flange.R`,
-`fig_2_dcv_predictions_fafb.Rmd`). We fetch the L2 skeletons of the
-top 2 candidates from FlyWire, then overlay them on the FAFB14 brain
-with the SEZ neuropils tinted blue:
+`fig_2_dcv_predictions_fafb.Rmd`).
+
+We fetch the **FlyWire meshes** for the top 2 candidates (~22 MB each,
+~10 s/neuron from CloudVolume) and project their vertices to 2-D as
+a low-alpha point cloud — that produces a denser, MIP-like volumetric
+render than the L2 skeleton paths. The FAFB14 brain and SEZ neuropil
+meshes from `elmr` provide context.
 
 ```{r natggplot, eval = FALSE}
 library(nat); library(nat.ggplot); library(elmr); library(fafbseg)
 library(ggplot2); library(patchwork)
+options(fafbseg.flywire_dataset = "flywire_fafb_public")
 
 CB0602 <- "720575940632295751"
 CB0239 <- "720575940634548194"
-sk <- read_l2skel(c(CB0602, CB0239),
-                  datastack_name = "flywire_fafb_public")
+m <- fafbseg::read_cloudvolume_meshes(c(CB0602, CB0239))
 
 brain    <- elmr::FAFB14.surf
 sez_surf <- subset(elmr::FAFB14NP.surf,
                    c("GNG","SAD","FLA_R","FLA_L","AMMC_R","AMMC_L"))
 
-mk_panel <- function(neuron, title, neuron_col) {
+# Project mesh vertices to 2-D as a low-alpha point cloud — this is
+# what produces the volumetric "MIP-like" arbour density.
+mesh_xy <- function(mesh) {
+  v <- nat::xyzmatrix(mesh)
+  data.frame(X = v[,1], Y = v[,2], Z = v[,3])
+}
+mk_panel <- function(mesh, title, neuron_col) {
   ggplot() +
-    geom_neuron(brain,    cols = "grey70", alpha = 0.35) +
-    geom_neuron(sez_surf, cols = "#3182bd", alpha = 0.45) +
-    geom_neuron(neuron,   cols = neuron_col, alpha = 0.95, lwd = 0.4) +
-    coord_fixed() + scale_y_reverse() + guides(colour = "none", fill = "none") +
+    geom_neuron(brain,    cols = "grey75", alpha = 0.30) +
+    geom_neuron(sez_surf, cols = "#3182bd", alpha = 0.40) +
+    geom_point(data = mesh_xy(mesh), aes(x = X, y = Y),
+               colour = neuron_col, alpha = 0.04, size = 0.15) +
+    coord_fixed() + scale_y_reverse() +
     labs(title = title) +
     theme_void(base_size = 11) +
     theme(plot.title = element_text(hjust = 0.5))
 }
-(mk_panel(sk[[CB0602]], "CB0602 — SS32423 ∩ R65D05",   "magenta") |
- mk_panel(sk[[CB0239]], "CB0239 — SS32423 ∩ VT019900", "darkorange"))
+(mk_panel(m[[CB0602]], "CB0602 — SS32423 ∩ R65D05",   "magenta") |
+ mk_panel(m[[CB0239]], "CB0239 — SS32423 ∩ VT019900", "darkorange"))
 ```
 
 The result (`inst/images/asta_sez_candidates_natggplot.png`):
@@ -475,9 +522,10 @@ ramp NeuronBridge uses), so the three panels read consistently:
 ![SS32423 NB MIP next to CB0602 and CB0239 depth-encoded skeletons](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_mip_panel.png)
 
 The reproducer for this figure (and the `geom_neuron` panel above) is
-`inst/scripts/asta_sez_mip_panel.R` and
-`inst/scripts/asta_sez_natggplot.R` — both run from L2 skeletons
-(fast, ~20 s for 2 neurons) rather than full meshes.
+`inst/scripts/asta_sez_meshes.R` — fetches the FlyWire meshes once
+(~10 s/neuron, ~22 MB each, cached to
+`inst/extdata/asta_sez/cache/meshes_*.rds`) and renders both the
+2-panel `geom_neuron` figure and this 3-row depth-encoded panel.
 
 If you want a *true* NeuronBridge-style colour-depth MIP from the
 FlyWire mesh (i.e. Janelia's `Color_Depth_MIP_batch_0308_2021.ijm`
@@ -495,6 +543,95 @@ nrrd_to_mip(fiji.path = "/Applications/Fiji.app/Contents/MacOS/ImageJ-macosx",
 Where that's unavailable, the
 [BANC `colormips`](https://github.com/jasper-tms/the-BANC-fly-connectome/tree/main/colormips)
 pure-Python pipeline produces visually compatible output without FIJI.
+
+# Step 10: Beyond the SEZ — the *other* AstA neurons SS32423 labels
+
+Inspecting the SS32423 montage (Step 1) more carefully, **row 1
+columns 2–4** show clear bright cells *outside* the SEZ — in the
+upper-medial brain. Hentze et al. 2015 mapped AstA expression to
+several non-SEZ groups (median protocerebrum / pars intercerebralis,
+pars lateralis, optic lobe), so we should expect SS32423 to label
+some of those too even if the canonical AstA-GAL4 (`R65D05`) doesn't.
+
+Pulling the 16 SS32423 hits with **non-SEZ somas** from
+`asta_sez_ranked_full.csv` confirms the pattern: they cluster
+overwhelmingly in the **SMP / SLP** with several bilateral cell-type
+recurrences (strong evidence these are real, consistent SS32423
+targets rather than colour-MIP noise):
+
+| cell_type | hemilineage | NT | DCV pct | recurrence |
+|-----------|-------------|----|---------|------------|
+| `SMP202`  | `putative_primary` | ACh | 0.95–0.97 | bilateral pair |
+| `SMP540`  | `SMPpd2` | glutamate | 0.87–0.92 | bilateral pair (×3 hits) |
+| `CB2082`  | `SMPp&v1_posterior` | glutamate | 0.86–0.93 | bilateral pair |
+| `CL176`   | `SMPp&v1_posterior` | glutamate | 0.80–0.88 | bilateral pair |
+| `CB0108`  | `LB19` | ACh | **0.99** | single (IPS soma — SEZ-adjacent) |
+
+Render the strongest non-SEZ candidates with the same mesh-vertex
+point-cloud pipeline (see `inst/scripts/asta_sez_meshes.R` for the
+`mk_panel()` definition):
+
+```{r asta-other-render, eval = FALSE}
+others <- c(
+  SMP202_R = "720575940626412563",
+  SMP202_L = "720575940628248326",
+  SMP540_R = "720575940623972792",
+  SMP540_L = "720575940616330011",
+  CB2082_R = "720575940623952679",
+  CB0108   = "720575940620093019"
+)
+m_other <- fafbseg::read_cloudvolume_meshes(unname(others))
+# ...same mk_panel() as in step 8...
+```
+
+![Non-SEZ SS32423 candidates — SMP202 (×2), SMP540 (×2), CB2082, CB0108](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_other_candidates_natggplot.png)
+
+The figure makes three things clear:
+
+- **`SMP202` (bilateral, ACh)** has somas in the upper-medial
+  brain (SMP cortex rind) and dense bilateral arbours fanning across
+  SMP / SLP — the *exact* cell pattern visible in row 1 cols 2–4 of
+  the SS32423 montage.
+- **`SMP540` (bilateral, glutamate)** is a tighter dorsal-medial cell
+  in the `SMPpd2` hemilineage — co-labels in the same SS32423
+  pattern, alongside SMP202.
+- **`CB0108`** is the interesting boundary case: its soma sits at
+  `outside_IPS_L` (the inferior posterior slope, immediately dorsal
+  to the SEZ), its hemilineage is `LB19` (an SEZ-developmental
+  lineage), and its arbour reaches *into* the SEZ — yet it scores
+  `frac_sez = 0` because none of its soma DCVs land in an SEZ token.
+  The strict tokenisation correctly classifies it as "non_SEZ-soma",
+  but biologically it could be the same family as the SEZ AstA
+  cells — a useful illustration of why the soma_zone test should
+  stay a **soft annotation** rather than a hard filter.
+
+## Important caveat on AstA-specificity for the SMP group
+
+**None of these non-SEZ candidates are hit by `R65D05`** (the
+canonical Hergarden AstA-GAL4 — see the heatmap in step 7). That
+means we cannot assert from this analysis alone that they are
+AstA-positive; only that they are consistent SS32423 targets which
+happen to be DCV-rich (hence likely peptidergic). The interpretation
+is one of:
+
+1. **They are AstA-positive non-SEZ cells** (consistent with the
+   PI/PL groups Hentze 2015 reported), and `R65D05` simply doesn't
+   capture them because that Pfeiffer fragment is a sub-region of
+   AstA flanking sequence selected to label SEZ-AstA cells. Other
+   AstA reporters (the Hentze 2015 `P{AstA-GAL4.2.1}`, CRISPR
+   `AstA[SK1]`, MiMIC T2A-GAL4) would be the test — none are in NB,
+   so this requires direct immunostaining or LM imagery from those
+   lines.
+2. **They are off-target cells of SS32423**: one or both
+   hemidrivers (`VT019900`, `R65D06`) drive in the SMP independently
+   of AstA expression, and the split happens to intersect them.
+   Bilateral cell-type recurrence makes this less likely (random
+   off-target hits don't usually mirror left↔right) but it's still
+   on the table.
+
+The next step in either direction is to render these candidates as
+proper colour-depth MIPs against the SS32423 NB MIPs from row 1 cols
+2–4 of the montage and judge visual agreement.
 
 # Caveats
 

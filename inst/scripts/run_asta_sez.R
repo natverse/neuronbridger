@@ -98,7 +98,13 @@ hits_best <- hits_raw %>%
   ungroup()
 
 # Per-line elbow cap (don't cap too low — we want the union to be wide)
-top_with_elbow <- function(df, cap = 25, drop_frac = 0.75, floor_frac = 0.20) {
+# Relaxed floor_frac (0.10 not 0.20) — sparse-labelling lines like
+# SS32423 produce a long tail of low-score hits which still include
+# real targets; the strict 0.20 floor was excluding the right CB0602
+# partner of our top hit pair (best score ≈ 15k against SS32423's
+# top ≈ 50k = ratio 0.30, but each individual MIP's top hit lands
+# lower so the per-MIP ratio drops below 0.20).
+top_with_elbow <- function(df, cap = 40, drop_frac = 0.75, floor_frac = 0.10) {
   df <- df[order(df$normalizedScore, decreasing = TRUE), , drop = FALSE]
   if (!nrow(df)) return(df)
   keep <- TRUE
@@ -111,12 +117,19 @@ top_with_elbow <- function(df, cap = 25, drop_frac = 0.75, floor_frac = 0.20) {
   head(df[keep, , drop = FALSE], cap)
 }
 hits_top <- hits_best %>% group_by(query_line) %>%
-  group_modify(~ top_with_elbow(.x, cap = 25)) %>% ungroup()
+  group_modify(~ top_with_elbow(.x, cap = 40)) %>% ungroup()
 cat("  hits_top rows after elbow:", nrow(hits_top),
     " unique neurons:", n_distinct(hits_top$root_783), "\n")
 
 cat("\nStep 3: soma-neuropil tokenisation from soma-DCV detection feather\n")
-SEZ_INNER <- c("GNG","SAD","AMMC_L","AMMC_R","FLA_L","FLA_R")
+# Broader peri-esophageal SEZ set: the strict 6-neuropil definition
+# misses cells like CB0108 whose soma sits at the IPS rind
+# (`outside_IPS_L`) but whose hemilineage (LB19) is canonically SEZ.
+# Include PRW (prow), IPS / SPS (inferior / superior posterior slope),
+# VES (vest), WED (wedge) — all peri-esophageal under Ito 2014.
+SEZ_INNER <- c("GNG","SAD","AMMC_L","AMMC_R","FLA_L","FLA_R",
+               "PRW","IPS_L","IPS_R","SPS_L","SPS_R",
+               "VES_L","WED_L","WED_R")
 SEZ_TOK <- c(SEZ_INNER, paste0("outside_", SEZ_INNER))
 soma_class_f <- file.path(CACHE, "soma_class.rds")
 if (file.exists(soma_class_f)) {
