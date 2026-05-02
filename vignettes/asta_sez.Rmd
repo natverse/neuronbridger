@@ -449,6 +449,15 @@ The bilateral symmetry is unambiguous and the dorsal-ventral split
 matches the figures in Hergarden 2012. **CB0602 + CB0108 together =
 the 4 SEZ-AstA cells that motivated SS32423 in the first place.**
 
+Of course, none of this is news to the FlyWire community: these large
+projection neurons are already annotated as the **AstA1** cell type in
+[codex](https://codex.flywire.ai/app/search?dataset=banc&filter_string=AstA1).
+The point of the pipeline above isn't to discover AstA1 from scratch,
+but to show that **SS32423 + AstA-locus driver consensus + DCV-density
+soma scoring converges on AstA1 without using the AstA1 annotation as
+input** — the same recipe should generalise to other peptidergic
+populations that don't yet have a canonical FlyWire label.
+
 The 16 SS32423 hits with **non-SEZ somas** (visible in
 `asta_sez_ranked_full.csv`) belong to a different cluster — see
 Step 10 below.

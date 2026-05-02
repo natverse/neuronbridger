@@ -11,6 +11,7 @@
 suppressMessages({
   library(devtools); load_all(".")
   library(malevnc); library(neuprintr); library(nat)
+  library(nat.ggplot); library(patchwork)
   library(dplyr); library(tidyr); library(ggplot2)
 })
 
@@ -44,30 +45,51 @@ if (file.exists(targets_f)) {
 }
 cat("  groups:\n"); print(table(targets$group))
 
-cat("\nStep 2a: 3-D view of a sample of MANC abdominal neurons\n")
+cat("\nStep 2a: nat.ggplot view of a sample of MANC abdominal neurons\n")
 fig3d <- file.path(OUT_DIR, "abdominal_manc_neurons_3d.png")
+mesh_f <- file.path(CACHE, "manc_sample_meshes.rds")
 if (!file.exists(fig3d)) {
-  conn <- manc_neuprint()
   set.seed(1)
   sample_ids <- c(
     sample(targets$bodyid[targets$group == "MNad motor"],   8, replace = FALSE),
     sample(targets$bodyid[targets$group == "abdominal EN"], 6, replace = FALSE)
   )
-  neurons <- manc_read_neurons(sample_ids, conn = conn)
-  meta <- targets[match(names(neurons), targets$bodyid), ]
-  cols <- ifelse(meta$group == "MNad motor", "#1f78b4", "#ff7f00")
-  # Render off-screen via rgl + scene-graph.
-  rgl::open3d()
-  rgl::par3d(windowRect = c(50, 50, 1000, 800))
-  if (requireNamespace("malevnc", quietly = TRUE)) {
-    try(plot3d(MANC.surf, alpha = 0.05, col = "grey80"), silent = TRUE)
+  if (file.exists(mesh_f)) {
+    meshes <- readRDS(mesh_f); cat("  meshes cached\n")
+  } else {
+    cat("  fetching", length(sample_ids), "MANC meshes (~30 s) ...\n")
+    meshes <- read_manc_meshes(sample_ids)
+    saveRDS(meshes, mesh_f)
   }
-  for (i in seq_along(neurons)) {
-    plot3d(neurons[[i]], soma = 1500, lwd = 2, col = cols[i], add = TRUE)
-  }
-  rgl::view3d(theta = 0, phi = 0, fov = 0, zoom = 0.7)
-  rgl::snapshot3d(fig3d, fmt = "png", webshot = FALSE, top = TRUE)
-  rgl::close3d()
+  meta <- targets[match(names(meshes), targets$bodyid), ]
+  # read_manc_meshes() returns coords in nanometres; MANC.tissue.surf
+  # lives in MANCsym µm. Plot in MANCsym µm with Z (rostral-caudal) on
+  # the screen Y axis so the VNC stands upright with rostral at the top.
+  mesh_pts <- bind_rows(lapply(seq_along(meshes), function(i) {
+    v <- nat::xyzmatrix(meshes[[i]]) / 1000
+    data.frame(X = v[,1], Y = v[,2], Z = v[,3],
+               bodyid = names(meshes)[i], group = meta$group[i])
+  }))
+  surf_pts <- as.data.frame(nat::xyzmatrix(MANC.tissue.surf))
+  surf_hull <- surf_pts[chull(surf_pts$X, surf_pts$Z), c("X","Z")]
+  p <- ggplot() +
+    geom_polygon(data = surf_hull, aes(x = X, y = Z),
+                 fill = "grey90", colour = "grey60",
+                 linewidth = 0.3, alpha = 0.4) +
+    geom_point(data = mesh_pts, aes(x = X, y = Z, colour = group),
+               alpha = 0.05, size = 0.2) +
+    scale_colour_manual(values = c(`MNad motor` = "#1f78b4",
+                                   `abdominal EN` = "#ff7f00")) +
+    coord_fixed() + scale_y_reverse() +
+    labs(title = "MANC abdominal motor + endocrine neurons (sample)",
+         subtitle = "Blue = MNad motor neurons; orange = abdominal endocrine neurons") +
+    theme_void(base_size = 11) +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5),
+          legend.position = "bottom",
+          legend.title = element_blank()) +
+    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 3)))
+  ggsave(fig3d, p, width = 6, height = 9, dpi = 300, bg = "white")
   cat("  wrote", fig3d, "\n")
 } else {
   cat("  cached:", fig3d, "\n")
