@@ -544,6 +544,15 @@ pair above CB0602 ventral pair</div>
 matches the figures in Hergarden 2012. <strong>CB0602 + CB0108 together
 = the 4 SEZ-AstA cells that motivated SS32423 in the first
 place.</strong></p>
+<p>Of course, none of this is news to the FlyWire community: these large
+projection neurons are already annotated as the <strong>AstA1</strong>
+cell type in <a href="https://codex.flywire.ai/app/search?dataset=banc&amp;filter_string=AstA1" class="external-link">codex</a>.
+The point of the pipeline above isn’t to discover AstA1 from scratch,
+but to show that <strong>SS32423 + AstA-locus driver consensus +
+DCV-density soma scoring converges on AstA1 without using the AstA1
+annotation as input</strong> — the same recipe should generalise to
+other peptidergic populations that don’t yet have a canonical FlyWire
+label.</p>
 <p>The 16 SS32423 hits with <strong>non-SEZ somas</strong> (visible in
 <code>asta_sez_ranked_full.csv</code>) belong to a different cluster —
 see Step 10 below.</p>
@@ -858,9 +867,9 @@ stripes on the heatmap). A tighter panel (<code>SS32423</code>,
 privileges AstA-specific enhancers over locus-wide ones.</li>
 <li>
 <strong>Re-rank without the DCV nudge</strong> — CB0602 sits at
-<code>dcv_pct =    0.866</code>, just below the strict p90 cutoff, so
-the nudge isn’t helping it; if the true AstA cell sits even lower in
-DCV, the nudge could be pushing the wrong cell to the top.</li>
+<code>dcv_pct = 0.866</code>, just below the strict p90 cutoff, so the
+nudge isn’t helping it; if the true AstA cell sits even lower in DCV,
+the nudge could be pushing the wrong cell to the top.</li>
 </ol>
 </div>
 <div class="section level2">
