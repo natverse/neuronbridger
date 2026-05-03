@@ -2,74 +2,93 @@
 # Build the side-by-side colour-MIP demonstration panel for
 # vignettes/colormip_direct_vs_fiji.Rmd and the README.
 #
-# Renders a synthetic-but-recognisable JRC2018U_HR-shaped 3D volume (a
-# branching, depth-varying "pseudo-neuron") through both back-ends of
-# nrrd_to_mip() that we can run locally:
+# Renders the BANC v888 AstA1 cells (a left/right peptidergic central-brain
+# pair, cell_type "AstA1" in `compiled_data/banc_888/banc_888_meta.feather`
+# at gs://lee-lab_brain-and-nerve-cord-fly-connectome) through both
+# back-ends of nrrd_to_mip() that we can run locally:
 #   * method = "direct" (pure R)
 #   * method = "python" (BANC's fanc.render_neurons depth_lut via reticulate)
 # The FIJI macro is referenced in the vignette as the canonical original
-# but cannot be invoked from a non-interactive build, so the panel is
-# captioned as "the same algorithm, two implementations".
+# but cannot be invoked from a non-interactive build.
+#
+# Provenance:
+#   - Mesh: bancr::banc_read_neuron_meshes() -- public BANC segmentation
+#     served from gs://zetta_lee_fly_cns_001_kisuk (no CAVE auth required
+#     for read). Mirrored at
+#     gs://lee-lab_brain-and-nerve-cord-fly-connectome/imported_meshes/banc_meshes/
+#   - Cell-type lookup: gs://lee-lab_brain-and-nerve-cord-fly-connectome/
+#       compiled_data/banc_888/banc_888_meta.feather
+#       (cell_type == "AstA1" -> two root_888 IDs, one per side)
+#   - Sub-sampled vertex point cloud (both sides, 150k pts each, in nm) is
+#     cached at inst/extdata/asta1/banc_asta1_points_nm.rds so the script
+#     runs without needing to re-fetch the 50MB drc meshes.
 
 suppressMessages({
   library(neuronbridger)
+  library(bancr)
+  library(nat)
+  library(nat.flybrains)
+  library(nat.templatebrains)
   library(abind)
 })
 
 OUT_DIR <- "inst/images"
+CACHE   <- "inst/extdata/asta1/banc_asta1_points_nm.rds"
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
-# ---- 1) Synthetic JRC2018U_HR volume with a recognisable depth-varying path
-nx <- 1210L; ny <- 566L; nz <- 174L
-vol <- array(0L, dim = c(nx, ny, nz))
+# ---- 1) Load (or regenerate) the AstA1 point cloud cache ---------------
+#
+# To regenerate from scratch (re-runs the cloudvolume mesh fetch):
+#
+#   library(bancr); library(arrow)
+#   m <- arrow::read_feather(
+#     "gs://lee-lab_brain-and-nerve-cord-fly-connectome/compiled_data/banc_888/banc_888_meta.feather"
+#   )
+#   ids <- m$root_888[!is.na(m$cell_type) & m$cell_type == "AstA1"]
+#   meshes <- bancr::banc_read_neuron_meshes(ids)
+#   pts <- lapply(meshes, function(mm) {
+#     xyz <- nat::xyzmatrix(mm)
+#     xyz <- xyz[sample(nrow(xyz), min(150000L, nrow(xyz))), ]
+#     storage.mode(xyz) <- "integer"
+#     xyz
+#   })
+#   names(pts) <- c("right", "left")
+#   saveRDS(pts, CACHE)
+pts_nm <- readRDS(CACHE)
+cat(sprintf("AstA1 cached point cloud: %s sides, %s pts/side\n",
+            length(pts_nm),
+            paste(sapply(pts_nm, nrow), collapse = "/")))
 
-# Anterior dendritic tuft (small) -> long descending arbour -> posterior tuft.
-draw_blob <- function(vol, cx, cy, cz, r) {
-  xr <- max(1L, cx - r):min(dim(vol)[1], cx + r)
-  yr <- max(1L, cy - r):min(dim(vol)[2], cy + r)
-  zr <- max(1L, cz - 1L):min(dim(vol)[3], cz + 1L)
-  for (x in xr) for (y in yr) {
-    if ((x - cx)^2 + (y - cy)^2 <= r^2)
-      vol[x, y, zr] <<- 255L
-  }
-}
+# ---- 2) Bridge BANC nm -> JRC2018F microns -----------------------------
+# bancr ships a thin-plate-spline registration as data; this is a pure-R
+# bridge and does NOT require nat.jrcbrains / saalfeldlab .h5 transforms.
+all_nm <- do.call(rbind, pts_nm)
+cat("Bridging", nrow(all_nm), "points BANC -> JRC2018F (tpsreg) ...\n")
+pts_jrc <- bancr::banc_to_JRC2018F(all_nm, method = "tpsreg",
+                                   banc.units = "nm", region = "brain")
+cat("JRC2018F bbox (microns):\n"); print(apply(pts_jrc, 2, range))
 
-n_pts <- 1200L
-ts <- seq(0, 1, length.out = n_pts)
-for (i in seq_along(ts)) {
-  t <- ts[i]
-  cx <- as.integer(180 + (nx - 360) * t)
-  cy <- as.integer(ny / 2 + 110 * sin(t * 4 * pi) * (1 - t * 0.3))
-  cz <- as.integer(8 + (nz - 16) * t)
-  if (cx >= 1 && cx <= nx && cy >= 1 && cy <= ny && cz >= 1 && cz <= nz)
-    vol[cx, cy, cz] <- 255L
-  if (cx + 1 <= nx) vol[cx + 1, cy, cz] <- 255L
-  if (cy + 1 <= ny) vol[cx, cy + 1, cz] <- 255L
-}
-# Tufts at both ends
-draw_blob(vol, 200,  ny %/% 2,  10,  18)
-draw_blob(vol, nx - 200, ny %/% 2, nz - 10, 22)
-# Two side branches
-for (i in seq_along(ts)) {
-  t <- ts[i]
-  if (t > 0.30 && t < 0.34) {
-    cx <- as.integer(180 + (nx - 360) * t)
-    cy <- as.integer(ny / 2 + 200 * (t - 0.30) / 0.04)
-    cz <- as.integer(8 + (nz - 16) * t)
-    if (cx <= nx && cy <= ny && cz <= nz) vol[cx, cy, cz] <- 255L
-  }
-  if (t > 0.62 && t < 0.66) {
-    cx <- as.integer(180 + (nx - 360) * t)
-    cy <- as.integer(ny / 2 - 200 * (t - 0.62) / 0.04)
-    cz <- as.integer(8 + (nz - 16) * t)
-    if (cx <= nx && cy >= 1 && cz <= nz) vol[cx, cy, cz] <- 255L
-  }
-}
+# ---- 3) Voxelise into the NeuronBridge JRC2018U_HR grid ----------------
+# NeuronBridge expects (1210, 566, 174) at (0.5189, 0.5189, 1.0) um. The
+# JRC2018F bbox covers the same physical brain, so we can declare an
+# HR-shaped templatebrain over JRC2018F's bbox and voxelise into it
+# without an explicit JRC2018F -> JRC2018U hop (which would otherwise
+# require nat.jrcbrains). For real NeuronBridge ColorMIP searches the
+# proper hop matters; for a visual demo it does not.
+JRC2018U_HR <- nat.templatebrains::templatebrain(
+  "JRC2018U_HR",
+  dims    = c(1210L, 566L, 174L),
+  voxdims = c(0.5189, 0.5189, 1.0),
+  units   = "microns"
+)
+vol <- nat::as.im3d(pts_jrc, JRC2018U_HR)
+storage.mode(vol) <- "integer"
+cat("Volume dims:", dim(vol), "  occupied voxels:", sum(vol > 0), "\n")
 
-# ---- 2) Run both back-ends
+# ---- 4) Run both back-ends ---------------------------------------------
 cat("Rendering method = 'direct' ...\n")
-mip_r <- nrrd_to_mip(vol, save = FALSE, method = "direct",
-                     target_space = "brain")
+mip_r  <- nrrd_to_mip(vol, save = FALSE, method = "direct",
+                      target_space = "brain")
 cat("Rendering method = 'python' (reticulate -> BANC depth_lut) ...\n")
 mip_py <- nrrd_to_mip(vol, save = FALSE, method = "python",
                       target_space = "brain")
@@ -83,17 +102,14 @@ cat(sprintf("Pixels exactly equal: %d / %d (%.4f%%)\n",
             sum(mip_r == mip_py), length(mip_r),
             100 * sum(mip_r == mip_py) / length(mip_r)))
 
-# ---- 3) Single-method demo for the README
+# ---- 5) Single-method demo for the README ------------------------------
 png::writePNG(mip_r, file.path(OUT_DIR, "colormip_direct_demo.png"))
 cat("wrote: ", file.path(OUT_DIR, "colormip_direct_demo.png"), "\n")
 
-# ---- 4) Side-by-side panel: direct (R) | python (BANC) | abs diff x50
-diff_amp <- abs(mip_r - mip_py) * 50           # amplify for visibility
+# ---- 6) Side-by-side panel: direct (R) | python (BANC) | abs diff x50 --
+diff_amp <- abs(mip_r - mip_py) * 50
 diff_amp[diff_amp > 1] <- 1
-dim(diff_amp) <- dim(mip_r)                     # pmin / arithmetic strip dim
-
-# Stack the three RGB images vertically with thin black gutter rows
-# (no magick headers — environments without system fonts can't annotate).
+dim(diff_amp) <- dim(mip_r)
 gutter <- array(0, dim = c(8L, dim(mip_r)[2], 3L))
 panel  <- abind::abind(mip_r, gutter, mip_py, gutter, diff_amp, along = 1)
 panel[panel > 1] <- 1; panel[panel < 0] <- 0
