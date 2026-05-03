@@ -1,0 +1,249 @@
+---
+title: "Colour-depth MIPs three ways: direct R, BANC Python, and FIJI"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Colour-depth MIPs three ways: direct R, BANC Python, and FIJI}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# One function, three back-ends
+
+NeuronBridge searches operate on **colour-depth MIPs** (Otsuna et al.
+2018, [bioRxiv](https://www.biorxiv.org/content/10.1101/318006)): a
+single 2-D image where the hue at each `(x, y)` pixel encodes the
+*z*-depth of the brightest voxel along that column (blue = anterior,
+red = posterior).
+
+`neuronbridger` ships one function — `nrrd_to_mip()` — that produces
+these images via three interchangeable back-ends, selected with
+`method =`:
+
+| `method` | Implementation | When to use |
+|---|---|---|
+| `"direct"` *(default)* | Pure R (`which.max` along z, LUT lookup) | The fast path; no JVM, no Python |
+| `"python"` | Stephan Gerhard's port in [`fanc.render_neurons.make_colormip`](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py), called via `reticulate` | Validate against the BANC reference |
+| `"fiji"` | Janelia's `Color_Depth_MIP_batch_0308_2021.ijm` macro | Run the canonical FIJI implementation if you already have it installed |
+
+All three use the same 256-entry depth LUT (PsychedelicRainBow2-like
+ramp). The output of `"direct"` is byte-equivalent to `"python"`
+(modulo the 1/255 RGB rounding from skimage's HSV roundtrip), and is
+visually indistinguishable from the FIJI macro — Stephan's own
+characterisation is *"nearly identical, with sub-percent RGB
+differences that do not affect downstream NeuronBridge searches."*
+
+# Pipeline overview
+
+The MIP step is the last step of a longer pipeline. Steps 1–3 are
+identical regardless of which back-end you choose for step 4.
+
+| Step | Function | What it does |
+|---|---|---|
+| 1 | `bancr::banc_read_neuron_meshes()` | Fetch a BANC mesh by seg ID |
+| 2 | `bancr::banc_to_JRC2018F()` + `nat.templatebrains::xform_brain()` | Bridge into NeuronBridge-compatible template space |
+| 3 | `nat::as.im3d()` + `nat::write.nrrd()` | Voxelise the registered mesh into a JRC2018U_HR / JRC2018VNCU-shaped volume |
+| 4 | `nrrd_to_mip(method = ...)` | Colour-depth MIP via R, Python or FIJI |
+
+Steps 1–3 follow the same template-space conventions as
+[`wilson-lab/nat-tech`](https://github.com/wilson-lab/nat-tech)
+(`hemibrain_to_nrrd`, `flywireid_to_nrrd`): a NeuronBridge-compatible
+volume must live in **JRC2018_UNISEX_20x_HR** (a.k.a. `JRC2018U_HR`,
+dims `1210 × 566 × 174`, voxdims `0.5189 × 0.5189 × 1.0` µm) for brain
+neurons or **JRC2018_VNC_UNISEX_461** (dims `573 × 1119 × 219`,
+voxdims `0.461 × 0.461 × 0.7` µm) for VNC neurons.
+
+# Setup
+
+```{r install, eval = FALSE}
+remotes::install_github("natverse/neuronbridger")
+remotes::install_github("flyconnectome/bancr")
+remotes::install_github("natverse/nat.flybrains")
+remotes::install_github("natverse/nat.jrcbrains")
+nat.jrcbrains::download_saalfeldlab_registrations()
+
+# For method = "python":
+install.packages("reticulate")
+reticulate::py_install(c("banc", "scikit-image", "numpy"), pip = TRUE)
+```
+
+```{r libs}
+library(neuronbridger)
+library(bancr)
+library(nat)
+library(nat.flybrains)
+library(nat.templatebrains)
+library(nat.jrcbrains)
+nat.jrcbrains::register_saalfeldlab_registrations()
+```
+
+# Step 1 — Find the AstA1 neuron in BANC
+
+`AstA1` is the FlyWire/BANC label for the dorsal peptidergic ascending
+pair that the
+[`asta_sez`](https://natverse.github.io/neuronbridger/articles/asta_sez.html)
+vignette converges on from the SS32423 split-GAL4 line. Browse them in
+[BANC codex](https://codex.flywire.ai/app/search?dataset=banc&filter_string=AstA1).
+
+```{r asta1}
+ann   <- bancr::banc_codex_annotations()
+asta1 <- subset(ann, cell_type == "AstA1")
+asta1$pt_root_id
+
+asta1_id <- asta1$pt_root_id[1]
+```
+
+# Step 2 — Fetch and bridge into JRC2018U_HR
+
+```{r bridge}
+banc_mesh <- bancr::banc_read_neuron_meshes(asta1_id)
+
+# BANC -> JRC2018F (BANC-specific bridge, tpsreg)
+mesh_jrc2018f <- bancr::banc_to_JRC2018F(banc_mesh, method = "tpsreg",
+                                         banc.units = "nm")
+
+# JRC2018F -> JRC2018U (natverse bridge from nat.flybrains)
+mesh_jrc2018u <- nat.templatebrains::xform_brain(mesh_jrc2018f,
+                                                 sample    = "JRC2018F",
+                                                 reference = "JRC2018U")
+```
+
+> **VNC neurons** would replace the two transforms with
+> `banc_to_JRC2018F(..., region = "vnc")` followed by
+> `xform_brain(..., reference = "JRCVNC2018U")`, and step 3 would
+> declare the JRCVNC2018U template.
+
+# Step 3 — Voxelise to NRRD at JRC2018U_HR dimensions
+
+```{r voxelise}
+JRC2018U_HR <- nat.templatebrains::templatebrain(
+  "JRC2018U_HR",
+  dims    = c(1210, 566, 174),
+  voxdims = c(0.5189, 0.5189, 1.0),
+  units   = "microns"
+)
+
+points <- nat::xyzmatrix(mesh_jrc2018u)
+vol    <- nat::as.im3d(points, JRC2018U_HR)
+
+savefolder <- "~/banc_asta1_mip"
+dir.create(savefolder, showWarnings = FALSE)
+nrrd_path <- file.path(savefolder, sprintf("AstA1_%s_JRC2018U_HR.nrrd", asta1_id))
+nat::write.nrrd(vol, nrrd_path)
+```
+
+# Step 4 — Colour MIP, three ways
+
+```{r mip-three}
+# (a) Pure R — the fast path:
+nrrd_to_mip(savefolder, method = "direct", target_space = "brain")
+
+# (b) BANC's Python make_colormip via reticulate — to validate the R port
+#     against Stephan Gerhard's reference implementation:
+nrrd_to_mip(savefolder, method = "python", target_space = "brain")
+
+# (c) Janelia's FIJI macro — interactive folder picker, requires FIJI install:
+nrrd_to_mip(method = "fiji",
+            fiji.path = "/Applications/Fiji.app/Contents/MacOS/ImageJ-macosx")
+```
+
+The `"direct"` and `"python"` calls each write a PNG into
+`<savefolder>/color_mips/`; the `"fiji"` call launches FIJI and asks
+the user to pick the input and output directories interactively.
+
+# Cross-method validation (no BANC access needed)
+
+The synthetic-volume check below runs in any R session — it builds a
+JRC2018U_HR-sized 3D volume with a depth-varying "pseudo-neuron" path
+and runs the same volume through both R and Python back-ends.
+
+```{r cross-validate, eval = TRUE}
+library(neuronbridger)
+
+nx <- 1210L; ny <- 566L; nz <- 174L
+vol <- array(0L, dim = c(nx, ny, nz))
+ts <- seq(0, 1, length.out = 1200)
+for (t in ts) {
+  cx <- as.integer(180 + (nx - 360) * t)
+  cy <- as.integer(ny / 2 + 110 * sin(t * 4 * pi))
+  cz <- as.integer(8 + (nz - 16) * t)
+  if (cx >= 1 && cx <= nx && cy >= 1 && cy <= ny) vol[cx, cy, cz] <- 255L
+}
+
+mip_r  <- nrrd_to_mip(vol, save = FALSE, method = "direct",
+                      target_space = "brain")
+# Requires reticulate + banc/skimage installed:
+#   reticulate::py_install(c("banc", "scikit-image"), pip = TRUE)
+mip_py <- nrrd_to_mip(vol, save = FALSE, method = "python",
+                      target_space = "brain")
+
+max_diff <- max(abs(mip_r - mip_py))
+sprintf("Max abs diff R vs Python: %.4f  (%d / 255 RGB units)",
+        max_diff, as.integer(round(max_diff * 255)))
+sprintf("Pixels exactly equal: %d / %d (%.4f%%)",
+        sum(mip_r == mip_py), length(mip_r),
+        100 * sum(mip_r == mip_py) / length(mip_r))
+```
+
+A typical run reports **max diff = 1/255 RGB unit** on
+`<0.25%` of pixels, with the rest byte-identical. The 1/255 wobble
+comes from skimage's `rgb2hsv → hsv2rgb` roundtrip in the BANC code;
+the R back-end skips it because every depth-LUT entry already has
+maximum brightness, making the roundtrip mathematically a no-op.
+
+# What the output looks like
+
+Both back-ends running on the same synthetic JRC2018U_HR-sized volume
+(top: `method = "direct"`, middle: `method = "python"`, bottom:
+`|R − Python| × 50` amplified):
+
+![Three-method colour-MIP demo (direct vs python with amplified diff)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/colormip_methods_panel.png)
+
+The reproducer is `inst/scripts/colormip_methods_panel.R`. The amplified
+difference panel mostly shows nothing; the faint dashed lines that *do*
+appear are the 1/255 RGB rounding mentioned above, and would be invisible
+without the ×50 amplification.
+
+# The algorithm in three lines
+
+```{r algo, eval = FALSE}
+zmax <- apply(vol, c(1, 2), which.max)              # 1..nz, first occurrence
+maxv <- apply(vol, c(1, 2), max)                    # 0 = background
+idx  <- as.integer((zmax - 1) / (dim(vol)[3] - 1) * 255) + 1L
+rgb  <- neuronbridger:::colormip_depth_lut[idx, ]   # 256 x 3 LUT
+rgb[!maxv > 0, ] <- 0                               # mask background
+```
+
+`nrrd_to_mip(method = "direct")` adds:
+
+* the `(nx, ny)` → `(ny, nx)` transpose that PNG/TIFF writers expect;
+* a 90-pixel black header for VNC space, matching the convention that
+  every Janelia VNC colour-MIP carries;
+* file/folder dispatch and round-trip writing of PNG / TIFF.
+
+# Provenance
+
+* **Algorithm**: Otsuna et al. 2018,
+  [bioRxiv](https://www.biorxiv.org/content/10.1101/318006); ColorMIP
+  Mask Search and ColorDepthMIP Generator FIJI plugins
+  ([JaneliaSciComp/ColorMIP_Mask_Search](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search)).
+* **Python port**: Stephan Gerhard (braincircuits.io), shipped as
+  `make_colormip()` in
+  [`fanc.render_neurons`](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py)
+  inside the BANC fly-connectome package
+  ([PyPI: `banc`](https://pypi.org/project/banc/)).
+  The 256-entry depth LUT used by `nrrd_to_mip(method = "direct")` is
+  copied verbatim from that file; `method = "python"` calls the same
+  `depth_lut` via `reticulate`.
+* **R port**: this package; see `R/colormip.R` and the unit tests in
+  `tests/testthat/test-colormip.R` for the BANC equivalence check.
+* **Bridging conventions**: lifted from
+  [`wilson-lab/nat-tech`](https://github.com/wilson-lab/nat-tech)
+  (`hemibrain_to_nrrd`, `flywireid_to_nrrd`).

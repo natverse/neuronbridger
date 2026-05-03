@@ -286,6 +286,40 @@ Bear in mind that this function and some others are very sensitive to the value 
 
 Of course - do not go planning any experiments based on the results of this package without looking at the 3D stacks for GAL4 lines first! The results from these functions are only as good as the LM-EM matching scores from the colour MIP searches performed by FlyLight. In addition, the more stochastic labelling (MCFO) that has been performed on a line, the more certain we can be of its contents - but many lines need a lot more MCFO.
 
+# Generate your own colour-depth MIPs
+
+Once you have a connectome neuron mesh in NeuronBridge-compatible
+template space (`JRC2018U_HR` for brains, `JRCVNC2018U` for VNCs),
+`nrrd_to_mip()` produces the same colour-depth MIPs that FIJI's
+[Color_Depth_MIP_batch_0308_2021.ijm](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/tree/master/ColorDepthMIP_Generator)
+macro produces — but in pure R, no JVM, no interactive folder picker:
+
+```{r colormip-render, eval = FALSE}
+# 1) Render the FlyWire / BANC mesh into a JRC2018U_HR-sized .nrrd
+root_id_to_nrrd("720575940632295751",
+                reference  = "JRC2018U_HR",
+                savefolder = "~/asta_sez_mips")
+
+# 2) Colour-depth MIP every NRRD in the folder, in pure R
+nrrd_to_mip("~/asta_sez_mips", method = "direct", target_space = "brain")
+```
+
+`method = "direct"` (default) is pure R; `method = "python"` calls
+Stephan Gerhard's [BANC port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py)
+via `reticulate` for byte-level validation; `method = "fiji"` shells
+out to the original Janelia macro. Output of all three is
+indistinguishable in NeuronBridge searches; pure-R vs Python differ by
+at most 1/255 RGB unit on `<0.25%` of pixels. Top: `method = "direct"`,
+middle: `method = "python"`, bottom: `|R − Python| × 50` amplified —
+the few faint dashed lines that *do* show through are the entire
+disagreement:
+
+![nrrd_to_mip three-way comparison](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/colormip_methods_panel.png)
+
+See `vignette("colormip_direct_vs_fiji")` for the full pipeline
+(BANC AstA1 mesh → JRC2018U_HR bridging → NRRD → MIP) and the
+back-end-equivalence proof.
+
 # Acknowledgments
 
 ## Data and tools

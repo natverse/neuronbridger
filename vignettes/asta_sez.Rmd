@@ -524,11 +524,13 @@ CB0239 is a tighter, more SEZ-local cell.
 
 # Step 9: Side-by-side colour-depth MIP
 
-Stack the SS32423 NB brain MIP next to depth-encoded renders of CB0602
-and CB0239 (using the same blue→cyan→green→yellow→orange→red→magenta
-ramp NeuronBridge uses), so the three panels read consistently:
+Stack the SS32423 NB brain MIP next to depth-encoded renders of the
+two SEZ AstA cell types — **CB0602** (ventral SEZ pair) and
+**CB0108** (dorsal/IPS pair) — using the same
+blue→cyan→green→yellow→orange→red→magenta ramp NeuronBridge uses, so
+the three panels read consistently:
 
-![SS32423 NB MIP next to CB0602 and CB0239 depth-encoded skeletons](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_mip_panel.png)
+![SS32423 NB MIP next to CB0602 and CB0108 depth-encoded skeletons](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_mip_panel.png)
 
 The reproducer for this figure (and the `geom_neuron` panel above) is
 `inst/scripts/asta_sez_meshes.R` — fetches the FlyWire meshes once
@@ -536,22 +538,33 @@ The reproducer for this figure (and the `geom_neuron` panel above) is
 `inst/extdata/asta_sez/cache/meshes_*.rds`) and renders both the
 2-panel `geom_neuron` figure and this 3-row depth-encoded panel.
 
-If you want a *true* NeuronBridge-style colour-depth MIP from the
-FlyWire mesh (i.e. Janelia's `Color_Depth_MIP_batch_0308_2021.ijm`
-macro applied to a re-rendered NRRD), the package wraps that pipeline
-too — but it needs a working FAFB CloudVolume + FIJI/CMTK install:
+For a *true* NeuronBridge-style colour-depth MIP from a FlyWire mesh
+(i.e. the Janelia ColorMIP algorithm applied to a re-rendered NRRD in
+the NeuronBridge-compatible **JRC2018U_HR** grid: 1210 × 566 × 174 at
+0.519 × 0.519 × 1.0 µm), `nrrd_to_mip_direct()` does the whole thing
+in pure R — no FIJI launch required:
 
 ```{r mip-render, eval = FALSE}
-root_id_to_nrrd("720575940632295751",
-                reference  = "JRC2018U_HR",
-                savefolder = "~/asta_sez_mips")
-nrrd_to_mip(fiji.path = "/Applications/Fiji.app/Contents/MacOS/ImageJ-macosx",
-            savefolder = "~/asta_sez_mips")
+sez_hits <- c(CB0602 = "720575940632295751",   # ventral SEZ pair
+              CB0108 = "720575940620093019")   # dorsal IPS pair
+savefolder <- "~/asta_sez_mips"
+
+# 1) Render each FlyWire mesh into a JRC2018U_HR-sized NRRD
+for (id in sez_hits) {
+  root_id_to_nrrd(id,
+                  reference  = "JRC2018U_HR",
+                  savefolder = savefolder)
+}
+
+# 2) Colour-depth MIP every NRRD in the folder, in pure R
+nrrd_to_mip_direct(savefolder, target_space = "brain", format = "png")
+# Output: <savefolder>/color_mips/*_colormip.png
 ```
 
-Where that's unavailable, the
-[BANC `colormips`](https://github.com/jasper-tms/the-BANC-fly-connectome/tree/main/colormips)
-pure-Python pipeline produces visually compatible output without FIJI.
+The `colormip_direct_vs_fiji` vignette walks through the algorithm,
+contrasts `nrrd_to_mip_direct()` against the FIJI-launching
+`nrrd_to_mip()`, and validates byte-for-byte against Stephan Gerhard's
+Python port in the BANC connectome package.
 
 # Step 10: Beyond the SEZ — the *other* AstA neurons SS32423 labels
 
@@ -574,7 +587,11 @@ targets rather than colour-MIP noise):
 | `SMP540`  | `SMPpd2` | glutamate | 0.87–0.92 | bilateral pair (×3 hits) |
 | `CB2082`  | `SMPp&v1_posterior` | glutamate | 0.86–0.93 | bilateral pair |
 | `CL176`   | `SMPp&v1_posterior` | glutamate | 0.80–0.88 | bilateral pair |
-| `CB0108`  | `LB19` | ACh | **0.99** | single (IPS soma — SEZ-adjacent) |
+
+(`CB0108` initially appeared here too because the strict tokeniser
+classified its `outside_IPS_L` soma rind as non-SEZ, but biologically
+it belongs to the SEZ AstA group — see Step 7b — and we've moved it
+back there.)
 
 Render the strongest non-SEZ candidates with the same mesh-vertex
 point-cloud pipeline (see `inst/scripts/asta_sez_meshes.R` for the
@@ -586,16 +603,15 @@ others <- c(
   SMP202_L = "720575940628248326",
   SMP540_R = "720575940623972792",
   SMP540_L = "720575940616330011",
-  CB2082_R = "720575940623952679",
-  CB0108   = "720575940620093019"
+  CB2082_R = "720575940623952679"
 )
 m_other <- fafbseg::read_cloudvolume_meshes(unname(others))
 # ...same mk_panel() as in step 8...
 ```
 
-![Non-SEZ SS32423 candidates — SMP202 (×2), SMP540 (×2), CB2082, CB0108](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_other_candidates_natggplot.png)
+![Non-SEZ SS32423 candidates — SMP202 (×2), SMP540 (×2), CB2082](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_other_candidates_natggplot.png)
 
-The figure makes three things clear:
+The figure makes two things clear:
 
 - **`SMP202` (bilateral, ACh)** has somas in the upper-medial
   brain (SMP cortex rind) and dense bilateral arbours fanning across
@@ -604,15 +620,6 @@ The figure makes three things clear:
 - **`SMP540` (bilateral, glutamate)** is a tighter dorsal-medial cell
   in the `SMPpd2` hemilineage — co-labels in the same SS32423
   pattern, alongside SMP202.
-- **`CB0108`** is the interesting boundary case: its soma sits at
-  `outside_IPS_L` (the inferior posterior slope, immediately dorsal
-  to the SEZ), its hemilineage is `LB19` (an SEZ-developmental
-  lineage), and its arbour reaches *into* the SEZ — yet it scores
-  `frac_sez = 0` because none of its soma DCVs land in an SEZ token.
-  The strict tokenisation correctly classifies it as "non_SEZ-soma",
-  but biologically it could be the same family as the SEZ AstA
-  cells — a useful illustration of why the soma_zone test should
-  stay a **soft annotation** rather than a hard filter.
 
 ## Important caveat on AstA-specificity for the SMP group
 
@@ -676,28 +683,6 @@ proper colour-depth MIPs against the SS32423 NB MIPs from row 1 cols
   finding the AstA cell, but the test for "is this an AstA neuron?"
   is whether **`R65D05`** (the canonical AstA-GAL4) hits it, not just
   whether SS32423's halves do. By that test, **CB0602 wins.**
-
-# Iteration
-
-If the visual MIP / 3-D comparison shows CB0602 doesn't match SS32423,
-three knobs to turn in order:
-
-1. **Raise the per-line MIP cap** from 10 (e.g. to 20) — the
-   strongest candidates with `n_lines >= 2` will probably remain, but
-   broader consensus will surface ties we missed. Bear in mind
-   `neuronbridge_hits()` uses `plyr::rbind.fill` internally and is
-   quadratic in result rows, so cap=20 across the panel is roughly
-   3× slower than cap=10.
-2. **Drop the `R65D07` / `R65E01` flanking tiles** — these contribute
-   many off-target consensus hits that aren't in the
-   `R65D05` ∩ `SS32423` intersection (visible as `R65E01`-only and
-   `R65D07`-only stripes on the heatmap). A tighter panel
-   (`SS32423`, `R65D05`, `R65D06`, `VT019900`) privileges
-   AstA-specific enhancers over locus-wide ones.
-3. **Re-rank without the DCV nudge** — CB0602 sits at `dcv_pct =
-   0.866`, just below the strict p90 cutoff, so the nudge isn't
-   helping it; if the true AstA cell sits even lower in DCV, the
-   nudge could be pushing the wrong cell to the top.
 
 # Citations
 

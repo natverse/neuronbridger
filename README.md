@@ -1,4 +1,6 @@
+
 <!-- README.md is generated from README.Rmd. Please edit that file -->
+
 <!-- badges: start -->
 
 [![natverse](https://img.shields.io/badge/natverse-Part%20of%20the%20natverse-a241b6)](https://natverse.github.io)
@@ -91,14 +93,24 @@ Here is an example of a MIP for a hemibrain neuron
 ([542634818](https://neuprint.janelia.org/view?bodyid=542634818), the
 DM1 olfactory uPN):
 
-![mip_em_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_em_example.png)
+<figure>
+<img
+src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_em_example.png"
+alt="mip_em_example" />
+<figcaption aria-hidden="true">mip_em_example</figcaption>
+</figure>
 
 And for a GAL4 lines that seems to contains that neuron
 ([R84D10](https://v2.virtualflybrain.org/org.geppetto.frontend/geppetto?id=VFBexp_FBtp0063448),
 data from stochastic labelling (MCFO) of line [(Meissener et
 al. 2020)](https://doi.org/10.1101/2020.05.29.080473)):
 
-![mip_gmr_example](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png)
+<figure>
+<img
+src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png"
+alt="mip_gmr_example" />
+<figcaption aria-hidden="true">mip_gmr_example</figcaption>
+</figure>
 
 [NeuronBridge](https://neuronbridge.janelia.org/) loads precomputed
 matches between FlyLight Split GAL4 and MCFO vs Hemibrain 1.1. See its
@@ -266,7 +278,12 @@ plot3d(all.pns, soma = 500, lwd = 0.5, alpha = 0.25)
 ## However, there is a lot that looks similar that might also be labelled by the same lines.
 ```
 
-![em_dm1_upn](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_dm1_upn.png)
+<figure>
+<img
+src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_dm1_upn.png"
+alt="em_dm1_upn" />
+<figcaption aria-hidden="true">em_dm1_upn</figcaption>
+</figure>
 
 So how can we make sure we only get the PN we want, and not these other
 PNs?
@@ -350,7 +367,12 @@ mips = neuronbridge_mip(line)
 scan_mip(mips,type="images", sleep = 5)
 ```
 
-![em_hits](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_hits.png)
+<figure>
+<img
+src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_hits.png"
+alt="em_hits" />
+<figcaption aria-hidden="true">em_hits</figcaption>
+</figure>
 
 We can use this to try to work out how to design a ‘split’ line. The
 split-GAL4 method allows an experimenter to ‘intersect’ the expression
@@ -387,6 +409,46 @@ scores from the colour MIP searches performed by FlyLight. In addition,
 the more stochastic labelling (MCFO) that has been performed on a line,
 the more certain we can be of its contents - but many lines need a lot
 more MCFO.
+
+# Generate your own colour-depth MIPs
+
+Once you have a connectome neuron mesh in NeuronBridge-compatible
+template space (`JRC2018U_HR` for brains, `JRCVNC2018U` for VNCs),
+`nrrd_to_mip()` produces the same colour-depth MIPs that FIJI’s
+[Color_Depth_MIP_batch_0308_2021.ijm](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/tree/master/ColorDepthMIP_Generator)
+macro produces — but in pure R, no JVM, no interactive folder picker:
+
+``` r
+# 1) Render the FlyWire / BANC mesh into a JRC2018U_HR-sized .nrrd
+root_id_to_nrrd("720575940632295751",
+                reference  = "JRC2018U_HR",
+                savefolder = "~/asta_sez_mips")
+
+# 2) Colour-depth MIP every NRRD in the folder, in pure R
+nrrd_to_mip("~/asta_sez_mips", method = "direct", target_space = "brain")
+```
+
+`method = "direct"` (default) is pure R; `method = "python"` calls
+Stephan Gerhard’s [BANC
+port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py)
+via `reticulate` for byte-level validation; `method = "fiji"` shells out
+to the original Janelia macro. Output of all three is indistinguishable
+in NeuronBridge searches; pure-R vs Python differ by at most 1/255 RGB
+unit on `<0.25%` of pixels. Top: `method = "direct"`, middle:
+`method = "python"`, bottom: `|R − Python| × 50` amplified — the few
+faint dashed lines that *do* show through are the entire disagreement:
+
+<figure>
+<img
+src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/colormip_methods_panel.png"
+alt="nrrd_to_mip three-way comparison" />
+<figcaption aria-hidden="true">nrrd_to_mip three-way
+comparison</figcaption>
+</figure>
+
+See `vignette("colormip_direct_vs_fiji")` for the full pipeline (BANC
+AstA1 mesh → JRC2018U_HR bridging → NRRD → MIP) and the
+back-end-equivalence proof.
 
 # Acknowledgments
 
@@ -426,58 +488,56 @@ with the neuronbridge matching service.* **R package** version 2.1.1.
 
 ## Citations
 
--   **The hemibrain connectome (hemibrain:v1.1)**: Scheffer, L.K., Xu,
-    C.S., Januszewski, M., Lu, Z., Takemura, S.-Y., Hayworth, K.J.,
-    Huang, G.B., Shinomiya, K., Maitlin-Shepard, J., Berg, S., et
-    al. (2020). A connectome and analysis of the adult Drosophila
-    central brain. Elife 9. [doi:
-    https://doi.org/10.1101/2020.05.29.080473](https://doi.org/10.1101/2020.05.29.080473)
+- **The hemibrain connectome (hemibrain:v1.1)**: Scheffer, L.K., Xu,
+  C.S., Januszewski, M., Lu, Z., Takemura, S.-Y., Hayworth, K.J., Huang,
+  G.B., Shinomiya, K., Maitlin-Shepard, J., Berg, S., et al. (2020). A
+  connectome and analysis of the adult Drosophila central brain.
+  Elife 9. [doi:
+  https://doi.org/10.1101/2020.05.29.080473](https://doi.org/10.1101/2020.05.29.080473)
 
--   **Gen 1 GAL4 line MCFO**: Meissner, G.W., Dorman, Z., Nern, A.,
-    Forster, K., Gibney, T., Jeter, J., Johnson, L., He, Y., Lee, K.,
-    Melton, B., et al. (2020). An image resource of subdivided
-    Drosophila GAL4-driver expression patterns for neuron-level
-    searches. bioRxiv. [doi:
-    https://doi.org/10.1101/2020.05.29.080473](https://doi.org/10.1101/2020.05.29.080473)
+- **Gen 1 GAL4 line MCFO**: Meissner, G.W., Dorman, Z., Nern, A.,
+  Forster, K., Gibney, T., Jeter, J., Johnson, L., He, Y., Lee, K.,
+  Melton, B., et al. (2020). An image resource of subdivided Drosophila
+  GAL4-driver expression patterns for neuron-level searches. bioRxiv.
+  [doi:
+  https://doi.org/10.1101/2020.05.29.080473](https://doi.org/10.1101/2020.05.29.080473)
 
--   **Gen 1 VT GAL4 lines and hemidrivers**: Tirian, L., and Dickson, B.
-    (2017). The VT GAL4, LexA, and split-GAL4 driver line collections
-    for targeted expression in the Drosophila nervous system. bioRxiv.
-    [doi:
-    https://doi.org/10.1101/198648](https://doi.org/10.1101/198648)
+- **Gen 1 VT GAL4 lines and hemidrivers**: Tirian, L., and Dickson, B.
+  (2017). The VT GAL4, LexA, and split-GAL4 driver line collections for
+  targeted expression in the Drosophila nervous system. bioRxiv. [doi:
+  https://doi.org/10.1101/198648](https://doi.org/10.1101/198648)
 
--   **Gen 1 GMR GAL4 lines**: Jenett, A., Rubin, G.M., Ngo, T.-T.B.,
-    Shepherd, D., Murphy, C., Dionne, H., Pfeiffer, B.D., Cavallaro, A.,
-    Hall, D., Jeter, J., et al. (2012). A GAL4-Driver Line Resource for
-    Drosophila Neurobiology. Cell Rep. 2, 991–1001. [doi:
-    https://doi.org/10.1016/j.celrep.2012.09.011](https://doi.org/10.1016/j.celrep.2012.09.011)
+- **Gen 1 GMR GAL4 lines**: Jenett, A., Rubin, G.M., Ngo, T.-T.B.,
+  Shepherd, D., Murphy, C., Dionne, H., Pfeiffer, B.D., Cavallaro, A.,
+  Hall, D., Jeter, J., et al. (2012). A GAL4-Driver Line Resource for
+  Drosophila Neurobiology. Cell Rep. 2, 991–1001. [doi:
+  https://doi.org/10.1016/j.celrep.2012.09.011](https://doi.org/10.1016/j.celrep.2012.09.011)
 
--   **GMR hemidrivers**: Dionne, H., Hibbard, K.L., Cavallaro, A., Kao,
-    J.-C., and Rubin, G.M. (2018). Genetic Reagents for Making
-    Split-GAL4 Lines in Drosophila. Genetics 209, 31–35. [doi
-    :https://doi.org/10.1534/genetics.118.300682](https://doi.org/10.1534/genetics.118.300682)
+- **GMR hemidrivers**: Dionne, H., Hibbard, K.L., Cavallaro, A., Kao,
+  J.-C., and Rubin, G.M. (2018). Genetic Reagents for Making Split-GAL4
+  Lines in Drosophila. Genetics 209, 31–35. [doi
+  :https://doi.org/10.1534/genetics.118.300682](https://doi.org/10.1534/genetics.118.300682)
 
--   **JRC2018F brain and VNS templates**: Bogovic, J.A., Otsuna, H.,
-    Heinrich, L., Ito, M., Jeter, J., Meissner, G.W., Nern, A.,
-    Colonell, J., Malkesman, O., Ito, K., et al. (2018). An unbiased
-    template of the Drosophila brain and ventral nerve cord. bioRxiv.
-    [doi:
-    https://doi.org/10.1101/376384](https://doi.org/10.1101/376384)
+- **JRC2018F brain and VNS templates**: Bogovic, J.A., Otsuna, H.,
+  Heinrich, L., Ito, M., Jeter, J., Meissner, G.W., Nern, A., Colonell,
+  J., Malkesman, O., Ito, K., et al. (2018). An unbiased template of the
+  Drosophila brain and ventral nerve cord. bioRxiv. [doi:
+  https://doi.org/10.1101/376384](https://doi.org/10.1101/376384)
 
--   **Colour MIP search tool**: Otsuna, H., Ito, M., and Kawase, T.
-    (2018). Color depth MIP mask search: a new tool to expedite
-    Split-GAL4 creation. bioRxiv. [doi:
-    https://doi.org/10.1101/318006](https://doi.org/10.1101/318006)
+- **Colour MIP search tool**: Otsuna, H., Ito, M., and Kawase, T.
+  (2018). Color depth MIP mask search: a new tool to expedite Split-GAL4
+  creation. bioRxiv. [doi:
+  https://doi.org/10.1101/318006](https://doi.org/10.1101/318006)
 
--   **NeuronBridge codebase**: Clements, J., Goina, C., Kazimiers A.,
-    Otsuna, H., Svirskas, R., Rokicki K. (2020) NeuronBridge Codebase.
-    [software](https://janelia.figshare.com/articles/NeuronBridge_Codebase/12159378/1)
+- **NeuronBridge codebase**: Clements, J., Goina, C., Kazimiers A.,
+  Otsuna, H., Svirskas, R., Rokicki K. (2020) NeuronBridge Codebase.
+  [software](https://janelia.figshare.com/articles/NeuronBridge_Codebase/12159378/1)
 
--   **Janelia split-GAL4 lines**:
-    [various](https://neuronbridge.janelia.org/about)
+- **Janelia split-GAL4 lines**:
+  [various](https://neuronbridge.janelia.org/about)
 
--   **What is a fly brain cell type**: Bates, A.S., Janssens, J.,
-    Jefferis, G.S., and Aerts, S. (2019). Neuronal cell types in the
-    fly: single-cell anatomy meets single-cell genomics. Curr. Opin.
-    Neurobiol. 56, 125–134. [doi:
-    https://doi.org/10.1016/j.conb.2018.12.012](https://doi.org/10.1016/j.conb.2018.12.012)
+- **What is a fly brain cell type**: Bates, A.S., Janssens, J.,
+  Jefferis, G.S., and Aerts, S. (2019). Neuronal cell types in the fly:
+  single-cell anatomy meets single-cell genomics. Curr. Opin. Neurobiol.
+  56, 125–134. [doi:
+  https://doi.org/10.1016/j.conb.2018.12.012](https://doi.org/10.1016/j.conb.2018.12.012)
