@@ -66,11 +66,14 @@ library(arrow); library(dplyr); library(tidyr); library(ggplot2)
 NB_VERSION <- "v3_9_0"   # current release; ships FlyWire-FAFB-v783 MIPs
 ```
 
-Local feather caches of the lee-lab compiled FAFB-v783 tables (see
-`/Users/GD/LMBD/Papers/dcv` for the DCV scoring methodology):
+The compiled FAFB-v783 metadata + soma-DCV-detection feather tables
+used here are an in-prep product of the Wei-Chung Allen Lee lab
+(Harvard / lee-lab DCV manuscript, in preparation). Replace
+`DCV_DIR` with the directory holding the equivalent feathers on your
+own machine — the rest of the pipeline is path-agnostic.
 
 ```{r data-paths}
-DCV_DIR <- "/Users/GD/LMBD/Papers/dcv/data/sjcabs/fafb"
+DCV_DIR <- "<path/to/sjcabs/fafb>"   # lee-lab DCV feathers (in prep.)
 META_FEATHER     <- file.path(DCV_DIR, "fafb_783_meta.feather")
 SOMA_DCV_FEATHER <- file.path(DCV_DIR, "fafb_783_soma_dcv_detection.feather")
 ```
@@ -123,25 +126,16 @@ panel_info <- bind_rows(panel_info)
 
 # Step 2: Pull NeuronBridge FAFB-v783 hits per line
 
-SS32423 itself ships **16** brain MIPs (different specimens — useful
-to inspect). Most show the same SS32423 pattern, but one or two are
-MCFO-stochastic stains where only a subset of cells happens to be
-labelled. Always inspect the full set before choosing a "representative"
-MIP for the side-by-side comparison:
+SS32423 ships 16 brain MIPs in `v3_9_0`. The dominant pattern is a
+bilateral SEZ-soma pair with arbours ascending dorso-medially —
+the cell the line was designed to label. A few MIPs are MCFO stochastic
+single-cell renders, so inspect the full set before choosing a
+representative MIP:
 
 ![SS32423 — all 16 brain MIPs in NB v3_9_0](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_SS32423_montage.png)
 
-The dominant pattern across the 16 MIPs is **a bilateral pair of cell
-bodies in the SEZ at the bottom of the brain, with arbours ascending
-dorso-medially through the central brain**. That's the SEZ AstA cell
-SS32423 was designed to label; the bright single-cell cluster in the
-upper-medial brain that appears in only one MIP (`SS32423#3` in this
-release) is an MCFO stochastic single-cell render of one of the
-ascending arbours, not a separate cell type.
-
 For each driver, fetch its colour-depth hits, restrict to FlyWire-FAFB
-(`libraryName == "FlyWire_FAFB_v783_realign"`), and cache per line so
-the slow part doesn't have to run again.
+(`libraryName == "FlyWire_FAFB_v783_realign"`), and cache per line.
 
 ```{r nb-hits}
 KEEP_COLS <- c("publishedName","libraryName","normalizedScore",
@@ -206,29 +200,17 @@ hits_top <- hits_best |>
 
 # Step 3: Soft soma-neuropil annotation (not a hard filter)
 
-This is the trickiest step — the data is good but easy to misuse.
-Three gotchas worth flagging:
-
-1. The soma-DCV detection feather records each vesicle's brain region
-   as a string that **may carry a comma-separated list** when the
-   vesicle sits on a neuropil boundary
-   (e.g. `"AL_R,GNG,SAD"`, `"AMMC_L,AVLP_L"`).
-2. The `outside_<NEUROPIL>` tokens (`outside_GNG`, `outside_SAD`, etc.)
-   represent the **cortex rind** around the neuropil — and that's
-   literally where the soma sits. A naive `neuropil == "GNG"` filter
-   would discard most genuine GNG-soma neurons.
-3. About a third of FAFB-v783 neurons have **no soma DCVs at all**
-   (e.g. ascending neurons whose somas live in the VNC, not in the
-   FAFB volume). These can't be classified from this file — we mark
-   them `unknown` and **keep** them in the candidate pool rather than
-   silently dropping them.
-
-The right move is to (a) tokenise on commas, (b) accept both the
-inner SEZ neuropil and its `outside_*` rind, (c) score by *fraction*
-of soma-DCVs that mention any SEZ token, and (d) keep, not drop,
-borderline / unknown cases. The fraction-SEZ distribution is bimodal
-(most neurons either ~100% or ~0%) so a 0.5 threshold is safe and a
-0.1 threshold is a generous safety net.
+The soma-DCV feather classifies each vesicle by neuropil. Three
+practical points: regions can be comma-joined on neuropil boundaries
+(`"AL_R,GNG,SAD"`); `outside_<NEUROPIL>` tags mark the cortex rind
+where somas actually sit (so a strict `neuropil == "GNG"` filter
+would drop most genuine GNG-soma neurons); and ~⅓ of FAFB-v783
+neurons have no soma DCVs at all (ascending cells with VNC somas).
+We tokenise on commas, accept inner SEZ neuropils plus their
+`outside_*` rinds, score by *fraction* of soma-DCVs hitting any SEZ
+token, and keep borderline / unknown cases rather than silently
+dropping them. The distribution is bimodal so a 0.5 threshold is
+safe and 0.1 is a generous safety net.
 
 ```{r soma-neuropil}
 # Periesophageal SEZ — the broad Ito-2014 definition. The narrow
@@ -700,5 +682,5 @@ proper colour-depth MIPs against the SS32423 NB MIPs from row 1 cols
   12(8):e1006346; Hentze, J.L. *et al.* (2015).
 - **FlyWire / FAFB-v783**: Dorkenwald, S. *et al.* (2024); Schlegel, P.
   *et al.* (2024). *Nature.*
-- **DCV detection / soma DCV density**: lee-lab DCV manuscript (in
-  preparation; methodology in `/Users/GD/LMBD/Papers/dcv`).
+- **DCV detection / soma DCV density**: work from Wei-Chung Allen
+  Lee's lab (Harvard Medical School), in preparation.

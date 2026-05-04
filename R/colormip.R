@@ -39,12 +39,45 @@
 #' pure R), \code{"python"} (BANC Python via \code{reticulate}), or
 #' \code{"fiji"} (Janelia FIJI macro).
 #' @param target_space which template space the input volume is in.
-#' \code{"brain"} (default) corresponds to \code{JRC2018_UNISEX_20x_HR}
-#' (a.k.a. \code{JRC2018U_HR}, dims \code{c(1210, 566, 174)}, voxdims
-#' \code{c(0.5189, 0.5189, 1.0)}); \code{"VNC"} corresponds to
-#' \code{JRC2018_VNC_UNISEX_461} (dims \code{c(573, 1119, 219)}, voxdims
-#' \code{c(0.461, 0.461, 0.7)}). For \code{"VNC"} a 90-pixel black header is
-#' prepended so output is dimensionally identical to Janelia VNC colormips.
+#' \code{"brain"} (default) corresponds to **\code{JRC2018U_HR}** (a.k.a.
+#' \code{JRC2018_UNISEX_20x_HR}, dims \code{c(1210, 566, 174)}, voxdims
+#' \code{c(0.5189, 0.5189, 1.0)}) — the NeuronBridge brain space.
+#' \code{"VNC"} corresponds to **\code{JRC2018VNCU_HR}** (a.k.a.
+#' \code{JRC2018_VNC_UNISEX_461}, dims \code{c(573, 1119, 219)}, voxdims
+#' \code{c(0.461, 0.461, 0.7)}) — the NeuronBridge VNC space. Both are
+#' the high-resolution variants Janelia's pre-computed ColorMIPs are
+#' served at. For \code{"VNC"} a 90-pixel black header is prepended so
+#' output is dimensionally identical to Janelia VNC colormips.
+#' @param threshold one of \code{"auto"} (default), \code{"triangle"},
+#' \code{"otsu"}, \code{"none"}, or a numeric value. Controls how
+#' foreground voxels are separated from background:
+#' \itemize{
+#'   \item \code{"auto"} keeps the legacy \code{> 0} mask if the input
+#'     looks binary (≤ 2 distinct values, e.g. a synthetic neuron
+#'     skeleton from \code{\link{root_id_to_nrrd}}); otherwise applies
+#'     Triangle thresholding to suppress background staining in
+#'     real-world LM data.
+#'   \item \code{"triangle"} (Zack \emph{et al.} 1977): draws a line
+#'     from the histogram peak to the highest-value bin and picks the
+#'     bin of maximum perpendicular distance. Robust on histograms with
+#'     a dominant background peak and a long signal tail (typical
+#'     confocal data).
+#'   \item \code{"otsu"} (1979): maximises between-class variance,
+#'     ignoring zero voxels by default. Works on bimodal foregrounds.
+#'   \item \code{"none"} keeps every voxel \code{> 0} (the original
+#'     behaviour; correct for binary inputs).
+#'   \item A \strong{numeric in [0, 1]} is interpreted as a quantile
+#'     threshold against the non-zero voxels (\code{0.99} = top 1\%).
+#'   \item A \strong{numeric > 1} is a raw intensity cutoff.
+#' }
+#' @param denoise one of \code{"auto"} (default), \code{"median3d"} or
+#' \code{"none"}. Controls a pre-MIP denoising step that runs before
+#' \code{threshold}: \code{"median3d"} applies a 3 × 3 × 3 median
+#' filter to suppress salt-and-pepper noise (requires the
+#' \pkg{mmand} package). \code{"auto"} enables \code{"median3d"} for
+#' grayscale input and skips it for binary input. The 3-D filter is
+#' equivalent to FIJI's \code{Mask Median Subtraction} idiom that the
+#' Janelia ColorMIP macro uses for the same purpose.
 #' @param format output image format. One of \code{"png"} (default) or \code{"tiff"}.
 #' @param save logical; if \code{TRUE} (default) write the MIP to disk and
 #' return the file path(s) invisibly. If \code{FALSE}, return the MIP as a
@@ -91,6 +124,8 @@ nrrd_to_mip <- function(input = NULL,
                         savefolder = NULL,
                         method = c("direct", "python", "fiji"),
                         target_space = c("brain", "VNC"),
+                        threshold = "auto",
+                        denoise = "auto",
                         format = c("png", "tiff"),
                         save = TRUE,
                         overwrite = FALSE,
@@ -112,9 +147,12 @@ nrrd_to_mip <- function(input = NULL,
   }
 
   fn <- if (method == "direct") {
-    function(vol) colormip_from_array(vol, target_space = target_space)
+    function(vol) colormip_from_array(vol, target_space = target_space,
+                                      threshold = threshold, denoise = denoise)
   } else {
     function(vol) colormip_from_array_python(vol, target_space = target_space,
+                                             threshold = threshold,
+                                             denoise = denoise,
                                              python = python)
   }
 
@@ -142,7 +180,9 @@ nrrd_to_mip <- function(input = NULL,
     dir.create(savefolder, showWarnings = FALSE, recursive = TRUE)
     out <- lapply(files, function(f) {
       nrrd_to_mip(f, savefolder = savefolder, method = method,
-                  target_space = target_space, format = format,
+                  target_space = target_space,
+                  threshold = threshold, denoise = denoise,
+                  format = format,
                   save = save, overwrite = overwrite, python = python)
     })
     names(out) <- tools::file_path_sans_ext(basename(files))
@@ -186,9 +226,14 @@ nrrd_to_mip <- function(input = NULL,
 }
 
 # Core algorithm in pure R: 3D array (x, y, z) -> 2D MIP (height, width, 3) in
-# [0, 1]. Mirrors fanc.render_neurons.make_colormip (Stephan Gerhard, BANC).
-colormip_from_array <- function(vol, target_space = c("brain", "VNC")) {
+# [0, 1]. Mirrors fanc.render_neurons.make_colormip (Stephan Gerhard, BANC),
+# with optional pre-MIP denoising + thresholding for noisy LM volumes.
+colormip_from_array <- function(vol,
+                                target_space = c("brain", "VNC"),
+                                threshold    = "auto",
+                                denoise      = "auto") {
   target_space <- match.arg(target_space)
+  vol <- colormip_preprocess(vol, threshold = threshold, denoise = denoise)
   d <- dim(vol)
   nx <- d[1]; ny <- d[2]; nz <- d[3]
 
@@ -218,13 +263,94 @@ colormip_from_array <- function(vol, target_space = c("brain", "VNC")) {
   cmip / 255
 }
 
+# Apply optional denoise + threshold to a 3-D volume before colour-MIP.
+# Returns the same shape as the input. Always integer-valued.
+colormip_preprocess <- function(vol, threshold = "auto", denoise = "auto") {
+  # Cheap binarity probe: sample up to 5000 voxels (skip any zero); the
+  # data is binary iff the sampled non-zero voxels are all equal. The
+  # synthetic neuron renderings produced by root_id_to_nrrd() / as.im3d
+  # are typically {0, 255}; LM volumes have hundreds of distinct values.
+  if (length(vol) > 5000L) {
+    s <- vol[seq.int(1L, length(vol), length.out = 5000L)]
+  } else s <- vol
+  s <- s[s > 0]
+  is_binary <- !length(s) || length(unique.default(s)) == 1L
+
+  # --- Denoise ---
+  use_denoise <- if (identical(denoise, "auto")) {
+    if (is_binary) "none" else "median3d"
+  } else if (is.character(denoise) && length(denoise) == 1L) {
+    match.arg(denoise, c("none", "median3d"))
+  } else stop("`denoise` must be 'auto', 'none' or 'median3d'.")
+  if (use_denoise == "median3d") {
+    if (!requireNamespace("mmand", quietly = TRUE))
+      stop("`denoise = \"median3d\"` requires the 'mmand' package: ",
+           "install.packages('mmand').")
+    k <- mmand::shapeKernel(c(3L, 3L, 3L), type = "box")
+    vol <- mmand::medianFilter(vol, k)
+  }
+
+  # --- Threshold ---
+  cutoff <- if (is.numeric(threshold) && length(threshold) == 1L &&
+                !is.na(threshold)) {
+    nzv <- vol[vol > 0]
+    if (threshold > 0 && threshold < 1 && length(nzv))
+      as.numeric(stats::quantile(nzv, threshold, names = FALSE))
+    else as.numeric(threshold)
+  } else if (is.character(threshold) && length(threshold) == 1L) {
+    method <- if (identical(threshold, "auto")) {
+      if (is_binary) "none" else "triangle"
+    } else match.arg(threshold, c("auto", "triangle", "otsu", "none"))
+    switch(method,
+      none     = 0,
+      triangle = colormip_triangle_threshold(vol),
+      otsu     = colormip_otsu_threshold(vol))
+  } else stop("`threshold` must be 'auto', 'triangle', 'otsu', 'none', ",
+              "or a single numeric.")
+
+  if (cutoff > 0) vol[vol <= cutoff] <- 0L
+  storage.mode(vol) <- "integer"
+  vol
+}
+
+# Triangle thresholding (Zack et al. 1977). Operates on the histogram of
+# integer voxel values 0..nbins-1. Robust on histograms with a dominant
+# background peak and a long signal tail.
+colormip_triangle_threshold <- function(vol, nbins = 256L) {
+  h <- tabulate(as.integer(vol) + 1L, nbins = nbins)
+  pk <- which.max(h)
+  last <- max(which(h > 0))
+  if (last <= pk + 1L) return(pk - 1L)
+  xs <- as.numeric(pk:last); ys <- as.numeric(h[pk:last])
+  x1 <- xs[1]; y1 <- ys[1]; x2 <- xs[length(xs)]; y2 <- ys[length(ys)]
+  dist <- abs((y2 - y1) * xs - (x2 - x1) * ys + x2 * y1 - y2 * x1)
+  as.integer(xs[which.max(dist)] - 1L)
+}
+
+# Otsu thresholding (1979). By default ignores zero voxels so the
+# threshold separates background staining from real signal rather than
+# zero-padding from everything else.
+colormip_otsu_threshold <- function(vol, nbins = 256L, ignore_zero = TRUE) {
+  vv <- if (ignore_zero) vol[vol > 0] else as.integer(vol)
+  if (!length(vv)) return(0L)
+  h <- tabulate(as.integer(vv) + 1L, nbins = nbins) / length(vv)
+  cs <- cumsum(h); m <- cumsum((seq_len(nbins) - 1L) * h)
+  mt <- m[nbins]
+  num <- (mt * cs - m)^2
+  den <- cs * (1 - cs); den[den == 0] <- NA
+  as.integer(which.max(num / den) - 1L)
+}
+
 # Python back-end: hand the volume to numpy and run the colormip math from
 # fanc.render_neurons.make_colormip. Falls back to an internal copy of
 # depth_lut if the BANC package is not installed.
 colormip_from_array_python <- function(vol,
                                        target_space = c("brain", "VNC"),
+                                       threshold    = "auto",
+                                       denoise      = "auto",
                                        python = NULL) {
   target_space <- match.arg(target_space)
+  vol <- colormip_preprocess(vol, threshold = threshold, denoise = denoise)
   if (!requireNamespace("reticulate", quietly = TRUE))
     stop("method = 'python' requires the 'reticulate' package. Install with ",
          "install.packages('reticulate').")

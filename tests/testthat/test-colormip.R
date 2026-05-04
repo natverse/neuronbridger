@@ -27,6 +27,47 @@ test_that("colormip_from_array prepends a 90-pixel header in VNC space", {
   expect_true(all(cmip[1:90, , ] == 0))  # header is black
 })
 
+test_that("triangle + otsu thresholds find sensible cutoffs on a noisy histogram", {
+  # Background ~ N(20, 5), signal ~ N(150, 8) (small foreground fraction).
+  set.seed(7)
+  bg <- pmin(pmax(round(rnorm(50000, 20, 5)), 0L), 255L)
+  fg <- pmin(pmax(round(rnorm(2000, 150, 8)), 0L), 255L)
+  vol <- array(c(bg, fg), dim = c(52000L, 1L, 1L))
+
+  t_tri  <- colormip_triangle_threshold(vol)
+  t_otsu <- colormip_otsu_threshold(vol)
+
+  # Both should land somewhere between the background mode (20) and the
+  # signal mode (150) — i.e. in the gap, not on either peak.
+  expect_gt(t_tri,  25); expect_lt(t_tri,  140)
+  expect_gt(t_otsu, 25); expect_lt(t_otsu, 140)
+})
+
+test_that("threshold='auto' is a no-op on binary input (legacy behaviour)", {
+  vol <- array(0L, dim = c(20, 20, 174))
+  vol[5, 5, 87] <- 255L
+  cmip_legacy <- colormip_from_array(vol, "brain", threshold = "none",
+                                     denoise = "none")
+  cmip_auto   <- colormip_from_array(vol, "brain")  # auto / auto
+  expect_identical(cmip_legacy, cmip_auto)
+})
+
+test_that("threshold + denoise carve LM-style noise into a sparse foreground", {
+  skip_if_not_installed("mmand")
+  set.seed(3)
+  # Background noise everywhere, plus a small bright blob.
+  vol <- array(as.integer(pmin(pmax(rnorm(40 * 40 * 30, 15, 4), 0), 255)),
+               dim = c(40L, 40L, 30L))
+  vol[18:22, 18:22, 14:16] <- 200L
+  fg_before <- mean(vol > 0)
+  cmip <- colormip_from_array(vol, "brain", threshold = "triangle",
+                              denoise = "median3d")
+  # The bright blob projects to a small bright patch, not a noisy background.
+  fg_after <- mean(apply(cmip, c(1, 2), max) > 0)
+  expect_gt(fg_before, 0.95)
+  expect_lt(fg_after, 0.10)
+})
+
 test_that("nrrd_to_mip round-trips through PNG and dispatches on folders", {
   td <- tempfile(); dir.create(td)
   on.exit(unlink(td, recursive = TRUE), add = TRUE)

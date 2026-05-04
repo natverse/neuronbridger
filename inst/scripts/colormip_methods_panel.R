@@ -59,22 +59,32 @@ cat(sprintf("AstA1 cached point cloud: %s sides, %s pts/side\n",
             length(pts_nm),
             paste(sapply(pts_nm, nrow), collapse = "/")))
 
-# ---- 2) Bridge BANC nm -> JRC2018F microns -----------------------------
-# bancr ships a thin-plate-spline registration as data; this is a pure-R
-# bridge and does NOT require nat.jrcbrains / saalfeldlab .h5 transforms.
+# ---- 2) Bridge BANC nm -> JRC2018U microns -----------------------------
+# Two-hop chain:
+#   BANC (nm) -> JRC2018F via bancr's tpsreg (pure R, ships as data)
+#   JRC2018F  -> JRC2018U via nat.jrcbrains saalfeldlab H5 transforms
+#                (one-time download via download_saalfeldlab_registrations()).
+# JRC2018U is the "Unisex" 20x average that the NeuronBridge ColorMIP
+# pipeline lives in; the high-resolution variant `JRC2018U_HR` shares
+# the same coordinate system but on a smaller (1210 x 566 x 174,
+# 0.519 x 0.519 x 1.0 um) grid that NeuronBridge actually serves MIPs at.
+suppressMessages(library(nat.jrcbrains))
+nat.jrcbrains::register_saalfeldlab_registrations()
+
 all_nm <- do.call(rbind, pts_nm)
-cat("Bridging", nrow(all_nm), "points BANC -> JRC2018F (tpsreg) ...\n")
-pts_jrc <- bancr::banc_to_JRC2018F(all_nm, method = "tpsreg",
-                                   banc.units = "nm", region = "brain")
-cat("JRC2018F bbox (microns):\n"); print(apply(pts_jrc, 2, range))
+cat("Bridging", nrow(all_nm), "points BANC -> JRC2018F -> JRC2018U ...\n")
+pts_jrcF <- bancr::banc_to_JRC2018F(all_nm, method = "tpsreg",
+                                    banc.units = "nm", region = "brain")
+pts_jrc  <- nat.templatebrains::xform_brain(pts_jrcF,
+                                            sample = "JRC2018F",
+                                            reference = "JRC2018U")
+cat("JRC2018U bbox (microns):\n"); print(apply(pts_jrc, 2, range))
 
 # ---- 3) Voxelise into the NeuronBridge JRC2018U_HR grid ----------------
-# NeuronBridge expects (1210, 566, 174) at (0.5189, 0.5189, 1.0) um. The
-# JRC2018F bbox covers the same physical brain, so we can declare an
-# HR-shaped templatebrain over JRC2018F's bbox and voxelise into it
-# without an explicit JRC2018F -> JRC2018U hop (which would otherwise
-# require nat.jrcbrains). For real NeuronBridge ColorMIP searches the
-# proper hop matters; for a visual demo it does not.
+# NeuronBridge serves brain MIPs at JRC2018U_HR: (1210, 566, 174) at
+# (0.5189, 0.5189, 1.0) um. We declare that grid as a templatebrain so
+# nat::as.im3d puts our points into the same voxel coords as Janelia's
+# pre-computed colour-MIPs.
 JRC2018U_HR <- nat.templatebrains::templatebrain(
   "JRC2018U_HR",
   dims    = c(1210L, 566L, 174L),

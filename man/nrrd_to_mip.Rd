@@ -9,6 +9,8 @@ nrrd_to_mip(
   savefolder = NULL,
   method = c("direct", "python", "fiji"),
   target_space = c("brain", "VNC"),
+  threshold = "auto",
+  denoise = "auto",
   format = c("png", "tiff"),
   save = TRUE,
   overwrite = FALSE,
@@ -33,12 +35,47 @@ pure R), \code{"python"} (BANC Python via \code{reticulate}), or
 \code{"fiji"} (Janelia FIJI macro).}
 
 \item{target_space}{which template space the input volume is in.
-\code{"brain"} (default) corresponds to \code{JRC2018_UNISEX_20x_HR}
-(a.k.a. \code{JRC2018U_HR}, dims \code{c(1210, 566, 174)}, voxdims
-\code{c(0.5189, 0.5189, 1.0)}); \code{"VNC"} corresponds to
-\code{JRC2018_VNC_UNISEX_461} (dims \code{c(573, 1119, 219)}, voxdims
-\code{c(0.461, 0.461, 0.7)}). For \code{"VNC"} a 90-pixel black header is
-prepended so output is dimensionally identical to Janelia VNC colormips.}
+\code{"brain"} (default) corresponds to **\code{JRC2018U_HR}** (a.k.a.
+\code{JRC2018_UNISEX_20x_HR}, dims \code{c(1210, 566, 174)}, voxdims
+\code{c(0.5189, 0.5189, 1.0)}) — the NeuronBridge brain space.
+\code{"VNC"} corresponds to **\code{JRC2018VNCU_HR}** (a.k.a.
+\code{JRC2018_VNC_UNISEX_461}, dims \code{c(573, 1119, 219)}, voxdims
+\code{c(0.461, 0.461, 0.7)}) — the NeuronBridge VNC space. Both are
+the high-resolution variants Janelia's pre-computed ColorMIPs are
+served at. For \code{"VNC"} a 90-pixel black header is prepended so
+output is dimensionally identical to Janelia VNC colormips.}
+
+\item{threshold}{one of \code{"auto"} (default), \code{"triangle"},
+\code{"otsu"}, \code{"none"}, or a numeric value. Controls how
+foreground voxels are separated from background:
+\itemize{
+  \item \code{"auto"} keeps the legacy \code{> 0} mask if the input
+    looks binary (≤ 2 distinct values, e.g. a synthetic neuron
+    skeleton from \code{\link{root_id_to_nrrd}}); otherwise applies
+    Triangle thresholding to suppress background staining in
+    real-world LM data.
+  \item \code{"triangle"} (Zack \emph{et al.} 1977): draws a line
+    from the histogram peak to the highest-value bin and picks the
+    bin of maximum perpendicular distance. Robust on histograms with
+    a dominant background peak and a long signal tail (typical
+    confocal data).
+  \item \code{"otsu"} (1979): maximises between-class variance,
+    ignoring zero voxels by default. Works on bimodal foregrounds.
+  \item \code{"none"} keeps every voxel \code{> 0} (the original
+    behaviour; correct for binary inputs).
+  \item A \strong{numeric in [0, 1]} is interpreted as a quantile
+    threshold against the non-zero voxels (\code{0.99} = top 1\%).
+  \item A \strong{numeric > 1} is a raw intensity cutoff.
+}}
+
+\item{denoise}{one of \code{"auto"} (default), \code{"median3d"} or
+\code{"none"}. Controls a pre-MIP denoising step that runs before
+\code{threshold}: \code{"median3d"} applies a 3 × 3 × 3 median
+filter to suppress salt-and-pepper noise (requires the
+\pkg{mmand} package). \code{"auto"} enables \code{"median3d"} for
+grayscale input and skips it for binary input. The 3-D filter is
+equivalent to FIJI's \code{Mask Median Subtraction} idiom that the
+Janelia ColorMIP macro uses for the same purpose.}
 
 \item{format}{output image format. One of \code{"png"} (default) or \code{"tiff"}.}
 

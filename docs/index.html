@@ -64,6 +64,15 @@
     <li>
       <a href="articles/asta_sez.html">Finding the SEZ AstA neuron: SS32423 + AstA-locus drivers + DCV soma scores</a>
     </li>
+    <li>
+      <a href="articles/colormip_direct_vs_fiji.html">Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="articles/colormip_lm.html">Colour-depth MIPs from a registered LM volume (Kondo 2020 CapaR) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="articles/lm_layer_neuroglancer.html">Serving an LM volume as a Neuroglancer layer alongside BANC</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -107,14 +116,12 @@
 <p><a href="https://neuronbridge.janelia.org/" class="external-link">NeuronBridge</a> uses results from a ‘colour depth mask search’. The methodology has recently been published <a href="https://www.biorxiv.org/content/10.1101/318006v1" class="external-link">(Otsuna et al. 2018)</a>. This method represents 3d voxel space in a 2d image by encoding depth as colour, and allows for a fast pixel-based comparison across specimens. Both LM image volumes and EM reconstructions can be represented in this space, leading to efficient LM-&gt;EM and EM-&gt;LM searching.</p>
 <p>Images are represented as colour ‘maximum intensity projection images’ (MIPs). A MIP is there not a ‘stack’ of images, but a single pane.</p>
 <p>Here is an example of a MIP for a hemibrain neuron (<a href="https://neuprint.janelia.org/view?bodyid=542634818" class="external-link">542634818</a>, the DM1 olfactory uPN):</p>
-<div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_em_example.png" alt="mip_em_example"><div class="figcaption">mip_em_example</div>
-</div>
-<p>And for a GAL4 lines that seems to contains that neuron (<a href="https://v2.virtualflybrain.org/org.geppetto.frontend/geppetto?id=VFBexp_FBtp0063448" class="external-link">R84D10</a>, data from stochastic labelling (MCFO) of line <a href="https://doi.org/10.1101/2020.05.29.080473" class="external-link">(Meissener et al. 2020)</a>):</p>
-<div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png" alt="mip_gmr_example"><div class="figcaption">mip_gmr_example</div>
-</div>
-<p><a href="https://neuronbridge.janelia.org/" class="external-link">NeuronBridge</a> loads precomputed matches between FlyLight Split GAL4 and MCFO vs Hemibrain 1.1. See its <a href="https://neuronbridge.janelia.org/releasenotes/NEURONBRIDGE" class="external-link">release notes</a> and <a href="https://neuronbridge.janelia.org/releasenotes/DATA" class="external-link">data version release notes</a>.</p>
+<figure><img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_em_example.png" alt="mip_em_example"><figcaption aria-hidden="true">
+mip_em_example
+</figcaption></figure><p>And for a GAL4 lines that seems to contains that neuron (<a href="https://v2.virtualflybrain.org/org.geppetto.frontend/geppetto?id=VFBexp_FBtp0063448" class="external-link">R84D10</a>, data from stochastic labelling (MCFO) of line <a href="https://doi.org/10.1101/2020.05.29.080473" class="external-link">(Meissener et al. 2020)</a>):</p>
+<figure><img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/mip_gmr_example.png" alt="mip_gmr_example"><figcaption aria-hidden="true">
+mip_gmr_example
+</figcaption></figure><p><a href="https://neuronbridge.janelia.org/" class="external-link">NeuronBridge</a> loads precomputed matches between FlyLight Split GAL4 and MCFO vs Hemibrain 1.1. See its <a href="https://neuronbridge.janelia.org/releasenotes/NEURONBRIDGE" class="external-link">release notes</a> and <a href="https://neuronbridge.janelia.org/releasenotes/DATA" class="external-link">data version release notes</a>.</p>
 <p>The data is also available on <a href="https://open.quiltdata.com/b/janelia-flylight-color-depth/tree" class="external-link">quilt</a>.</p>
 <p><a href="https://github.com/natverse/nat.nblast" class="external-link">NBLAST</a> can also be used to match EM and LM neurons. However, it works best with ‘skeletonised’ neurons. Using ‘colour depth mask search’ circumvents this ‘skeletonisation’ step for both volumetric EM data and LM data. This step is still non-trivial. We have used NBLAST to match skeletons between two EM dataset, see: <a href="https://natverse.github.io/hemibrainr/articles/match_making.html" class="external-link">neuron matching with hemibrainr</a>.</p>
 </div>
@@ -240,10 +247,9 @@
 <span><span class="co"># See the problem?</span></span>
 <span><span class="co">## These are all different neurons, and many different neuron types. There is only oneDM1 uPN. </span></span>
 <span><span class="co">## However, there is a lot that looks similar that might also be labelled by the same lines.</span></span></code></pre></div>
-<div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_dm1_upn.png" alt="em_dm1_upn"><div class="figcaption">em_dm1_upn</div>
-</div>
-<p>So how can we make sure we only get the PN we want, and not these other PNs?</p>
+<figure><img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_dm1_upn.png" alt="em_dm1_upn"><figcaption aria-hidden="true">
+em_dm1_upn
+</figcaption></figure><p>So how can we make sure we only get the PN we want, and not these other PNs?</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># So this is the one we want</span></span>
 <span><span class="va">search</span> <span class="op">=</span> <span class="st">"542634818"</span></span>
@@ -302,10 +308,9 @@
 <span><span class="fu"><a href="https://dmurdoch.github.io/rgl/dev/reference/open3d.html" class="external-link">open3d</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">mips</span> <span class="op">=</span> <span class="fu"><a href="reference/neuronbridge_mip.html">neuronbridge_mip</a></span><span class="op">(</span><span class="va">line</span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/neuronbridge_mip.html">scan_mip</a></span><span class="op">(</span><span class="va">mips</span>,type<span class="op">=</span><span class="st">"images"</span>, sleep <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_hits.png" alt="em_hits"><div class="figcaption">em_hits</div>
-</div>
-<p>We can use this to try to work out how to design a ‘split’ line. The split-GAL4 method allows an experimenter to ‘intersect’ the expression of two GAL4 lines, and in so doing produce a ‘split-GAL4’ line that only targets those neurons in both patterns. Note that some MIPs in the NeuronBridge database already represent split-GAL4 line.</p>
+<figure><img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_hits.png" alt="em_hits"><figcaption aria-hidden="true">
+em_hits
+</figcaption></figure><p>We can use this to try to work out how to design a ‘split’ line. The split-GAL4 method allows an experimenter to ‘intersect’ the expression of two GAL4 lines, and in so doing produce a ‘split-GAL4’ line that only targets those neurons in both patterns. Note that some MIPs in the NeuronBridge database already represent split-GAL4 line.</p>
 <p>So returning to our DM1 uPN issue, let’s see what we might hope to get from combining the GAL4 lines that appear to be our bets hit:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Based on the results above</span></span>
@@ -327,6 +332,51 @@
 </div>
 </div>
 <div class="section level1">
+<h1 id="generate-your-own-colour-depth-mips">Generate your own colour-depth MIPs<a class="anchor" aria-label="anchor" href="#generate-your-own-colour-depth-mips"></a>
+</h1>
+<p>Once you have a connectome neuron mesh in NeuronBridge-compatible NeuronBridge template space (<strong><code>JRC2018U_HR</code></strong> for brain neurons, <strong><code>JRC2018VNCU_HR</code></strong> for VNC neurons — both the high-res unisex 20× variants Janelia’s pre-computed ColorMIPs are served at), <code><a href="reference/nrrd_to_mip.html">nrrd_to_mip()</a></code> produces the same colour-depth MIPs that FIJI’s <a href="https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/tree/master/ColorDepthMIP_Generator" class="external-link">Color_Depth_MIP_batch_0308_2021.ijm</a> macro produces — but in pure R, no JVM, no interactive folder picker:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 1) Render the FlyWire / BANC mesh into a JRC2018U_HR-sized .nrrd</span></span>
+<span><span class="fu"><a href="reference/ngl_scene_to_nrrd.html">root_id_to_nrrd</a></span><span class="op">(</span><span class="st">"720575940632295751"</span>,</span>
+<span>                reference  <span class="op">=</span> <span class="st">"JRC2018U_HR"</span>,</span>
+<span>                savefolder <span class="op">=</span> <span class="st">"~/asta_sez_mips"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2) Colour-depth MIP every NRRD in the folder, in pure R</span></span>
+<span><span class="fu"><a href="reference/nrrd_to_mip.html">nrrd_to_mip</a></span><span class="op">(</span><span class="st">"~/asta_sez_mips"</span>, method <span class="op">=</span> <span class="st">"direct"</span>, target_space <span class="op">=</span> <span class="st">"brain"</span><span class="op">)</span></span></code></pre></div>
+<p>For real LM stacks where every voxel has some background signal, <code><a href="reference/nrrd_to_mip.html">nrrd_to_mip()</a></code> defaults to <code>threshold = "auto"</code> (Triangle, the same auto-method Janelia’s FIJI macro picks) plus <code>denoise = "auto"</code> (3 × 3 × 3 median filter, the equivalent of FIJI’s <em>Mask Median Subtraction</em>) so a noisy receptor stain renders as cell bodies + neuropil rather than a rainbow-coloured brain silhouette. Both are skipped automatically for binary inputs, and explicit <code>"otsu"</code>, raw cutoff, or quantile thresholds are available.</p>
+<p><code>method = "direct"</code> (default) is pure R; <code>method = "python"</code> calls Stephan Gerhard’s <a href="https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py" class="external-link">BANC port</a> via <code>reticulate</code> for byte-level validation; <code>method = "fiji"</code> shells out to the original Janelia macro. Output of all three is indistinguishable in NeuronBridge searches; pure-R vs Python differ by at most 1/255 RGB unit on ≈1% of pixels. Below: the <strong>BANC v888 AstA1</strong> bilateral pair (<code>cell_type == "AstA1"</code>, root_888 IDs <code>720575941506055874</code> and <code>720575941541909965</code>) rendered through <code>method = "direct"</code> (top), <code>method = "python"</code> (middle), and <code>|R − Python| × 50</code> amplified (bottom):</p>
+<figure><img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/colormip_methods_panel.png" alt="BANC AstA1 — nrrd_to_mip three-way comparison"><figcaption aria-hidden="true">
+BANC AstA1 — nrrd_to_mip three-way comparison
+</figcaption></figure><p>See <code><a href="articles/colormip_direct_vs_fiji.html">vignette("colormip_direct_vs_fiji")</a></code> for the full pipeline (BANC AstA1 mesh → JRC2018U_HR bridging → NRRD → MIP) and the back-end-equivalence proof.</p>
+</div>
+<div class="section level1">
+<h1 id="serve-lm-image-data-alongside-banc-in-neuroglancer">Serve LM image data alongside BANC in Neuroglancer<a class="anchor" aria-label="anchor" href="#serve-lm-image-data-alongside-banc-in-neuroglancer"></a>
+</h1>
+<p><code><a href="reference/nrrd_to_precomputed.html">nrrd_to_precomputed()</a></code> writes any 3-D image volume (registered LM stacks, atlas templates, masks) as a Neuroglancer <a href="https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed" class="external-link">precomputed</a> image layer — the same on-disk format that BANC’s public EM, segmentation and <code>JRC2018F_aligned240721_to_BANC.ng</code> atlas layers ship in. The companion BANC-specific <code><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code> (lives in <a href="https://github.com/flyconnectome/bancr" class="external-link"><code>bancr</code></a>) then assembles a Spelunker state with the new layer (same short-URL form <code><a href="https://flyconnectome.github.io/bancr/reference/bancsee.html" class="external-link">bancr::bancsee()</a></code> produces) overlaid on the canonical public BANC scene.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 1) Convert your registered NRRD to precomputed (cloud-volume via reticulate)</span></span>
+<span><span class="fu"><a href="reference/nrrd_to_precomputed.html">nrrd_to_precomputed</a></span><span class="op">(</span></span>
+<span>  input      <span class="op">=</span> <span class="st">"CapaR_in_BANC.nrrd"</span>,</span>
+<span>  output     <span class="op">=</span> <span class="st">"/tmp/CapaR_pc"</span>,</span>
+<span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">380</span>, <span class="fl">380</span>, <span class="fl">380</span><span class="op">)</span>,   <span class="co"># nm; JRC2018F-native</span></span>
+<span>  data_type  <span class="op">=</span> <span class="st">"uint8"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2) Upload to a public-readable bucket *you control*, then build a</span></span>
+<span><span class="co">#    sharable BANC URL pointing at it:</span></span>
+<span><span class="co">#   gsutil -m cp -r /tmp/CapaR_pc gs://your-bucket/lm/CapaR/</span></span>
+<span><span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span></span>
+<span>  <span class="st">"gs://your-bucket/lm/CapaR"</span>,</span>
+<span>  layer_name <span class="op">=</span> <span class="st">"Kondo 2020 — CapaR"</span>,</span>
+<span>  shorten    <span class="op">=</span> <span class="cn">TRUE</span>,    <span class="co"># spelunker short URL via banc_shorturl</span></span>
+<span>  open       <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The Kondo 2020 <em>Capability</em> receptor stain in IS2 template space (left: grayscale max-projection of the source NRRD; right: same data through <code><a href="reference/nrrd_to_mip.html">nrrd_to_mip()</a></code> for a depth-encoded view):</p>
+<figure><img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/lm_capar_colormip.png" alt="Kondo 2020 CapaR receptor expression preview"><figcaption aria-hidden="true">
+Kondo 2020 CapaR receptor expression preview
+</figcaption></figure><p>See <code><a href="articles/lm_layer_neuroglancer.html">vignette("lm_layer_neuroglancer")</a></code> for the full pipeline (IS2 → JRC2018F → BANC voxel space, precomputed write, scene assembly).</p>
+</div>
+<div class="section level1">
 <h1 id="acknowledgments">Acknowledgments<a class="anchor" aria-label="anchor" href="#acknowledgments"></a>
 </h1>
 <div class="section level2">
@@ -335,7 +385,7 @@
 <p><a href="https://neuronbridge.janelia.org/" class="external-link">NeuronBridge</a> was developed by scientific advisors (Geoffrey Meissner, Wyatt Korff, Gudrun Ihrke), data scientists (Hideo Otsuna) and software developers (Jody Clements, Cristian Goina, Rob Svirskas, Konrad Rokicki, Antje Kazimiers) at <a href="https://www.janelia.org/" class="external-link">Janelia Research Campus</a>.</p>
 <p>Please examine the <a href="https://neuronbridge.janelia.org/usage" class="external-link">NeuronBridge usage terms</a>. If you use results from this package, you should cite this package, <a href="https://janelia.figshare.com/articles/NeuronBridge_Codebase/12159378/1" class="external-link">Clements et al. 2020</a> for the NeuronBridge codebase, <a href="https://www.biorxiv.org/content/10.1101/318006v1" class="external-link">Ostsuna et al. 2018</a> for the methodology, and the <a href="https://neuronbridge.janelia.org/usage" class="external-link">relevant publications</a> for any data sets used. See below.</p>
 <p>This package was created by <a href="https://scholar.google.com/citations?user=BOVTiXIAAAAJ&amp;hl=en" class="external-link">Alexander Shakeel Bates</a> while in the group of <a href="https://neuro.hms.harvard.edu/faculty-staff/rachel-wilson" class="external-link">Rachel Wilson</a>. Note the package version mirrors the <a href="(https://neuronbridge.janelia.org/releasenotes/DATA)" class="external-link">version of NeuronBridge data</a> it was made to work with. You can cite this package as:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span>package <span class="op">=</span> <span class="st">"neuronbridger"</span><span class="op">)</span></span></code></pre></div>
 <p><strong>Bates AS</strong> (2020). <em>neuronbridger: R client utilities for interacting with the neuronbridge matching service.</em> <strong>R package</strong> version 2.1.1. <a href="https://github.com/natverse/neuronbridger" class="external-link uri">https://github.com/natverse/neuronbridger</a></p>
 </div>
@@ -411,7 +461,7 @@
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
       </footer>

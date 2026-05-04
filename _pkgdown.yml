@@ -27,6 +27,7 @@ reference:
   - '`scan_mip`'
   - '`neuronbridge_remove_mips`'
   - '`nrrd_to_mip`'
+  - '`nrrd_to_precomputed`'
 - title: FlyWire helpers
   desc: Utilities for converting FlyWire / Neuroglancer volumes to MIP images.
   contents:
@@ -56,4 +57,7 @@ articles:
   contents:
   - split_design
   - abdominal_peripheral_targets
-  - asta_sez
+  - asta_sez                      # 1. AstA search in SEZ
+  - colormip_direct_vs_fiji       # 2. colour-MIP from a connectome neuron (BANC AstA1) in JRC2018U_HR
+  - colormip_lm                   # 3. colour-MIP from registered LM data (Kondo CapaR) in JRC2018U_HR
+  - lm_layer_neuroglancer         # 4. LM .ng + BANC neuroglancer scene

@@ -289,7 +289,9 @@ Of course - do not go planning any experiments based on the results of this pack
 # Generate your own colour-depth MIPs
 
 Once you have a connectome neuron mesh in NeuronBridge-compatible
-template space (`JRC2018U_HR` for brains, `JRCVNC2018U` for VNCs),
+NeuronBridge template space (**`JRC2018U_HR`** for brain neurons,
+**`JRC2018VNCU_HR`** for VNC neurons — both the high-res unisex
+20× variants Janelia's pre-computed ColorMIPs are served at),
 `nrrd_to_mip()` produces the same colour-depth MIPs that FIJI's
 [Color_Depth_MIP_batch_0308_2021.ijm](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/tree/master/ColorDepthMIP_Generator)
 macro produces — but in pure R, no JVM, no interactive folder picker:
@@ -304,21 +306,73 @@ root_id_to_nrrd("720575940632295751",
 nrrd_to_mip("~/asta_sez_mips", method = "direct", target_space = "brain")
 ```
 
+For real LM stacks where every voxel has some background signal,
+`nrrd_to_mip()` defaults to `threshold = "auto"` (Triangle, the same
+auto-method Janelia's FIJI macro picks) plus `denoise = "auto"`
+(3 × 3 × 3 median filter, the equivalent of FIJI's *Mask Median
+Subtraction*) so a noisy receptor stain renders as cell bodies + neuropil
+rather than a rainbow-coloured brain silhouette. Both are skipped
+automatically for binary inputs, and explicit `"otsu"`, raw cutoff,
+or quantile thresholds are available.
+
 `method = "direct"` (default) is pure R; `method = "python"` calls
 Stephan Gerhard's [BANC port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py)
 via `reticulate` for byte-level validation; `method = "fiji"` shells
 out to the original Janelia macro. Output of all three is
 indistinguishable in NeuronBridge searches; pure-R vs Python differ by
-at most 1/255 RGB unit on `<0.25%` of pixels. Top: `method = "direct"`,
-middle: `method = "python"`, bottom: `|R − Python| × 50` amplified —
-the few faint dashed lines that *do* show through are the entire
-disagreement:
+at most 1/255 RGB unit on ≈1% of pixels. Below: the **BANC v888
+AstA1** bilateral pair (`cell_type == "AstA1"`, root_888 IDs
+`720575941506055874` and `720575941541909965`) rendered through
+`method = "direct"` (top), `method = "python"` (middle), and
+`|R − Python| × 50` amplified (bottom):
 
-![nrrd_to_mip three-way comparison](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/colormip_methods_panel.png)
+![BANC AstA1 — nrrd_to_mip three-way comparison](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/colormip_methods_panel.png)
 
 See `vignette("colormip_direct_vs_fiji")` for the full pipeline
 (BANC AstA1 mesh → JRC2018U_HR bridging → NRRD → MIP) and the
 back-end-equivalence proof.
+
+# Serve LM image data alongside BANC in Neuroglancer
+
+`nrrd_to_precomputed()` writes any 3-D image volume (registered LM
+stacks, atlas templates, masks) as a Neuroglancer
+[precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)
+image layer — the same on-disk format that BANC's public EM,
+segmentation and `JRC2018F_aligned240721_to_BANC.ng` atlas layers
+ship in. The companion BANC-specific `bancr::banc_lm_scene()` (lives
+in [`bancr`](https://github.com/flyconnectome/bancr)) then assembles
+a Spelunker state with the new layer (same short-URL form `bancr::bancsee()` produces)
+overlaid on the canonical public BANC scene.
+
+```{r lm-layer-render, eval = FALSE}
+# 1) Convert your registered NRRD to precomputed (cloud-volume via reticulate)
+nrrd_to_precomputed(
+  input      = "CapaR_in_BANC.nrrd",
+  output     = "/tmp/CapaR_pc",
+  resolution = c(380, 380, 380),   # nm; JRC2018F-native
+  data_type  = "uint8"
+)
+
+# 2) Upload to a public-readable bucket *you control*, then build a
+#    sharable BANC URL pointing at it:
+#   gsutil -m cp -r /tmp/CapaR_pc gs://your-bucket/lm/CapaR/
+bancr::banc_lm_scene(
+  "gs://your-bucket/lm/CapaR",
+  layer_name = "Kondo 2020 — CapaR",
+  shorten    = TRUE,    # spelunker short URL via banc_shorturl
+  open       = TRUE
+)
+```
+
+The Kondo 2020 *Capability* receptor stain in IS2 template space (left:
+grayscale max-projection of the source NRRD; right: same data through
+`nrrd_to_mip()` for a depth-encoded view):
+
+![Kondo 2020 CapaR receptor expression preview](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/lm_capar_colormip.png)
+
+See `vignette("lm_layer_neuroglancer")` for the full pipeline
+(IS2 → JRC2018F → BANC voxel space, precomputed write, scene
+assembly).
 
 # Acknowledgments
 

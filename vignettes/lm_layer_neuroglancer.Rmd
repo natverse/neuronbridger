@@ -1,0 +1,357 @@
+---
+title: "Serving an LM volume as a Neuroglancer layer alongside BANC"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Serving an LM volume as a Neuroglancer layer alongside BANC}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Goal
+
+Take a light-microscopy stack registered to a fly template, resample
+it into **BANC voxel coordinates** so it overlays correctly on the BANC
+EM image, write it out in Neuroglancer
+[**precomputed**](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)
+format, and serve it as an extra layer in the canonical public BANC
+scene.
+
+> **A note on target spaces.** This vignette has a *different target
+> space* than the colour-MIP vignettes:
+>
+> * The
+>   [*colour-MIPs from a connectome neuron*](colormip_direct_vs_fiji.html)
+>   and
+>   [*colour-MIPs from a registered LM volume*](colormip_lm.html)
+>   vignettes target **`JRC2018U_HR`** (or `JRC2018VNCU_HR` for VNC) —
+>   the NeuronBridge ColorMIP search spaces. Their output is a 2-D
+>   PNG that NeuronBridge can index.
+>
+> * **This vignette targets BANC voxel space** (`2400 × 924 × 789` at
+>   `400 nm` for brain). A NG image layer only overlays on BANC EM if
+>   it lives in the same voxel grid the EM does. Reaching that grid
+>   requires the BANC team's published Elastix transform from
+>   JRC2018F → BANC.
+>
+> So: a layer that's perfect for the NeuronBridge search workflow
+> (JRC2018U_HR) won't overlay correctly on BANC EM in NG, and vice
+> versa. Pipe each LM volume through whichever pipeline matches the
+> downstream task.
+
+The full pipeline has four stages:
+
+| Stage | Tool | What it does |
+|---|---|---|
+| 1 | `nat::xform_brain()` (CMTK + `nat.h5reg`) | Source space (IS2 / JFRC2 / FCWB) → JRC2018F |
+| 2 | `transformix -tp BANC_to_template.txt` | JRC2018F → BANC voxel coords (`2400 × 924 × 789 @ 400 nm`) |
+| 3 | `nrrd_to_precomputed()` | BANC-aligned NRRD → Neuroglancer `precomputed` directory |
+| 4 | `bancr::banc_lm_scene()` | Build a Spelunker scene with the new LM layer + the canonical public BANC scene |
+
+# Setup
+
+```{r install}
+remotes::install_github("natverse/neuronbridger")
+remotes::install_github("flyconnectome/bancr")        # banc_lm_scene + auth
+remotes::install_github("natverse/nat.flybrains")
+remotes::install_github("natverse/nat.jrcbrains")
+nat.jrcbrains::download_saalfeldlab_registrations()   # ~ 10 GB; one-time
+
+install.packages("reticulate")
+reticulate::py_install("cloud-volume", pip = TRUE)    # the precomputed writer
+
+# CMTK: pre-built MacOSX zip from https://www.nitrc.org/projects/cmtk/
+# Java (for nat.h5reg): brew install openjdk  (or your platform's equivalent)
+# Elastix 5.x: download from https://github.com/SuperElastix/elastix/releases/latest
+```
+
+```{r libs}
+library(neuronbridger)
+library(bancr)
+library(nat)
+library(nat.flybrains)
+library(nat.templatebrains)
+library(nat.jrcbrains)
+nat.jrcbrains::register_saalfeldlab_registrations()
+```
+
+# Stage 1 — Source space → JRC2018F
+
+The BANC team's Elastix chain expects input on the **JRC2018F** grid
+(`1652 × 768 × 479` at 380 nm). For an IS2-space LM volume the
+bridging chain is `IS2 → FCWB → JRC2018F` (CMTK then H5).
+
+`nat.h5reg` exposes points-mode warping but not image-mode, so the
+practical pipeline is:
+
+1. Threshold + denoise the source stack (defaults: `nrrd_to_mip()`'s
+   3 × 3 × 3 median + Triangle on 12-bit-trimmed data).
+2. Take above-threshold voxel centres as 3-D points in source microns.
+3. `xform_brain(points, sample = <source>, reference = "JRC2018F")`.
+4. Voxelise the transformed points into the JRC2018F grid.
+
+```{r is2-to-jrcf, eval = FALSE}
+NRRD_IN <- "IS2_CapaR_no1_02_warp_m0g40c4e1e-1x16r3.nrrd"
+v <- nat::read.nrrd(NRRD_IN)
+voxdims_um <- diag(attr(v, "header")[["space directions"]])
+vol <- as.integer(pmin(pmax(as.integer(v), 0L), 4095L) / 16L)
+dim(vol) <- dim(v)
+
+vol_med <- mmand::medianFilter(vol, mmand::shapeKernel(c(3, 3, 3), type = "box"))
+thr <- neuronbridger:::colormip_triangle_threshold(vol_med)
+fg_idx <- which(vol_med > thr, arr.ind = TRUE)
+intens <- vol_med[vol_med > thr]
+pts_is2 <- sweep(fg_idx - 1L, 2, voxdims_um, "*")
+
+pts_jrcf <- nat.templatebrains::xform_brain(pts_is2,
+                                            sample    = "IS2",
+                                            reference = "JRC2018F")
+
+# Voxelise into JRC2018F (1652 x 768 x 479 at 0.38 um isotropic),
+# keeping max intensity per voxel.
+ix <- as.integer(round(pts_jrcf[,1] / 0.38)) + 1L
+iy <- as.integer(round(pts_jrcf[,2] / 0.38)) + 1L
+iz <- as.integer(round(pts_jrcf[,3] / 0.38)) + 1L
+keep <- !is.na(ix) & ix %in% 1:1652 & iy %in% 1:768 & iz %in% 1:479
+ix <- ix[keep]; iy <- iy[keep]; iz <- iz[keep]; intens <- intens[keep]
+vol_jrcf <- array(0L, dim = c(1652L, 768L, 479L))
+lin <- ix + (iy - 1L) * 1652L + (iz - 1L) * 1652L * 768L
+ord <- order(lin, intens); lin_s <- lin[ord]; intens_s <- intens[ord]
+vol_jrcf[lin_s[!duplicated(lin_s, fromLast = TRUE)]] <-
+  intens_s[!duplicated(lin_s, fromLast = TRUE)]
+nat::write.nrrd(vol_jrcf, "CapaR_in_JRC2018F.nrrd")
+```
+
+# Stage 2 — JRC2018F → BANC voxel space (Elastix)
+
+The BANC public bucket serves the JRC2018F template *pre-aligned to
+BANC voxel coordinates* at
+`gs://lee-lab_brain-and-nerve-cord-fly-connectome/templates/JRC2018F_aligned240721_to_BANC.ng/`,
+produced by the Elastix transforms checked into the BANC repo at
+[`fanc/transforms/transform_parameters/brain_240721/`](https://github.com/jasper-tms/the-BANC-fly-connectome/tree/main/fanc/transforms/transform_parameters/brain_240721).
+
+*Confusingly, the file whose `Size` matches BANC (`2400 × 924 × 789
+@ 400 nm`) is `BANC_to_template.txt` — that's the one that lands on
+the BANC grid. Transformix chains the rest automatically.*
+
+Run transformix with the JRC2018F input from Stage 1:
+
+```{r elastix, eval = FALSE}
+system(paste("transformix",
+             "-in",  "CapaR_in_JRC2018F.nrrd",
+             "-out", "./CapaR_BANC_xform_out",
+             "-tp",  "brain_240721/BANC_to_template.txt"))
+# Output: ./CapaR_BANC_xform_out/result.nrrd  (2400 x 924 x 789 at 400nm)
+```
+
+The float32 output has a few B-spline ringing pixels around the brain
+margins — clip them and downcast to uint8 before precomputing:
+
+```{r cleanup, eval = FALSE}
+v <- nat::read.nrrd("CapaR_BANC_xform_out/result.nrrd")
+v[v < 0.5] <- 0; v[v > 255] <- 255
+v <- as.integer(round(v)); dim(v) <- c(2400L, 924L, 789L)
+nat::write.nrrd(v, "CapaR_no1_02_aligned240721_to_BANC.nrrd",
+                dtype = "byte", enc = "gzip")
+```
+
+# Stage 3 — Convert to Neuroglancer precomputed
+
+`nrrd_to_precomputed()` (this package) reads an NRRD (or a 3-D R
+array) and writes the on-disk format Neuroglancer expects: an `info`
+JSON describing scales, chunk sizes and data type, plus
+`<resolution>/<x_min-x_max>_<y_min-y_max>_<z_min-z_max>` chunks
+(gzip'd raw by default).
+
+```{r precomputed}
+nrrd_to_precomputed(
+  input      = "CapaR_no1_02_aligned240721_to_BANC.nrrd",
+  output     = "/tmp/CapaR_BANC_pc",
+  resolution = c(400, 400, 400),    # BANC voxel resolution
+  data_type  = "uint8",
+  encoding   = "raw",
+  chunk_size = c(64L, 64L, 64L)     # match the public atlas chunk size
+)
+```
+
+`inst/scripts/lm_capar_to_precomputed.R` ships a fuller reproducer
+that down-samples 4× xy / 2× z and squashes 16-bit signal into 8-bit
+to keep the demo precomputed dir small (~1.5 MB). For NeuronBridge
+searches keep full resolution and `uint16` if you need the dynamic
+range.
+
+If you already have a Python pipeline, the
+[`npimage`](https://github.com/jasper-tms/npimage) helper from the
+BANC team wraps the same `cloud-volume` call as a one-liner:
+
+```python
+import npimage
+arr = npimage.load("CapaR_in_JRC2018U.nrrd")
+npimage.save(arr, "CapaR.ng", pixel_size=[519, 519, 1000])
+# Source: https://github.com/jasper-tms/npimage/blob/main/npimage/imageio.py#L311-L366
+```
+
+The Python and R routes write byte-equivalent precomputed
+directories; pick whichever fits your build environment.
+**Multi-channel `.lsm` stacks** need a per-channel loop (or RGB
+packing) on either side — neither helper auto-splits channels for
+you.
+
+# Stage 4 — Upload + assemble a BANC Neuroglancer scene
+
+```{r upload}
+# Lee-lab team members can mirror to the curated BANC LM bucket; everyone
+# else needs their own writable, public-readable host.
+system(paste("gsutil -m cp -r /tmp/CapaR_BANC_pc",
+             "gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/kondo_et_al_2020/CapaR_no1_02_aligned240721_to_BANC.ng/"))
+```
+
+> **Bucket caveat — important.**
+> `gs://lee-lab_brain-and-nerve-cord-fly-connectome/` is a curated
+> mirror maintained by the lee-lab BANC team and is **not
+> public-write**. The `light_level/kondo_et_al_2020/` path above is
+> the canonical home for the Kondo 2020 imports, but you'll need
+> either (a) write access from the lee-lab maintainers, or (b) your
+> own GCS / S3 / static-HTTP host that's **public-read** so
+> Neuroglancer can fetch your chunks. Once your precomputed directory
+> is reachable over HTTPS, pass its URL to `bancr::banc_lm_scene()`.
+
+`bancr::banc_lm_scene()` then constructs a Neuroglancer state that
+starts from the standard public BANC scene (BANC EM + segmentation +
+region outlines + the JRC2018F atlas + imported FAFB / hemibrain /
+MANC meshes) and appends your LM layer:
+
+```{r scene}
+u <- bancr::banc_lm_scene(
+  lm_url     = paste0("gs://lee-lab_brain-and-nerve-cord-fly-connectome/",
+                      "light_level/kondo_et_al_2020/",
+                      "CapaR_no1_02_aligned240721_to_BANC.ng/CapaR_BANC_pc"),
+  layer_name = "Kondo 2020 - CapaR (no1_02, aligned to BANC)",
+  range      = c(1, 30),     # match the actual uint8 dynamic range
+                              # (Elastix ringing was clipped at <0.5)
+  opacity    = 0.55,          # default; matches the public atlas layer
+  blend      = "additive",    # LM signal lights up where it overlaps EM
+  volume_rendering = "on",    # required for 3-D rendering
+  shorten    = TRUE,
+  open       = TRUE
+)
+u
+#> [1] "https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5028046288453632"
+```
+
+[Pinned scene](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5028046288453632):
+the Kondo 2020 CapaR stain on the canonical BANC scene. The CapaR
+layer matches the public `JRC2018F atlas imported` layer's volume
+rendering (`volumeRendering = "on"`, `depthSamples = 788`,
+`opacity = 0.55`); only `shaderControls.normalized.range` differs —
+`[29, 255]` for the bright template vs `[1, 30]` for the dim
+post-Elastix LM. Tighten `range` for sparse stains; expand it for
+brighter sources.
+
+`shorten = TRUE` (default) POSTs the state via `bancr::banc_shorturl()`
+(same helper `bancsee()` uses) and returns a
+`spelunker.cave-explorer.org/...nglstate/api/v1/<id>` URL — needs a
+CAVE token from `bancr::banc_set_token()`. `shorten = FALSE` skips
+auth and inlines the state in a long fragment URL.
+
+## Publish to `ng.banc.community/view/`
+
+The public BANC viewer at
+[`ng.banc.community/view/`](https://ng.banc.community/view/) and the
+private CAVE-authenticated viewer at
+[`ng.banc.community/`](https://ng.banc.community/) **don't accept
+dynamically-POSTed states** the way Spelunker does. Instead they load
+named states from `ngstate.banc.community/view/<state-name>`, which
+redirects to JSON files committed under
+[`the-BANC-fly-connectome/neuroglancer_states/view/`](https://github.com/jasper-tms/the-BANC-fly-connectome/tree/main/neuroglancer_states/view).
+
+To publish your scene there:
+
+1. Decode the spelunker URL into the underlying scene JSON and write
+   it to disk:
+
+   ```{r publish, eval = FALSE}
+   sc <- fafbseg::ngl_decode_scene(u)
+   writeLines(jsonlite::toJSON(sc, auto_unbox = TRUE,
+                               null = "null", pretty = TRUE),
+              "CapaR_no1_02_JRC2018U_HR.json")
+   ```
+
+2. PR `CapaR_no1_02_JRC2018U_HR.json` into
+   `the-BANC-fly-connectome/neuroglancer_states/view/`.
+
+3. Once merged, your scene loads from
+   `https://ng.banc.community/view/#!CapaR_no1_02_JRC2018U_HR`.
+
+For ad-hoc / dev sharing the spelunker URL is the practical pattern —
+that's what `bancsee()` and `banc_lm_scene()` return by default.
+
+# Self-contained sanity check (no IS2, no auth, no GCS)
+
+The chunk below builds a tiny synthetic 3-D volume, writes it as
+precomputed to a local directory, reads it back through `cloud-volume`
+to confirm round-trip fidelity, and constructs a long-form BANC
+Neuroglancer URL referencing it — entirely offline.
+
+```{r demo, eval = TRUE}
+library(neuronbridger)
+library(reticulate)
+
+set.seed(7)
+v <- array(as.integer(runif(96 * 96 * 32, 0, 250)), dim = c(96L, 96L, 32L))
+
+td <- tempfile()
+out <- nrrd_to_precomputed(
+  v,
+  output     = td,
+  resolution = c(519, 519, 1000),
+  data_type  = "uint8",
+  encoding   = "raw"
+)
+
+# Read back through cloud-volume; confirm we got our volume out unchanged.
+np <- reticulate::import("numpy",       convert = TRUE)
+cv <- reticulate::import("cloudvolume", convert = FALSE)
+vol <- cv$CloudVolume(out, mip = 0L, fill_missing = TRUE)
+back <- np$squeeze(np$asarray(vol[0:96, 0:96, 0:32]), axis = 3L)
+identical(as.integer(back), as.integer(v))
+```
+
+```{r scene-demo, eval = TRUE}
+# Build a BANC scene with the local layer (long fragment URL form; no
+# auth needed). For a real sharable URL you'd upload the precomputed
+# dir to a public bucket and pass that gs:// URL instead.
+if (requireNamespace("bancr", quietly = TRUE)) {
+  u <- bancr::banc_lm_scene(out, layer_name = "tiny synthetic",
+                            shorten = FALSE)
+  cat("URL prefix:", substring(u, 1, 100), "\n")
+  cat("LM layer present:", grepl("synthetic|Synthetic", u, ignore.case = TRUE), "\n")
+} else {
+  message("Install bancr to assemble a BANC scene: ",
+          "remotes::install_github('flyconnectome/bancr')")
+}
+```
+
+# Provenance
+
+* **BANC neuroglancer infrastructure**: the public layers (BANC EM,
+  segmentation, JRC2018F atlas, region outlines, synapse cloud,
+  imported FAFB / hemibrain / MANC meshes) are all served from
+  `gs://lee-lab_brain-and-nerve-cord-fly-connectome/` — see
+  `bancr::banc_scene()` for the canonical entry-point state.
+* **Precomputed format**: Neuroglancer
+  [precomputed spec](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed),
+  written here via the
+  [`cloud-volume`](https://github.com/seung-lab/cloud-volume)
+  Python library.
+* **JRC2018F → BANC transform**: BANC connectome repo
+  [`fanc/transforms/transform_parameters/brain_240721/`](https://github.com/jasper-tms/the-BANC-fly-connectome/tree/main/fanc/transforms/transform_parameters)
+  (Elastix; TPS approximations for points are exposed as data in
+  `bancr` — `banc_to_jrc2018f_tpsreg`).

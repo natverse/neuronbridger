@@ -1,8 +1,8 @@
 ---
-title: "Colour-depth MIPs three ways: direct R, BANC Python, and FIJI"
+title: "Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Colour-depth MIPs three ways: direct R, BANC Python, and FIJI}
+  %\VignetteIndexEntry{Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -158,7 +158,16 @@ The `"direct"` and `"python"` calls each write a PNG into
 `<savefolder>/color_mips/`; the `"fiji"` call launches FIJI and asks
 the user to pick the input and output directories interactively.
 
-# Cross-method validation (no BANC access needed)
+# Validate the back-ends agree
+
+`nrrd_to_mip()` exposes three interchangeable algorithms targeting the
+same Janelia ColorMIP / Color Depth MIP specification:
+
+| `method =` | Implementation | When to use |
+|---|---|---|
+| `"direct"` *(default)* | Pure R; vectorised `which.max` + LUT lookup | The fast path; no JVM, no Python |
+| `"python"` | [Stephan Gerhard's BANC port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py) called via `reticulate` | Validate against the upstream Python implementation |
+| `"fiji"` | Janelia's `Color_Depth_MIP_batch_0308_2021.ijm` macro | Run the canonical FIJI implementation if you already have it installed |
 
 The synthetic-volume check below runs in any R session — it builds a
 JRC2018U_HR-sized 3D volume with a depth-varying "pseudo-neuron" path
@@ -200,16 +209,24 @@ maximum brightness, making the roundtrip mathematically a no-op.
 
 # What the output looks like
 
-Both back-ends running on the same synthetic JRC2018U_HR-sized volume
-(top: `method = "direct"`, middle: `method = "python"`, bottom:
-`|R − Python| × 50` amplified):
+The two **BANC v888 AstA1 cells** (`cell_type == "AstA1"` in
+`compiled_data/banc_888/banc_888_meta.feather`, root_888 IDs
+`720575941506055874` and `720575941541909965`) bridged into the
+NeuronBridge JRC2018U_HR grid and rendered through both available
+back-ends (top: `method = "direct"`, middle: `method = "python"`;
+bottom: `|R − Python| × 50` amplified to make the rounding visible):
 
-![Three-method colour-MIP demo (direct vs python with amplified diff)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/colormip_methods_panel.png)
+![BANC AstA1 colour-MIP, direct R vs BANC Python with amplified diff](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/colormip_methods_panel.png)
 
-The reproducer is `inst/scripts/colormip_methods_panel.R`. The amplified
-difference panel mostly shows nothing; the faint dashed lines that *do*
-appear are the 1/255 RGB rounding mentioned above, and would be invisible
-without the ×50 amplification.
+The bilateral SEZ AstA pair is unambiguous — anterior somas in cyan/teal,
+arbours sweeping dorsally into the SMP/SLP through yellow → orange →
+red. Both back-ends agree on **2,033,613 / 2,054,580 pixels (98.98%)**
+exactly; the remainder differ by **at most 1/255 RGB unit** (the
+skimage HSV-roundtrip artefact mentioned above). The reproducer is
+`inst/scripts/colormip_methods_panel.R`, which uses the cached
+sub-sampled point cloud at
+`inst/extdata/asta1/banc_asta1_points_nm.rds` so it runs without
+fetching the 50 MB draco meshes.
 
 # The algorithm in three lines
 

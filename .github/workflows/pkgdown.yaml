@@ -43,8 +43,8 @@ jobs:
       - name: Strip non-public root markdown
         run: |
           # pkgdown auto-renders every root *.md (except README/LICENCE/NEWS),
-          # so CLAUDE.md leaks into docs/ unless we clean up.
-          rm -f docs/CLAUDE.html docs/CLAUDE.local.html
+          # so CLAUDE.md / tasks.md leak into docs/ unless we clean up.
+          rm -f docs/CLAUDE.html docs/CLAUDE.local.html docs/tasks.html
 
       - name: Deploy to GitHub pages 🚀
         if: github.event_name != 'pull_request'

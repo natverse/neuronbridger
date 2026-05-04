@@ -3,7 +3,10 @@
 <url><loc>/CLAUDE.html</loc></url>
 <url><loc>/articles/abdominal_peripheral_targets.html</loc></url>
 <url><loc>/articles/asta_sez.html</loc></url>
+<url><loc>/articles/colormip_direct_vs_fiji.html</loc></url>
+<url><loc>/articles/colormip_lm.html</loc></url>
 <url><loc>/articles/index.html</loc></url>
+<url><loc>/articles/lm_layer_neuroglancer.html</loc></url>
 <url><loc>/articles/split_design.html</loc></url>
 <url><loc>/authors.html</loc></url>
 <url><loc>/index.html</loc></url>
@@ -17,6 +20,8 @@
 <url><loc>/reference/neuronbridge_mip.html</loc></url>
 <url><loc>/reference/ngl_scene_to_nrrd.html</loc></url>
 <url><loc>/reference/nrrd_to_mip.html</loc></url>
+<url><loc>/reference/nrrd_to_precomputed.html</loc></url>
 <url><loc>/reference/split_halves.html</loc></url>
+<url><loc>/tasks.html</loc></url>
 </urlset>
 

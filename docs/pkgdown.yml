@@ -1,7 +1,11 @@
-pandoc: 2.3.1
-pkgdown: 1.6.1.9000
-pkgdown_sha: 6094ac3dd80a1f3f1d4e2f47d0ed4716d51362b0
+pandoc: 3.6.3
+pkgdown: 2.2.0
+pkgdown_sha: ~
 articles:
+  abdominal_peripheral_targets: abdominal_peripheral_targets.html
+  asta_sez: asta_sez.html
+  colormip_direct_vs_fiji: colormip_direct_vs_fiji.html
+  colormip_lm: colormip_lm.html
+  lm_layer_neuroglancer: lm_layer_neuroglancer.html
   split_design: split_design.html
-last_built: 2020-11-24T17:45Z
-
+last_built: 2026-05-04T15:41Z

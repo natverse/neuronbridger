@@ -15,5 +15,6 @@
 ^\.claude$
 ^CLAUDE\.md$
 ^CLAUDE\.local\.md$
+^tasks\.md$
 ^inst/scripts/run_asta_sez.*\.R$
 ^inst/extdata/asta_sez$

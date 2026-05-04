@@ -43,6 +43,15 @@ is below the given threshold."><meta property="og:image" content="/logo.svg"><!-
     <li>
       <a href="../articles/asta_sez.html">Finding the SEZ AstA neuron: SS32423 + AstA-locus drivers + DCV soma scores</a>
     </li>
+    <li>
+      <a href="../articles/colormip_direct_vs_fiji.html">Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="../articles/colormip_lm.html">Colour-depth MIPs from a registered LM volume (Kondo 2020 CapaR) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="../articles/lm_layer_neuroglancer.html">Serving an LM volume as a Neuroglancer layer alongside BANC</a>
+    </li>
   </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"><li>
   <a href="https://github.com/natverse/neuronbridger/" class="external-link">
@@ -185,10 +194,10 @@ Top scores (better match) are at the top of the data frame. The columns mean:</p
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Let's see the EM neurons all together</span></span></span>
 <span class="r-in"><span><span class="va">neurons</span> <span class="op">=</span> <span class="fu">neuprintr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.org/neuprintr/reference/neuprint_read_neurons.html" class="external-link">neuprint_read_neurons</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">contents</span><span class="op">$</span><span class="va">publishedName</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">plot3d</span><span class="op">(</span><span class="va">neurons</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://dmurdoch.github.io/rgl/dev/reference/plot3d.html" class="external-link">plot3d</a></span><span class="op">(</span><span class="va">neurons</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># And compare with the LM data:</span></span></span>
-<span class="r-in"><span><span class="fu">open3d</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://dmurdoch.github.io/rgl/dev/reference/open3d.html" class="external-link">open3d</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">mips</span> <span class="op">=</span> <span class="fu"><a href="neuronbridge_mip.html">neuronbridge_mip</a></span><span class="op">(</span><span class="va">line</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="neuronbridge_mip.html">scan_mip</a></span><span class="op">(</span><span class="va">mips</span>,type<span class="op">=</span><span class="st">"images"</span>, sleep <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -207,7 +216,7 @@ Top scores (better match) are at the top of the data frame. The columns mean:</p
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
       </footer></div>

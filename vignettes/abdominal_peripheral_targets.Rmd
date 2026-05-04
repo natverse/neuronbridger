@@ -30,6 +30,19 @@ This vignette chains three resources to go from connectome cell types to candida
 
 Very few motor or endocrine neurons in the nerve cord have been pinned to a specific peripheral organ, so this pipeline is meant as a way to generate hypotheses you can follow up experimentally.
 
+> **Template space note.** This vignette runs against
+> NeuronBridge's pre-computed VNC ColorMIP libraries — it doesn't
+> render new MIPs from MANC meshes. Should you want to render MIPs
+> from MANC neurons (e.g. to compare against the FlyLight VNC hit),
+> the NeuronBridge VNC space is **`JRC2018VNCU_HR`** (a.k.a.
+> `JRC2018_VNC_UNISEX_461`, dims `573 × 1119 × 219`, voxdims
+> `0.461 × 0.461 × 0.7` µm) — the VNC analogue of the brain
+> `JRC2018U_HR` used by the
+> [*colour-MIPs from a connectome neuron*](colormip_direct_vs_fiji.html)
+> and [*colour-MIPs from a registered LM volume*](colormip_lm.html)
+> vignettes. Pass `target_space = "VNC"` to `nrrd_to_mip()` to render
+> into that grid.
+
 # Prerequisites
 
 -   A neuPrint authentication token (see `?neuprintr::neuprint_login`). Put it in `.Renviron` as `neuprint_token=...`.
@@ -144,12 +157,7 @@ hits.vnc <- merge(hits.vnc,
 
 ## 2c — Per-neuron top-5 with an elbow cutoff
 
-`normalizedScore` in NeuronBridge is clipped at **50000**, and for a well-targeted neuron the top few lines often cluster within ~10% of each other — so a fixed absolute score threshold (`23000`, as in the split-design vignette) is the wrong tool. Instead, for each target neuron we:
-
-1.  Rank candidate lines by `normalizedScore` (best MIP per line, from step 2b).
-2.  Always keep the top line.
-3.  Keep line *k* only if its score is ≥ **75%** of line *k-1* (no sharp drop) *and* ≥ **20%** of the top score (no absolute collapse).
-4.  Cap at **5** lines.
+`normalizedScore` is clipped at 50,000 and well-targeted neurons often have several top lines within ~10% of each other, so a fixed score threshold is the wrong tool. We keep the top line, then accept line *k* only if its score is ≥ 75% of *k-1* and ≥ 20% of the top — capped at 5 lines.
 
 ```{r elbow}
 top_with_elbow <- function(df, cap = 5,

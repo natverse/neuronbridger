@@ -62,6 +62,15 @@
     <li>
       <a href="../articles/asta_sez.html">Finding the SEZ AstA neuron: SS32423 + AstA-locus drivers + DCV soma scores</a>
     </li>
+    <li>
+      <a href="../articles/colormip_direct_vs_fiji.html">Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="../articles/colormip_lm.html">Colour-depth MIPs from a registered LM volume (Kondo 2020 CapaR) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="../articles/lm_layer_neuroglancer.html">Serving an LM volume as a Neuroglancer layer alongside BANC</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -145,11 +154,13 @@ figures in <code>inst/images/</code> and the ranked CSVs in
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/apache/arrow/" class="external-link">arrow</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tidyr.tidyverse.org" class="external-link">tidyr</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">NB_VERSION</span> <span class="op">&lt;-</span> <span class="st">"v3_9_0"</span>   <span class="co"># current release; ships FlyWire-FAFB-v783 MIPs</span></span></code></pre></div>
-<p>Local feather caches of the lee-lab compiled FAFB-v783 tables (see
-<code>/Users/GD/LMBD/Papers/dcv</code> for the DCV scoring
-methodology):</p>
+<p>The compiled FAFB-v783 metadata + soma-DCV-detection feather tables
+used here are an in-prep product of the Wei-Chung Allen Lee lab (Harvard
+/ lee-lab DCV manuscript, in preparation). Replace <code>DCV_DIR</code>
+with the directory holding the equivalent feathers on your own machine —
+the rest of the pipeline is path-agnostic.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">DCV_DIR</span> <span class="op">&lt;-</span> <span class="st">"/Users/GD/LMBD/Papers/dcv/data/sjcabs/fafb"</span></span>
+<code class="sourceCode R"><span><span class="va">DCV_DIR</span> <span class="op">&lt;-</span> <span class="st">"&lt;path/to/sjcabs/fafb&gt;"</span>   <span class="co"># lee-lab DCV feathers (in prep.)</span></span>
 <span><span class="va">META_FEATHER</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">DCV_DIR</span>, <span class="st">"fafb_783_meta.feather"</span><span class="op">)</span></span>
 <span><span class="va">SOMA_DCV_FEATHER</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">DCV_DIR</span>, <span class="st">"fafb_783_soma_dcv_detection.feather"</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -200,25 +211,17 @@ the same line are slightly different stainings of the same GAL4, and
 <div class="section level2">
 <h2 id="step-2-pull-neuronbridge-fafb-v783-hits-per-line">Step 2: Pull NeuronBridge FAFB-v783 hits per line<a class="anchor" aria-label="anchor" href="#step-2-pull-neuronbridge-fafb-v783-hits-per-line"></a>
 </h2>
-<p>SS32423 itself ships <strong>16</strong> brain MIPs (different
-specimens — useful to inspect). Most show the same SS32423 pattern, but
-one or two are MCFO-stochastic stains where only a subset of cells
-happens to be labelled. Always inspect the full set before choosing a
-“representative” MIP for the side-by-side comparison:</p>
+<p>SS32423 ships 16 brain MIPs in <code>v3_9_0</code>. The dominant
+pattern is a bilateral SEZ-soma pair with arbours ascending
+dorso-medially — the cell the line was designed to label. A few MIPs are
+MCFO stochastic single-cell renders, so inspect the full set before
+choosing a representative MIP:</p>
 <div class="float">
 <img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_SS32423_montage.png" alt="SS32423 — all 16 brain MIPs in NB v3_9_0"><div class="figcaption">SS32423 — all 16 brain MIPs in NB v3_9_0</div>
 </div>
-<p>The dominant pattern across the 16 MIPs is <strong>a bilateral pair
-of cell bodies in the SEZ at the bottom of the brain, with arbours
-ascending dorso-medially through the central brain</strong>. That’s the
-SEZ AstA cell SS32423 was designed to label; the bright single-cell
-cluster in the upper-medial brain that appears in only one MIP
-(<code>SS32423#3</code> in this release) is an MCFO stochastic
-single-cell render of one of the ascending arbours, not a separate cell
-type.</p>
 <p>For each driver, fetch its colour-depth hits, restrict to
 FlyWire-FAFB (<code>libraryName == "FlyWire_FAFB_v783_realign"</code>),
-and cache per line so the slow part doesn’t have to run again.</p>
+and cache per line.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">KEEP_COLS</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"publishedName"</span>,<span class="st">"libraryName"</span>,<span class="st">"normalizedScore"</span>,</span>
 <span>               <span class="st">"matchingPixels"</span>,<span class="st">"alignmentSpace"</span>,<span class="st">"anatomicalArea"</span>,<span class="st">"gender"</span><span class="op">)</span></span>
@@ -280,32 +283,26 @@ cap at 25). Reused from
 <div class="section level2">
 <h2 id="step-3-soft-soma-neuropil-annotation-not-a-hard-filter">Step 3: Soft soma-neuropil annotation (not a hard filter)<a class="anchor" aria-label="anchor" href="#step-3-soft-soma-neuropil-annotation-not-a-hard-filter"></a>
 </h2>
-<p>This is the trickiest step — the data is good but easy to misuse.
-Three gotchas worth flagging:</p>
-<ol style="list-style-type: decimal">
-<li>The soma-DCV detection feather records each vesicle’s brain region
-as a string that <strong>may carry a comma-separated list</strong> when
-the vesicle sits on a neuropil boundary
-(e.g. <code>"AL_R,GNG,SAD"</code>, <code>"AMMC_L,AVLP_L"</code>).</li>
-<li>The <code>outside_&lt;NEUROPIL&gt;</code> tokens
-(<code>outside_GNG</code>, <code>outside_SAD</code>, etc.) represent the
-<strong>cortex rind</strong> around the neuropil — and that’s literally
-where the soma sits. A naive <code>neuropil == "GNG"</code> filter would
-discard most genuine GNG-soma neurons.</li>
-<li>About a third of FAFB-v783 neurons have <strong>no soma DCVs at
-all</strong> (e.g. ascending neurons whose somas live in the VNC, not in
-the FAFB volume). These can’t be classified from this file — we mark
-them <code>unknown</code> and <strong>keep</strong> them in the
-candidate pool rather than silently dropping them.</li>
-</ol>
-<p>The right move is to (a) tokenise on commas, (b) accept both the
-inner SEZ neuropil and its <code>outside_*</code> rind, (c) score by
-<em>fraction</em> of soma-DCVs that mention any SEZ token, and (d) keep,
-not drop, borderline / unknown cases. The fraction-SEZ distribution is
-bimodal (most neurons either ~100% or ~0%) so a 0.5 threshold is safe
-and a 0.1 threshold is a generous safety net.</p>
+<p>The soma-DCV feather classifies each vesicle by neuropil. Three
+practical points: regions can be comma-joined on neuropil boundaries
+(<code>"AL_R,GNG,SAD"</code>); <code>outside_&lt;NEUROPIL&gt;</code>
+tags mark the cortex rind where somas actually sit (so a strict
+<code>neuropil == "GNG"</code> filter would drop most genuine GNG-soma
+neurons); and ~⅓ of FAFB-v783 neurons have no soma DCVs at all
+(ascending cells with VNC somas). We tokenise on commas, accept inner
+SEZ neuropils plus their <code>outside_*</code> rinds, score by
+<em>fraction</em> of soma-DCVs hitting any SEZ token, and keep
+borderline / unknown cases rather than silently dropping them. The
+distribution is bimodal so a 0.5 threshold is safe and 0.1 is a generous
+safety net.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">SEZ_INNER</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"GNG"</span>, <span class="st">"SAD"</span>, <span class="st">"AMMC_L"</span>, <span class="st">"AMMC_R"</span>, <span class="st">"FLA_L"</span>, <span class="st">"FLA_R"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="co"># Periesophageal SEZ — the broad Ito-2014 definition. The narrow</span></span>
+<span><span class="co"># 6-neuropil set (GNG / SAD / AMMC / FLA only) misses cells like</span></span>
+<span><span class="co"># CB0108 whose soma rind is `outside_IPS_L` but whose hemilineage</span></span>
+<span><span class="co"># (LB19) is canonically SEZ. Add PRW, IPS, SPS, VES, WED.</span></span>
+<span><span class="va">SEZ_INNER</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"GNG"</span>,<span class="st">"SAD"</span>,<span class="st">"AMMC_L"</span>,<span class="st">"AMMC_R"</span>,<span class="st">"FLA_L"</span>,<span class="st">"FLA_R"</span>,</span>
+<span>               <span class="st">"PRW"</span>,<span class="st">"IPS_L"</span>,<span class="st">"IPS_R"</span>,<span class="st">"SPS_L"</span>,<span class="st">"SPS_R"</span>,</span>
+<span>               <span class="st">"VES_L"</span>,<span class="st">"WED_L"</span>,<span class="st">"WED_R"</span><span class="op">)</span></span>
 <span><span class="va">SEZ_TOK</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">SEZ_INNER</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"outside_"</span>, <span class="va">SEZ_INNER</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">soma_dcv</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://arrow.apache.org/docs/r/reference/read_feather.html" class="external-link">read_feather</a></span><span class="op">(</span><span class="va">SOMA_DCV_FEATHER</span>,</span>
@@ -462,9 +459,23 @@ and R65D05</strong> (the canonical AstA-GAL4) at high score. It’s a
 <code>central_brain_intrinsic</code> cell with soma in the SEZ
 (<code>frac_sez = 1.0</code>), <code>putative_primary</code>
 hemilineage, predicted ACh, and <code>dcv_pct = 0.866</code> (just below
-the strict p90 DCV-rich threshold). <strong>This is the strongest
-candidate for the SS32423 SEZ AstA neuron.</strong> FlyWire root
-<code>720575940632295751</code>.</li>
+the strict p90 DCV-rich threshold). FlyWire root
+<code>720575940632295751</code> (left side).</li>
+<li>
+<strong><code>CB0108</code> (LB19)</strong> is hit by SS32423 alone
+but is <strong>massively DCV-rich</strong>
+(<code>soma_dcv_density = 16.4</code>, <code>dcv_pct ≈ 0.99</code>); its
+soma sits at the dorsal <code>outside_IPS_L</code> rind. With the broad
+peri-esophageal SEZ definition (above) it classifies as SEZ. FlyWire
+root <code>720575940620093019</code> (right side).</li>
+<li>These two cell types are a <strong>bilateral-pair match for the
+4-cell SEZ AstA pattern Hergarden et al. 2012 reported</strong>
+(PMC3309792): the meta has both left+right copies of CB0602 and CB0108,
+and all four show up in our SS32423 raw cache. The right CB0602 and left
+CB0108 just slip below the per-line elbow cap (best score ~10–15k vs
+SS32423’s MIP top of ~50k) — see
+<code>inst/extdata/asta_sez/cache/hits_*.rds</code> for the unfiltered
+hits. See <strong>Step 7b</strong> below.</li>
 <li>
 <strong><code>CB0239</code></strong> (<code>LB11</code> hemilineage,
 ACh, <code>dcv_pct = 0.402</code>) is hit by both SS32423 and
@@ -485,20 +496,61 @@ hemilineages</strong> (CB1475 in <code>LB23</code>, CB3901 in
 CB0544 in <code>putative_primary</code>) sit in the next rank tier.
 These are all SEZ-soma cells with various NTs and mid-range DCV
 percentiles — worth a 3-D look for any morphology match.</li>
-<li>
-<strong><code>DNge046</code></strong> (descending in
-<code>LB5__prim</code>, gaba, <code>dcv_pct = 0.437</code>) is the
-second descending neuron in the candidate set after DNg22. Like DNg22
-it’s likely arbour-overlap rather than the AstA cell.</li>
-<li>The 16 SS32423 hits with <strong>non-SEZ somas</strong> (visible in
-<code>asta_sez_ranked_full.csv</code>) include cells in SMP / SLP / LH
-cortex rinds — these are off-target SS32423 labelling, not the AstA
-cell. We keep them in the CSV for transparency but they fall out of the
-SEZ-OK figures.</li>
 </ul>
+<div class="section level3">
+<h3 id="step-7b-the-4-cell-sez-asta-pattern-hergarden-2012">Step 7b: The 4-cell SEZ AstA pattern (Hergarden 2012)<a class="anchor" aria-label="anchor" href="#step-7b-the-4-cell-sez-asta-pattern-hergarden-2012"></a>
+</h3>
+<p>Hergarden, Tayler &amp; Anderson (2012; PMC3309792) describe roughly
+<strong>four AstA-positive neurons</strong> clustered around the SEZ —
+two bilateral pairs. Our SS32423 hits map to this directly:</p>
+<ul>
+<li>
+<strong>CB0602 — ventral SEZ pair</strong>
+(<code>putative_primary</code> lineage, ACh):
+<ul>
+<li>left = <code>720575940632295751</code> (top hit, SS32423 ∩
+R65D05)</li>
+<li>right = <code>720575940640469848</code> (in SS32423 + R65D05 +
+R65D06 raw caches; falls below the per-line elbow cap)</li>
+</ul>
+</li>
+<li>
+<strong>CB0108 — dorsal/IPS pair</strong> (<code>LB19</code>
+lineage, ACh):
+<ul>
+<li>right = <code>720575940620093019</code> (top non-SEZ-strict hit,
+dcv_pct 0.99)</li>
+<li>left = <code>720575940624028855</code> (in SS32423 + R65D06 raw
+caches)</li>
+</ul>
+</li>
+</ul>
+<p>Render all four meshes
+(<code>inst/scripts/asta_sez_4cell.R</code>):</p>
+<div class="float">
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_4cell_panel.png" alt="The 4 canonical SEZ AstA cells — CB0108 dorsal pair above CB0602 ventral pair"><div class="figcaption">The 4 canonical SEZ AstA cells — CB0108 dorsal
+pair above CB0602 ventral pair</div>
+</div>
+<p>The bilateral symmetry is unambiguous and the dorsal-ventral split
+matches the figures in Hergarden 2012. <strong>CB0602 + CB0108 together
+= the 4 SEZ-AstA cells that motivated SS32423 in the first
+place.</strong></p>
+<p>Of course, none of this is news to the FlyWire community: these large
+projection neurons are already annotated as the <strong>AstA1</strong>
+cell type in <a href="https://codex.flywire.ai/app/search?dataset=banc&amp;filter_string=AstA1" class="external-link">codex</a>.
+The point of the pipeline above isn’t to discover AstA1 from scratch,
+but to show that <strong>SS32423 + AstA-locus driver consensus +
+DCV-density soma scoring converges on AstA1 without using the AstA1
+annotation as input</strong> — the same recipe should generalise to
+other peptidergic populations that don’t yet have a canonical FlyWire
+label.</p>
+<p>The 16 SS32423 hits with <strong>non-SEZ somas</strong> (visible in
+<code>asta_sez_ranked_full.csv</code>) belong to a different cluster —
+see Step 10 below.</p>
 <p>The ranked CSV with all 100+ candidates and full annotations is in
 <code>inst/extdata/asta_sez/asta_sez_ranked_full.csv</code>. The top-30
 cut is <code>asta_sez_ranked_top30.csv</code>.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="step-8-visualise-the-top-two-candidates-with-nat-ggplot">Step 8: Visualise the top two candidates with
@@ -508,34 +560,44 @@ cut is <code>asta_sez_ranked_top30.csv</code>.</p>
 <code>neuronlist</code> / mesh as a 2-D ggplot — the same idiom the
 lee-lab DCV repo uses for its FAFB figures
 (<code>R/visualise/fafb_flange.R</code>,
-<code>fig_2_dcv_predictions_fafb.Rmd</code>). We fetch the L2 skeletons
-of the top 2 candidates from FlyWire, then overlay them on the FAFB14
-brain with the SEZ neuropils tinted blue:</p>
+<code>fig_2_dcv_predictions_fafb.Rmd</code>).</p>
+<p>We fetch the <strong>FlyWire meshes</strong> for the top 2 candidates
+(~22 MB each, ~10 s/neuron from CloudVolume) and project their vertices
+to 2-D as a low-alpha point cloud — that produces a denser, MIP-like
+volumetric render than the L2 skeleton paths. The FAFB14 brain and SEZ
+neuropil meshes from <code>elmr</code> provide context.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat" class="external-link">nat</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://natverse.org/nat.ggplot/" class="external-link">nat.ggplot</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/elmr" class="external-link">elmr</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/fafbseg" class="external-link">fafbseg</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://patchwork.data-imaginist.com" class="external-link">patchwork</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>fafbseg.flywire_dataset <span class="op">=</span> <span class="st">"flywire_fafb_public"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">CB0602</span> <span class="op">&lt;-</span> <span class="st">"720575940632295751"</span></span>
 <span><span class="va">CB0239</span> <span class="op">&lt;-</span> <span class="st">"720575940634548194"</span></span>
-<span><span class="va">sk</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/fafbseg/man/read_l2skel.html" class="external-link">read_l2skel</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">CB0602</span>, <span class="va">CB0239</span><span class="op">)</span>,</span>
-<span>                  datastack_name <span class="op">=</span> <span class="st">"flywire_fafb_public"</span><span class="op">)</span></span>
+<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu">fafbseg</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/fafbseg/man/read_cloudvolume_meshes.html" class="external-link">read_cloudvolume_meshes</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">CB0602</span>, <span class="va">CB0239</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">brain</span>    <span class="op">&lt;-</span> <span class="fu">elmr</span><span class="fu">::</span><span class="va"><a href="https://rdrr.io/pkg/elmr/man/FAFB.surf.html" class="external-link">FAFB14.surf</a></span></span>
 <span><span class="va">sez_surf</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="fu">elmr</span><span class="fu">::</span><span class="va"><a href="https://rdrr.io/pkg/elmr/man/FAFB.surf.html" class="external-link">FAFB14NP.surf</a></span>,</span>
 <span>                   <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"GNG"</span>,<span class="st">"SAD"</span>,<span class="st">"FLA_R"</span>,<span class="st">"FLA_L"</span>,<span class="st">"AMMC_R"</span>,<span class="st">"AMMC_L"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">mk_panel</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">neuron</span>, <span class="va">title</span>, <span class="va">neuron_col</span><span class="op">)</span> <span class="op">{</span></span>
+<span><span class="co"># Project mesh vertices to 2-D as a low-alpha point cloud — this is</span></span>
+<span><span class="co"># what produces the volumetric "MIP-like" arbour density.</span></span>
+<span><span class="va">mesh_xy</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">mesh</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">v</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/xyzmatrix.html" class="external-link">xyzmatrix</a></span><span class="op">(</span><span class="va">mesh</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>X <span class="op">=</span> <span class="va">v</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span>, Y <span class="op">=</span> <span class="va">v</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span>, Z <span class="op">=</span> <span class="va">v</span><span class="op">[</span>,<span class="fl">3</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">mk_panel</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">mesh</span>, <span class="va">title</span>, <span class="va">neuron_col</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://natverse.github.io/nat.ggplot/reference/geom_neuron.html" class="external-link">geom_neuron</a></span><span class="op">(</span><span class="va">brain</span>,    cols <span class="op">=</span> <span class="st">"grey70"</span>, alpha <span class="op">=</span> <span class="fl">0.35</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://natverse.github.io/nat.ggplot/reference/geom_neuron.html" class="external-link">geom_neuron</a></span><span class="op">(</span><span class="va">sez_surf</span>, cols <span class="op">=</span> <span class="st">"#3182bd"</span>, alpha <span class="op">=</span> <span class="fl">0.45</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://natverse.github.io/nat.ggplot/reference/geom_neuron.html" class="external-link">geom_neuron</a></span><span class="op">(</span><span class="va">neuron</span>,   cols <span class="op">=</span> <span class="va">neuron_col</span>, alpha <span class="op">=</span> <span class="fl">0.95</span>, lwd <span class="op">=</span> <span class="fl">0.4</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_fixed</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_y_reverse</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/guides.html" class="external-link">guides</a></span><span class="op">(</span>colour <span class="op">=</span> <span class="st">"none"</span>, fill <span class="op">=</span> <span class="st">"none"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://natverse.github.io/nat.ggplot/reference/geom_neuron.html" class="external-link">geom_neuron</a></span><span class="op">(</span><span class="va">brain</span>,    cols <span class="op">=</span> <span class="st">"grey75"</span>, alpha <span class="op">=</span> <span class="fl">0.30</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://natverse.github.io/nat.ggplot/reference/geom_neuron.html" class="external-link">geom_neuron</a></span><span class="op">(</span><span class="va">sez_surf</span>, cols <span class="op">=</span> <span class="st">"#3182bd"</span>, alpha <span class="op">=</span> <span class="fl">0.40</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span>data <span class="op">=</span> <span class="fu">mesh_xy</span><span class="op">(</span><span class="va">mesh</span><span class="op">)</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">X</span>, y <span class="op">=</span> <span class="va">Y</span><span class="op">)</span>,</span>
+<span>               colour <span class="op">=</span> <span class="va">neuron_col</span>, alpha <span class="op">=</span> <span class="fl">0.04</span>, size <span class="op">=</span> <span class="fl">0.15</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_fixed</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_y_reverse</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="va">title</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_void</a></span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">11</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>plot.title <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>hjust <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
-<span><span class="op">(</span><span class="fu">mk_panel</span><span class="op">(</span><span class="va">sk</span><span class="op">[[</span><span class="va">CB0602</span><span class="op">]</span><span class="op">]</span>, <span class="st">"CB0602 — SS32423 ∩ R65D05"</span>,   <span class="st">"magenta"</span><span class="op">)</span> <span class="op">|</span></span>
-<span> <span class="fu">mk_panel</span><span class="op">(</span><span class="va">sk</span><span class="op">[[</span><span class="va">CB0239</span><span class="op">]</span><span class="op">]</span>, <span class="st">"CB0239 — SS32423 ∩ VT019900"</span>, <span class="st">"darkorange"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">(</span><span class="fu">mk_panel</span><span class="op">(</span><span class="va">m</span><span class="op">[[</span><span class="va">CB0602</span><span class="op">]</span><span class="op">]</span>, <span class="st">"CB0602 — SS32423 ∩ R65D05"</span>,   <span class="st">"magenta"</span><span class="op">)</span> <span class="op">|</span></span>
+<span> <span class="fu">mk_panel</span><span class="op">(</span><span class="va">m</span><span class="op">[[</span><span class="va">CB0239</span><span class="op">]</span><span class="op">]</span>, <span class="st">"CB0239 — SS32423 ∩ VT019900"</span>, <span class="st">"darkorange"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>The result
 (<code>inst/images/asta_sez_candidates_natggplot.png</code>):</p>
 <div class="float">
@@ -550,32 +612,174 @@ is a tighter, more SEZ-local cell.</p>
 <div class="section level2">
 <h2 id="step-9-side-by-side-colour-depth-mip">Step 9: Side-by-side colour-depth MIP<a class="anchor" aria-label="anchor" href="#step-9-side-by-side-colour-depth-mip"></a>
 </h2>
-<p>Stack the SS32423 NB brain MIP next to depth-encoded renders of
-CB0602 and CB0239 (using the same
-blue→cyan→green→yellow→orange→red→magenta ramp NeuronBridge uses), so
-the three panels read consistently:</p>
+<p>Stack the SS32423 NB brain MIP next to depth-encoded renders of the
+two SEZ AstA cell types — <strong>CB0602</strong> (ventral SEZ pair) and
+<strong>CB0108</strong> (dorsal/IPS pair) — using the same
+blue→cyan→green→yellow→orange→red→magenta ramp NeuronBridge uses, so the
+three panels read consistently:</p>
 <div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_mip_panel.png" alt="SS32423 NB MIP next to CB0602 and CB0239 depth-encoded skeletons"><div class="figcaption">SS32423 NB MIP next to CB0602 and CB0239
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_sez_mip_panel.png" alt="SS32423 NB MIP next to CB0602 and CB0108 depth-encoded skeletons"><div class="figcaption">SS32423 NB MIP next to CB0602 and CB0108
 depth-encoded skeletons</div>
 </div>
 <p>The reproducer for this figure (and the <code>geom_neuron</code>
-panel above) is <code>inst/scripts/asta_sez_mip_panel.R</code> and
-<code>inst/scripts/asta_sez_natggplot.R</code> — both run from L2
-skeletons (fast, ~20 s for 2 neurons) rather than full meshes.</p>
-<p>If you want a <em>true</em> NeuronBridge-style colour-depth MIP from
-the FlyWire mesh (i.e. Janelia’s
-<code>Color_Depth_MIP_batch_0308_2021.ijm</code> macro applied to a
-re-rendered NRRD), the package wraps that pipeline too — but it needs a
-working FAFB CloudVolume + FIJI/CMTK install:</p>
+panel above) is <code>inst/scripts/asta_sez_meshes.R</code> — fetches
+the FlyWire meshes once (~10 s/neuron, ~22 MB each, cached to
+<code>inst/extdata/asta_sez/cache/meshes_*.rds</code>) and renders both
+the 2-panel <code>geom_neuron</code> figure and this 3-row depth-encoded
+panel.</p>
+<p>For a <em>true</em> NeuronBridge-style colour-depth MIP from a
+FlyWire mesh (i.e. the Janelia ColorMIP algorithm applied to a
+re-rendered NRRD in the NeuronBridge-compatible
+<strong>JRC2018U_HR</strong> grid: 1210 × 566 × 174 at 0.519 × 0.519 ×
+1.0 µm), <code>nrrd_to_mip_direct()</code> does the whole thing in pure
+R — no FIJI launch required:</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/ngl_scene_to_nrrd.html">root_id_to_nrrd</a></span><span class="op">(</span><span class="st">"720575940632295751"</span>,</span>
-<span>                reference  <span class="op">=</span> <span class="st">"JRC2018U_HR"</span>,</span>
-<span>                savefolder <span class="op">=</span> <span class="st">"~/asta_sez_mips"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="../reference/nrrd_to_mip.html">nrrd_to_mip</a></span><span class="op">(</span>fiji.path <span class="op">=</span> <span class="st">"/Applications/Fiji.app/Contents/MacOS/ImageJ-macosx"</span>,</span>
-<span>            savefolder <span class="op">=</span> <span class="st">"~/asta_sez_mips"</span><span class="op">)</span></span></code></pre></div>
-<p>Where that’s unavailable, the <a href="https://github.com/jasper-tms/the-BANC-fly-connectome/tree/main/colormips" class="external-link">BANC
-<code>colormips</code></a> pure-Python pipeline produces visually
-compatible output without FIJI.</p>
+<code class="sourceCode R"><span><span class="va">sez_hits</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>CB0602 <span class="op">=</span> <span class="st">"720575940632295751"</span>,   <span class="co"># ventral SEZ pair</span></span>
+<span>              CB0108 <span class="op">=</span> <span class="st">"720575940620093019"</span><span class="op">)</span>   <span class="co"># dorsal IPS pair</span></span>
+<span><span class="va">savefolder</span> <span class="op">&lt;-</span> <span class="st">"~/asta_sez_mips"</span></span>
+<span></span>
+<span><span class="co"># 1) Render each FlyWire mesh into a JRC2018U_HR-sized NRRD</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">id</span> <span class="kw">in</span> <span class="va">sez_hits</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="../reference/ngl_scene_to_nrrd.html">root_id_to_nrrd</a></span><span class="op">(</span><span class="va">id</span>,</span>
+<span>                  reference  <span class="op">=</span> <span class="st">"JRC2018U_HR"</span>,</span>
+<span>                  savefolder <span class="op">=</span> <span class="va">savefolder</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># 2) Colour-depth MIP every NRRD in the folder, in pure R</span></span>
+<span><span class="fu">nrrd_to_mip_direct</span><span class="op">(</span><span class="va">savefolder</span>, target_space <span class="op">=</span> <span class="st">"brain"</span>, format <span class="op">=</span> <span class="st">"png"</span><span class="op">)</span></span>
+<span><span class="co"># Output: &lt;savefolder&gt;/color_mips/*_colormip.png</span></span></code></pre></div>
+<p>The <code>colormip_direct_vs_fiji</code> vignette walks through the
+algorithm, contrasts <code>nrrd_to_mip_direct()</code> against the
+FIJI-launching <code><a href="../reference/nrrd_to_mip.html">nrrd_to_mip()</a></code>, and validates byte-for-byte
+against Stephan Gerhard’s Python port in the BANC connectome
+package.</p>
+</div>
+<div class="section level2">
+<h2 id="step-10-beyond-the-sez-the-other-asta-neurons-ss32423-labels">Step 10: Beyond the SEZ — the <em>other</em> AstA neurons SS32423
+labels<a class="anchor" aria-label="anchor" href="#step-10-beyond-the-sez-the-other-asta-neurons-ss32423-labels"></a>
+</h2>
+<p>Inspecting the SS32423 montage (Step 1) more carefully, <strong>row 1
+columns 2–4</strong> show clear bright cells <em>outside</em> the SEZ —
+in the upper-medial brain. Hentze et al. 2015 mapped AstA expression to
+several non-SEZ groups (median protocerebrum / pars intercerebralis,
+pars lateralis, optic lobe), so we should expect SS32423 to label some
+of those too even if the canonical AstA-GAL4 (<code>R65D05</code>)
+doesn’t.</p>
+<p>Pulling the 16 SS32423 hits with <strong>non-SEZ somas</strong> from
+<code>asta_sez_ranked_full.csv</code> confirms the pattern: they cluster
+overwhelmingly in the <strong>SMP / SLP</strong> with several bilateral
+cell-type recurrences (strong evidence these are real, consistent
+SS32423 targets rather than colour-MIP noise):</p>
+<table class="table">
+<colgroup>
+<col width="22%">
+<col width="26%">
+<col width="8%">
+<col width="18%">
+<col width="24%">
+</colgroup>
+<thead><tr class="header">
+<th>cell_type</th>
+<th>hemilineage</th>
+<th>NT</th>
+<th>DCV pct</th>
+<th>recurrence</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>SMP202</code></td>
+<td><code>putative_primary</code></td>
+<td>ACh</td>
+<td>0.95–0.97</td>
+<td>bilateral pair</td>
+</tr>
+<tr class="even">
+<td><code>SMP540</code></td>
+<td><code>SMPpd2</code></td>
+<td>glutamate</td>
+<td>0.87–0.92</td>
+<td>bilateral pair (×3 hits)</td>
+</tr>
+<tr class="odd">
+<td><code>CB2082</code></td>
+<td><code>SMPp&amp;v1_posterior</code></td>
+<td>glutamate</td>
+<td>0.86–0.93</td>
+<td>bilateral pair</td>
+</tr>
+<tr class="even">
+<td><code>CL176</code></td>
+<td><code>SMPp&amp;v1_posterior</code></td>
+<td>glutamate</td>
+<td>0.80–0.88</td>
+<td>bilateral pair</td>
+</tr>
+</tbody>
+</table>
+<p>(<code>CB0108</code> initially appeared here too because the strict
+tokeniser classified its <code>outside_IPS_L</code> soma rind as
+non-SEZ, but biologically it belongs to the SEZ AstA group — see Step 7b
+— and we’ve moved it back there.)</p>
+<p>Render the strongest non-SEZ candidates with the same mesh-vertex
+point-cloud pipeline (see <code>inst/scripts/asta_sez_meshes.R</code>
+for the <code>mk_panel()</code> definition):</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">others</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  SMP202_R <span class="op">=</span> <span class="st">"720575940626412563"</span>,</span>
+<span>  SMP202_L <span class="op">=</span> <span class="st">"720575940628248326"</span>,</span>
+<span>  SMP540_R <span class="op">=</span> <span class="st">"720575940623972792"</span>,</span>
+<span>  SMP540_L <span class="op">=</span> <span class="st">"720575940616330011"</span>,</span>
+<span>  CB2082_R <span class="op">=</span> <span class="st">"720575940623952679"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">m_other</span> <span class="op">&lt;-</span> <span class="fu">fafbseg</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/fafbseg/man/read_cloudvolume_meshes.html" class="external-link">read_cloudvolume_meshes</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unname.html" class="external-link">unname</a></span><span class="op">(</span><span class="va">others</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># ...same mk_panel() as in step 8...</span></span></code></pre></div>
+<div class="float">
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/asta_other_candidates_natggplot.png" alt="Non-SEZ SS32423 candidates — SMP202 (×2), SMP540 (×2), CB2082"><div class="figcaption">Non-SEZ SS32423 candidates — SMP202 (×2), SMP540
+(×2), CB2082</div>
+</div>
+<p>The figure makes two things clear:</p>
+<ul>
+<li>
+<strong><code>SMP202</code> (bilateral, ACh)</strong> has somas in
+the upper-medial brain (SMP cortex rind) and dense bilateral arbours
+fanning across SMP / SLP — the <em>exact</em> cell pattern visible in
+row 1 cols 2–4 of the SS32423 montage.</li>
+<li>
+<strong><code>SMP540</code> (bilateral, glutamate)</strong> is a
+tighter dorsal-medial cell in the <code>SMPpd2</code> hemilineage —
+co-labels in the same SS32423 pattern, alongside SMP202.</li>
+</ul>
+<div class="section level3">
+<h3 id="important-caveat-on-asta-specificity-for-the-smp-group">Important caveat on AstA-specificity for the SMP group<a class="anchor" aria-label="anchor" href="#important-caveat-on-asta-specificity-for-the-smp-group"></a>
+</h3>
+<p><strong>None of these non-SEZ candidates are hit by
+<code>R65D05</code></strong> (the canonical Hergarden AstA-GAL4 — see
+the heatmap in step 7). That means we cannot assert from this analysis
+alone that they are AstA-positive; only that they are consistent SS32423
+targets which happen to be DCV-rich (hence likely peptidergic). The
+interpretation is one of:</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>They are AstA-positive non-SEZ cells</strong> (consistent
+with the PI/PL groups Hentze 2015 reported), and <code>R65D05</code>
+simply doesn’t capture them because that Pfeiffer fragment is a
+sub-region of AstA flanking sequence selected to label SEZ-AstA cells.
+Other AstA reporters (the Hentze 2015 <code>P{AstA-GAL4.2.1}</code>,
+CRISPR <code>AstA[SK1]</code>, MiMIC T2A-GAL4) would be the test — none
+are in NB, so this requires direct immunostaining or LM imagery from
+those lines.</li>
+<li>
+<strong>They are off-target cells of SS32423</strong>: one or both
+hemidrivers (<code>VT019900</code>, <code>R65D06</code>) drive in the
+SMP independently of AstA expression, and the split happens to intersect
+them. Bilateral cell-type recurrence makes this less likely (random
+off-target hits don’t usually mirror left↔︎right) but it’s still on the
+table.</li>
+</ol>
+<p>The next step in either direction is to render these candidates as
+proper colour-depth MIPs against the SS32423 NB MIPs from row 1 cols 2–4
+of the montage and judge visual agreement.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="caveats">Caveats<a class="anchor" aria-label="anchor" href="#caveats"></a>
@@ -630,34 +834,6 @@ wins.</strong>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="iteration">Iteration<a class="anchor" aria-label="anchor" href="#iteration"></a>
-</h2>
-<p>If the visual MIP / 3-D comparison shows CB0602 doesn’t match
-SS32423, three knobs to turn in order:</p>
-<ol style="list-style-type: decimal">
-<li>
-<strong>Raise the per-line MIP cap</strong> from 10 (e.g. to 20) —
-the strongest candidates with <code>n_lines &gt;= 2</code> will probably
-remain, but broader consensus will surface ties we missed. Bear in mind
-<code><a href="../reference/neuronbridge_hits.html">neuronbridge_hits()</a></code> uses <code><a href="https://rdrr.io/pkg/plyr/man/rbind.fill.html" class="external-link">plyr::rbind.fill</a></code>
-internally and is quadratic in result rows, so cap=20 across the panel
-is roughly 3× slower than cap=10.</li>
-<li>
-<strong>Drop the <code>R65D07</code> / <code>R65E01</code> flanking
-tiles</strong> — these contribute many off-target consensus hits that
-aren’t in the <code>R65D05</code> ∩ <code>SS32423</code> intersection
-(visible as <code>R65E01</code>-only and <code>R65D07</code>-only
-stripes on the heatmap). A tighter panel (<code>SS32423</code>,
-<code>R65D05</code>, <code>R65D06</code>, <code>VT019900</code>)
-privileges AstA-specific enhancers over locus-wide ones.</li>
-<li>
-<strong>Re-rank without the DCV nudge</strong> — CB0602 sits at
-<code>dcv_pct = 0.866</code>, just below the strict p90 cutoff, so the
-nudge isn’t helping it; if the true AstA cell sits even lower in DCV,
-the nudge could be pushing the wrong cell to the top.</li>
-</ol>
-</div>
-<div class="section level2">
 <h2 id="citations">Citations<a class="anchor" aria-label="anchor" href="#citations"></a>
 </h2>
 <ul>
@@ -686,9 +862,8 @@ Genet 12(8):e1006346; Hentze, J.L. <em>et al.</em> (2015).</li>
 (2024); Schlegel, P. <em>et al.</em> (2024). <em>Nature.</em>
 </li>
 <li>
-<strong>DCV detection / soma DCV density</strong>: lee-lab DCV
-manuscript (in preparation; methodology in
-<code>/Users/GD/LMBD/Papers/dcv</code>).</li>
+<strong>DCV detection / soma DCV density</strong>: work from
+Wei-Chung Allen Lee’s lab (Harvard Medical School), in preparation.</li>
 </ul>
 </div>
   </div>
@@ -708,7 +883,7 @@ manuscript (in preparation; methodology in
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
       </footer>

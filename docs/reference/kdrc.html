@@ -57,6 +57,15 @@ pair, with the ten region Y/N flags from the KDRC detail page."><meta property="
     <li>
       <a href="../articles/asta_sez.html">Finding the SEZ AstA neuron: SS32423 + AstA-locus drivers + DCV soma scores</a>
     </li>
+    <li>
+      <a href="../articles/colormip_direct_vs_fiji.html">Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="../articles/colormip_lm.html">Colour-depth MIPs from a registered LM volume (Kondo 2020 CapaR) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="../articles/lm_layer_neuroglancer.html">Serving an LM volume as a Neuroglancer layer alongside BANC</a>
+    </li>
   </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"><li>
   <a href="https://github.com/natverse/neuronbridger/" class="external-link">
@@ -88,7 +97,7 @@ expression across ten regions of the adult <em>Drosophila</em> gut
 The site does not expose a machine-readable API; the search form is driven
 by a proprietary <code>AUIquery.do</code> endpoint whose POST payload is signed
 client-side.</p>
-<p>These helpers drive a headless Chrome session via <code><a href="https://rstudio.github.io/chromote/reference/ChromoteSession.html" class="external-link">ChromoteSession</a></code>,
+<p>These helpers drive a headless Chrome session via <code>ChromoteSession</code>,
 which reuses the site's own JavaScript to run the search and detail
 look-ups. The result is the same as a user filling in the search box by
 hand but scripted and batched.</p>
@@ -213,7 +222,7 @@ distinct cell types and regions in the Drosophila adult gut.</em>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
       </footer></div>

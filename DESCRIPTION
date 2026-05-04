@@ -24,7 +24,13 @@ Suggests:
     malevnc,
     nat.flybrains,
     nat.jrcbrains,
-    nat.templatebrains
+    nat.templatebrains,
+    bancr,
+    reticulate,
+    arrow,
+    abind,
+    tiff,
+    mmand
 VignetteBuilder: knitr
 Depends: R (>= 2.10)
 Imports: 
@@ -46,7 +52,8 @@ Remotes:
     natverse/elmr,
     natverse/malevnc,
     natverse/nat.flybrains,
-    natverse/nat.jrcbrains
+    natverse/nat.jrcbrains,
+    flyconnectome/bancr
 Encoding: UTF-8
 Language: en-GB
 RoxygenNote: 7.3.3
