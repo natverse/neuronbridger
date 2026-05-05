@@ -78,12 +78,19 @@ NULL
 #' @param sample_space source template name. Currently only
 #'   \code{"IS2"} is wired up (the only Kondo source space we ship a
 #'   target-grid + bridging registration for here). Patches welcome.
+#' @param right_shift integer; right-shift applied to the source
+#'   volume before warping (default \code{4} = 12-bit -> 8-bit, which
+#'   matches Kondo et al.'s 12-bit-packed-in-uint16 stacks). The
+#'   downstream Elastix output is uint8, so without this conversion
+#'   12-bit signal saturates at 255 across the brain. Pass \code{0}
+#'   for data already in the 0-255 range.
 #' @param verbose logical; emit stage timing.
 #' @return path to the FCWB-aligned NRRD.
 #' @export
 is2_to_fcwb_cmtk <- function(input,
                              output,
                              sample_space = "IS2",
+                             right_shift  = 4L,
                              verbose      = TRUE) {
   stopifnot(file.exists(input), nzchar(output))
   if (!identical(sample_space, "IS2"))
@@ -96,6 +103,29 @@ is2_to_fcwb_cmtk <- function(input,
   if (!nzchar(cmtk_reg) || !dir.exists(cmtk_reg))
     stop("nat.flybrains FCWB_IS2.list not found.")
 
+  # 12-bit -> 8-bit conversion before warping. Kondo NRRDs are 16-bit
+  # files holding 12-bit data; the Elastix Stage C clips at 255, so
+  # forwarding 16-bit through the chain saturates everything bright.
+  src_for_cmtk <- input
+  tmp_8bit     <- NULL
+  if (is.numeric(right_shift) && right_shift > 0) {
+    v <- nat::read.nrrd(input)
+    hdr <- attr(v, "header")
+    voxdims_um <- diag(hdr[["space directions"]])
+    cap <- (2L ^ (8L + as.integer(right_shift))) - 1L
+    v8 <- as.integer(pmin(pmax(as.integer(v), 0L), cap) %/%
+                       (2L ^ as.integer(right_shift)))
+    dim(v8) <- dim(v)
+    v_im <- nat::im3d(v8, dims = dim(v),
+                      voxdims = voxdims_um,
+                      origin  = c(0, 0, 0))
+    tmp_8bit <- tempfile(pattern = "is2_8bit_", fileext = ".nrrd")
+    nat::write.nrrd(v_im, tmp_8bit, dtype = "byte", enc = "gzip")
+    src_for_cmtk <- tmp_8bit
+  }
+  on.exit(if (!is.null(tmp_8bit) && file.exists(tmp_8bit)) file.remove(tmp_8bit),
+          add = TRUE)
+
   # FCWB grid: 1769 x 1026 x 108 at 0.318967, 0.318427, 1.0 um.
   # CMTK's parser balks on >7 decimal-place voxel sizes, so 6 dp.
   target_grid <- "1769,1026,108:0.318967,0.318427,1.0"
@@ -103,7 +133,7 @@ is2_to_fcwb_cmtk <- function(input,
   t0 <- Sys.time()
   rval <- system2(reformatx,
                   args = c("--target-grid", shQuote(target_grid),
-                           "--floating",    shQuote(input),
+                           "--floating",    shQuote(src_for_cmtk),
                            "--outfile",     shQuote(output),
                            shQuote(cmtk_reg)),
                   stdout = if (verbose) "" else NULL,
@@ -153,6 +183,10 @@ fcwb_to_jrc2018f_h5 <- function(input,
   }
 
   # JRC2018F output grid: 1652 x 768 x 479 voxels at 0.38 um isotropic.
+  # Saalfeld H5 dfield in JRC2018F_FCWB.h5 maps FCWB -> JRC2018F (forward).
+  # For image resampling we need OUTPUT (JRC2018F) -> SOURCE (FCWB), i.e. the
+  # inverse of dfield. RenderTransformed's `-i` flag inverts the next transform,
+  # so we pass `-i <h5>:0/dfield:0/invdfield` to get JRC2018F -> FCWB.
   interval <- "0,0,0:1651,767,478"
   res      <- "0.38,0.38,0.38"
   xfm_arg  <- paste0(h5_path, ":0/dfield:0/invdfield")
@@ -167,7 +201,7 @@ fcwb_to_jrc2018f_h5 <- function(input,
                            shQuote(interval),
                            "-r", res,
                            "-q", as.integer(threads),
-                           shQuote(xfm_arg)),
+                           "-i", shQuote(xfm_arg)),
                   stdout = if (verbose) "" else NULL,
                   stderr = if (verbose) "" else NULL)
   if (rval != 0L)
@@ -267,6 +301,8 @@ jrc2018f_to_banc_elastix <- function(input,
 #' @param keep_intermediates logical; keep the FCWB / JRC2018F / BANC
 #'   intermediate NRRDs for inspection (default \code{FALSE}).
 #' @param sample_space source template name (default \code{"IS2"}).
+#' @param right_shift integer right-shift to apply to the source
+#'   volume in Stage A (default \code{4} = 12-bit -> 8-bit).
 #' @param threads passed to \code{fcwb_to_jrc2018f_h5}.
 #' @return list with \code{precomputed_dir} (filesystem path),
 #'   \code{registry_entry} (one-row tibble), and \code{timings}
@@ -282,12 +318,14 @@ lm_to_banc_layer <- function(input,
                              chunk_size          = c(64L, 64L, 64L),
                              keep_intermediates  = FALSE,
                              sample_space        = "IS2",
+                             right_shift         = 4L,
                              threads             = 8L,
                              verbose             = TRUE) {
   stopifnot(file.exists(input),
             nzchar(gene), nzchar(sample), nzchar(dataset))
   if (missing(output_dir) || is.null(output_dir))
     stop("`output_dir` is required.")
+  output_dir <- path.expand(output_dir)
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
   name      <- paste(gene, sample, sep = "_")
@@ -299,6 +337,7 @@ lm_to_banc_layer <- function(input,
   t_all <- Sys.time()
   tA <- system.time(is2_to_fcwb_cmtk(input, fcwb_nrrd,
                                      sample_space = sample_space,
+                                     right_shift  = right_shift,
                                      verbose = verbose))[["elapsed"]]
   tB <- system.time(fcwb_to_jrc2018f_h5(fcwb_nrrd, jrcf_nrrd,
                                         threads = threads,
