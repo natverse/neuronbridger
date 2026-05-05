@@ -8,7 +8,13 @@
 \alias{lm_to_banc_layer}
 \title{Bridge a source-space LM volume into BANC voxel coordinates}
 \usage{
-is2_to_fcwb_cmtk(input, output, sample_space = "IS2", verbose = TRUE)
+is2_to_fcwb_cmtk(
+  input,
+  output,
+  sample_space = "IS2",
+  right_shift = 4L,
+  verbose = TRUE
+)
 
 fcwb_to_jrc2018f_h5(
   input,
@@ -30,13 +36,14 @@ lm_to_banc_layer(
   input,
   gene,
   sample,
-  channel = "no2",
+  channel = "02",
   dataset = "kondo_et_al_2020",
   output_dir,
   source_path = NULL,
   chunk_size = c(64L, 64L, 64L),
   keep_intermediates = FALSE,
   sample_space = "IS2",
+  right_shift = 4L,
   threads = 8L,
   verbose = TRUE
 )
@@ -48,6 +55,9 @@ lm_to_banc_layer(
 gzipped NRRD).}
 
 \item{sample_space}{source template name (default \code{"IS2"}).}
+
+\item{right_shift}{integer right-shift to apply to the source
+volume in Stage A (default \code{4} = 12-bit -> 8-bit).}
 
 \item{verbose}{logical; emit stage timing.}
 
@@ -68,9 +78,14 @@ Defaults to \pkg{bancr}'s bundled \code{brain_240721/}.}
 \code{"GluRIIA"}). Forms the precomputed dir name as
 \code{{gene}_{sample}}.}
 
-\item{sample}{sample identifier (e.g. \code{"01"}).}
+\item{sample}{sample identifier (e.g. \code{"no1"} for Kondo
+first-specimen samples; \code{"no1"} / \code{"no2"} are the two
+prepared brains in Kondo et al. 2020).}
 
-\item{channel}{source-stack channel string (default \code{"no2"}).}
+\item{channel}{source-stack channel string (default \code{"02"} =
+GFP / receptor channel for Kondo data; \code{"01"} would be the
+NC82 anatomical reference). Recorded in the registry only; the
+warping pipeline itself ignores this string.}
 
 \item{dataset}{master folder under \code{light_level/} (default
 \code{"kondo_et_al_2020"}).}

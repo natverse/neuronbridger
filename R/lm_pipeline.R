@@ -287,8 +287,13 @@ jrc2018f_to_banc_elastix <- function(input,
 #' @param gene short gene / receptor / peptide name (e.g.
 #'   \code{"GluRIIA"}). Forms the precomputed dir name as
 #'   \code{{gene}_{sample}}.
-#' @param sample sample identifier (e.g. \code{"01"}).
-#' @param channel source-stack channel string (default \code{"no2"}).
+#' @param sample sample identifier (e.g. \code{"no1"} for Kondo
+#'   first-specimen samples; \code{"no1"} / \code{"no2"} are the two
+#'   prepared brains in Kondo et al. 2020).
+#' @param channel source-stack channel string (default \code{"02"} =
+#'   GFP / receptor channel for Kondo data; \code{"01"} would be the
+#'   NC82 anatomical reference). Recorded in the registry only; the
+#'   warping pipeline itself ignores this string.
 #' @param dataset master folder under \code{light_level/} (default
 #'   \code{"kondo_et_al_2020"}).
 #' @param output_dir parent directory for intermediates + the final
@@ -311,7 +316,7 @@ jrc2018f_to_banc_elastix <- function(input,
 lm_to_banc_layer <- function(input,
                              gene,
                              sample,
-                             channel             = "no2",
+                             channel             = "02",
                              dataset             = "kondo_et_al_2020",
                              output_dir,
                              source_path         = NULL,

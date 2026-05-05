@@ -28,22 +28,26 @@ DROP_DIR  <- "/Users/asbates/Library/CloudStorage/Dropbox-HMS/Alexander Bates/ne
 OUT_ROOT  <- "~/kondo_to_banc"
 DATASET   <- "kondo_et_al_2020"
 
-# Kondo file naming: IS2_<gene>_no2_<sample>_warp_m0g40c4e1e-1x16r3.nrrd
-# (some files lack the IS2_ prefix — the script handles both).
+# Kondo file naming: IS2_<gene>_no<sample>_<channel>_warp_*.nrrd
+# - <sample>  is `no1` or `no2` (the two prepared specimens)
+# - <channel> is `01` (NC82 reference) or `02` (GFP / receptor)
+# We always pull channel `02` (GFP). Sample identifier is kept as `no1`
+# / `no2` in registry names so the source filename is recoverable from
+# the layer name.
 mode <- commandArgs(trailingOnly = TRUE)
 if (!length(mode)) mode <- "test"
 
 GENE_SET_TEST <- list(
-  c("GluRIIA", "01"),
-  c("Nmdar1",  "01"),
-  c("mGluR",   "01")
+  c("GluRIIA", "no1"),
+  c("Nmdar1",  "no1"),
+  c("mGluR",   "no1")
 )
 
 GENE_SET_ALL <- (function() {
   genes <- c("GluRIIA","GluRIIB","GluRIIC","GluRIID","GluRIIE",
              "GluRIB","Nmdar1","Nmdar2","GluClalpha","mGluR","DKaiR1D")
   out <- list()
-  for (g in genes) for (s in c("01","02")) out[[length(out)+1L]] <- c(g, s)
+  for (g in genes) for (s in c("no1","no2")) out[[length(out)+1L]] <- c(g, s)
   out
 })()
 
@@ -66,7 +70,7 @@ target_set <- switch(mode[1],
 find_source <- function(gene, sample) {
   candidate_names <- unique(c(gene, GENE_FILE_SYNONYM[[gene]]))
   for (nm in candidate_names) {
-    pat <- sprintf("(^|_)%s_no2_%s_warp_.*\\.nrrd$", nm, sample)
+    pat <- sprintf("(^|_)%s_%s_02_warp_.*\\.nrrd$", nm, sample)
     cand <- list.files(DROP_DIR, pattern = pat, full.names = TRUE)
     if (length(cand)) return(cand[1])
   }
@@ -104,7 +108,7 @@ for (gs in target_set) {
     input        = src,
     gene         = gene,
     sample       = sample,
-    channel      = "no2",
+    channel      = "02",
     dataset      = DATASET,
     output_dir   = out_dir,
     source_path  = src
