@@ -298,9 +298,11 @@ that's what `bancsee()` and `banc_lm_scene()` return by default.
 The chunk below builds a tiny synthetic 3-D volume, writes it as
 precomputed to a local directory, reads it back through `cloud-volume`
 to confirm round-trip fidelity, and constructs a long-form BANC
-Neuroglancer URL referencing it — entirely offline.
+Neuroglancer URL referencing it — entirely offline. Requires
+`reticulate::py_install("cloud-volume", pip = TRUE)` and skipped
+automatically if the Python module isn't available.
 
-```{r demo, eval = TRUE}
+```{r demo, eval = isTRUE(try(reticulate::py_module_available("cloudvolume"), silent = TRUE))}
 library(neuronbridger)
 library(reticulate)
 
@@ -324,19 +326,14 @@ back <- np$squeeze(np$asarray(vol[0:96, 0:96, 0:32]), axis = 3L)
 identical(as.integer(back), as.integer(v))
 ```
 
-```{r scene-demo, eval = TRUE}
+```{r scene-demo, eval = isTRUE(try(reticulate::py_module_available("cloudvolume"), silent = TRUE)) && requireNamespace("bancr", quietly = TRUE)}
 # Build a BANC scene with the local layer (long fragment URL form; no
 # auth needed). For a real sharable URL you'd upload the precomputed
 # dir to a public bucket and pass that gs:// URL instead.
-if (requireNamespace("bancr", quietly = TRUE)) {
-  u <- bancr::banc_lm_scene(out, layer_name = "tiny synthetic",
-                            shorten = FALSE)
-  cat("URL prefix:", substring(u, 1, 100), "\n")
-  cat("LM layer present:", grepl("synthetic|Synthetic", u, ignore.case = TRUE), "\n")
-} else {
-  message("Install bancr to assemble a BANC scene: ",
-          "remotes::install_github('flyconnectome/bancr')")
-}
+u <- bancr::banc_lm_scene(out, layer_name = "tiny synthetic",
+                          shorten = FALSE)
+cat("URL prefix:", substring(u, 1, 100), "\n")
+cat("LM layer present:", grepl("synthetic|Synthetic", u, ignore.case = TRUE), "\n")
 ```
 
 # Provenance

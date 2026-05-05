@@ -169,11 +169,15 @@ same Janelia ColorMIP / Color Depth MIP specification:
 | `"python"` | [Stephan Gerhard's BANC port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py) called via `reticulate` | Validate against the upstream Python implementation |
 | `"fiji"` | Janelia's `Color_Depth_MIP_batch_0308_2021.ijm` macro | Run the canonical FIJI implementation if you already have it installed |
 
-The synthetic-volume check below runs in any R session — it builds a
-JRC2018U_HR-sized 3D volume with a depth-varying "pseudo-neuron" path
-and runs the same volume through both R and Python back-ends.
+The synthetic-volume check below runs in any R session that has
+`reticulate` plus the `skimage` and `banc` Python modules
+(install: `reticulate::py_install(c("scikit-image", "banc"), pip = TRUE)`).
+It builds a JRC2018U_HR-sized 3D volume with a depth-varying
+"pseudo-neuron" path and runs the same volume through both R and
+Python back-ends. Skipped automatically when those Python deps
+aren't available (e.g. on a clean CI runner).
 
-```{r cross-validate, eval = TRUE}
+```{r cross-validate, eval = isTRUE(try(reticulate::py_module_available("skimage"), silent = TRUE)) && isTRUE(try(reticulate::py_module_available("banc"), silent = TRUE))}
 library(neuronbridger)
 
 nx <- 1210L; ny <- 566L; nz <- 174L
