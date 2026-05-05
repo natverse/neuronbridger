@@ -44,6 +44,15 @@ See details below."><meta property="og:image" content="/logo.svg"><!-- mathjax -
     <li>
       <a href="../articles/asta_sez.html">Finding the SEZ AstA neuron: SS32423 + AstA-locus drivers + DCV soma scores</a>
     </li>
+    <li>
+      <a href="../articles/colormip_direct_vs_fiji.html">Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="../articles/colormip_lm.html">Colour-depth MIPs from a registered LM volume (Kondo 2020 CapaR) in JRC2018U_HR</a>
+    </li>
+    <li>
+      <a href="../articles/lm_layer_neuroglancer.html">Serving an LM volume as a Neuroglancer layer alongside BANC</a>
+    </li>
   </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"><li>
   <a href="https://github.com/natverse/neuronbridger/" class="external-link">
@@ -195,7 +204,7 @@ Top scores (better match) are at the top of the data frame. The columns mean:</p
 <span class="r-in"><span><span class="va">search</span> <span class="op">=</span> <span class="st">"542634818"</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># And we do not want these other PNs</span></span></span>
-<span class="r-in"><span><span class="va">avoid</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sets.html" class="external-link">setdiff</a></span><span class="op">(</span><span class="fu">hemibrainr</span><span class="fu">::</span><span class="va">pn.ids</span>,<span class="va">search</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">avoid</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/nat/man/setdiff.html" class="external-link">setdiff</a></span><span class="op">(</span><span class="fu">hemibrainr</span><span class="fu">::</span><span class="va">pn.ids</span>,<span class="va">search</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Let's see what we get for ot</span></span></span>
 <span class="r-in"><span><span class="va">hits</span> <span class="op">=</span> <span class="fu">neuronbridge_avoid</span><span class="op">(</span>search <span class="op">=</span> <span class="va">search</span>, avoid <span class="op">=</span> <span class="va">avoid</span><span class="op">)</span></span></span>
