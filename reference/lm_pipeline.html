@@ -125,7 +125,13 @@ Apple-silicon Mac with 8 threads:</p>
 </ul></div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">is2_to_fcwb_cmtk</span><span class="op">(</span><span class="va">input</span>, <span class="va">output</span>, sample_space <span class="op">=</span> <span class="st">"IS2"</span>, verbose <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">is2_to_fcwb_cmtk</span><span class="op">(</span></span>
+<span>  <span class="va">input</span>,</span>
+<span>  <span class="va">output</span>,</span>
+<span>  sample_space <span class="op">=</span> <span class="st">"IS2"</span>,</span>
+<span>  right_shift <span class="op">=</span> <span class="fl">4L</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">fcwb_to_jrc2018f_h5</span><span class="op">(</span></span>
 <span>  <span class="va">input</span>,</span>
@@ -147,13 +153,14 @@ Apple-silicon Mac with 8 threads:</p>
 <span>  <span class="va">input</span>,</span>
 <span>  <span class="va">gene</span>,</span>
 <span>  <span class="va">sample</span>,</span>
-<span>  channel <span class="op">=</span> <span class="st">"no2"</span>,</span>
+<span>  channel <span class="op">=</span> <span class="st">"02"</span>,</span>
 <span>  dataset <span class="op">=</span> <span class="st">"kondo_et_al_2020"</span>,</span>
 <span>  <span class="va">output_dir</span>,</span>
 <span>  source_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  chunk_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">64L</span>, <span class="fl">64L</span>, <span class="fl">64L</span><span class="op">)</span>,</span>
 <span>  keep_intermediates <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  sample_space <span class="op">=</span> <span class="st">"IS2"</span>,</span>
+<span>  right_shift <span class="op">=</span> <span class="fl">4L</span>,</span>
 <span>  threads <span class="op">=</span> <span class="fl">8L</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -174,6 +181,11 @@ gzipped NRRD).</p></dd>
 
 <dt id="arg-sample-space">sample_space<a class="anchor" aria-label="anchor" href="#arg-sample-space"></a></dt>
 <dd><p>source template name (default <code>"IS2"</code>).</p></dd>
+
+
+<dt id="arg-right-shift">right_shift<a class="anchor" aria-label="anchor" href="#arg-right-shift"></a></dt>
+<dd><p>integer right-shift to apply to the source
+volume in Stage A (default <code>4</code> = 12-bit -&gt; 8-bit).</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
@@ -208,11 +220,16 @@ Defaults to <span class="pkg">bancr</span>'s bundled <code>brain_240721/</code>.
 
 
 <dt id="arg-sample">sample<a class="anchor" aria-label="anchor" href="#arg-sample"></a></dt>
-<dd><p>sample identifier (e.g. <code>"01"</code>).</p></dd>
+<dd><p>sample identifier (e.g. <code>"no1"</code> for Kondo
+first-specimen samples; <code>"no1"</code> / <code>"no2"</code> are the two
+prepared brains in Kondo et al. 2020).</p></dd>
 
 
 <dt id="arg-channel">channel<a class="anchor" aria-label="anchor" href="#arg-channel"></a></dt>
-<dd><p>source-stack channel string (default <code>"no2"</code>).</p></dd>
+<dd><p>source-stack channel string (default <code>"02"</code> =
+GFP / receptor channel for Kondo data; <code>"01"</code> would be the
+NC82 anatomical reference). Recorded in the registry only; the
+warping pipeline itself ignores this string.</p></dd>
 
 
 <dt id="arg-dataset">dataset<a class="anchor" aria-label="anchor" href="#arg-dataset"></a></dt>
