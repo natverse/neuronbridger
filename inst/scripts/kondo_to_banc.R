@@ -174,6 +174,31 @@ GENE_FILE_SYNONYM <- list(
   GluClalpha = "GluCla"
 )
 
+# As of 2026-05-05 the local mirror has a number of corrupt
+# (gzip-truncated, crc-mismatched) NRRDs. They cannot be warped
+# through CMTK / RenderTransformed without a re-download from G-Node.
+# Listed here as `(gene, sample)` pairs; the script skips them with a
+# CORRUPT message so the rest of the cohort can still be processed.
+CORRUPT_GENE_SAMPLE <- list(
+  c("nAChRa1", "no1"), c("nAChRa1", "no2"),
+  c("nAChRa2", "no1"), c("nAChRa2", "no2"),
+  c("nAChRa3", "no1"), c("nAChRa3", "no2"),
+  c("nAChRa6", "no1"), c("nAChRa6", "no2"),
+  c("nAChRa7", "no1"), c("nAChRa7", "no2"),
+  c("nAChRb1", "no1"), c("nAChRb1", "no2"),
+  c("nAChRb2", "no1"), c("nAChRb2", "no2"),
+  c("nAChRb3", "no1"), c("nAChRb3", "no2"),
+  c("Dh31-R",  "no1"), c("Dh31-R",  "no2"),
+  c("Octb3R",  "no1"), c("Octb3R",  "no2"),
+  c("Lgr3",    "no1"),
+  c("AstA-R2", "no2")
+)
+.is_corrupt <- function(gene, sample) {
+  any(vapply(CORRUPT_GENE_SAMPLE, function(p)
+             identical(p[[1]], gene) && identical(p[[2]], sample),
+             logical(1)))
+}
+
 # Build per-(gene, sample) target list given a vector of gene names.
 .expand_targets <- function(genes) {
   out <- list()
@@ -222,6 +247,10 @@ timings  <- list()
 for (gs in target_set) {
   gene   <- gs[[1]]; sample <- gs[[2]]
   name   <- paste(gene, sample, sep = "_")
+  if (.is_corrupt(gene, sample)) {
+    message(sprintf("SKIP  %s --- source file is corrupt (re-download needed)", name))
+    next
+  }
   src    <- find_source(gene, sample)
   if (is.na(src)) {
     message(sprintf("SKIP  %s --- no source file found", name))
