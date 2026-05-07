@@ -138,7 +138,7 @@ nrrds <- tif_to_nrrd_channels(
   channels   = c(0L, 1L),
   labels     = c("nc82", "sren"))
 nrrds
-#> nc82                                 ser
+#> nc82                                 sren
 #> "sren_female_nc82.nrrd"   "sren_female_sren.nrrd"
 
 # (b) Apply the JRCVNC2018F → JRCVNC2018U_HR H5 bridge.
@@ -377,13 +377,12 @@ ser_BANC <- Morpho::tps3d(
 ser_pts <- data.frame(
   X = ser_BANC[, 1] / 1000, Y = ser_BANC[, 2] / 1000,
   Z = ser_BANC[, 3] / 1000, I = ser_full$I[keep])
-# Depth-coded hue: high-contrast jet-without-red (blue -> cyan ->
-# green -> yellow). Stays clear of both purple (cMIP mesh) and orange
-# (NBLAST mesh) and reads as 3-D layers. Combined with alpha by
-# intensity (gamma 1.5) and back-to-front draw order.
+# Depth-coded hue: green ramp (dark teal -> spring green -> lime).
+# Single hue family so the cloud reads as the SREN signal, with depth
+# layers separated by lightness. Combined with alpha by intensity
+# (gamma 1.5) and back-to-front draw order.
 ser_pal <- scales::col_numeric(
-  palette = c("#1e3a8a", "#0ea5e9", "#22d3ee", "#22c55e",
-              "#eab308", "#fef08a"),
+  palette = c("#0a3d2a", "#147a4a", "#1f8b1f", "#7be37b", "#d8ff7f"),
   domain  = range(ser_pts$Z))
 ser_pts$col   <- ser_pal(ser_pts$Z)
 hi <- max(ser_pts$I)

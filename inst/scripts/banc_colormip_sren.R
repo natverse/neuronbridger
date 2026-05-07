@@ -138,8 +138,7 @@ ser_pts <- data.frame(
   X = ser_BANC[, 1] / 1000, Y = ser_BANC[, 2] / 1000,
   Z = ser_BANC[, 3] / 1000, I = ser_full$I[keep])
 ser_pal <- scales::col_numeric(
-  palette = c("#1e3a8a", "#0ea5e9", "#22d3ee", "#22c55e",
-              "#eab308", "#fef08a"),
+  palette = c("#0a3d2a", "#147a4a", "#1f8b1f", "#7be37b", "#d8ff7f"),
   domain  = range(ser_pts$Z))
 ser_pts$col <- ser_pal(ser_pts$Z)
 hi <- max(ser_pts$I)
