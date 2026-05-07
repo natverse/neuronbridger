@@ -1,8 +1,8 @@
 ---
-title: "Colour-depth MIPs from a registered LM volume (Kondo 2020 CapaR) in JRC2018U_HR"
+title: "Render a colour-depth MIP from registered LM data"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Colour-depth MIPs from a registered LM volume (Kondo 2020 CapaR) in JRC2018U_HR}
+  %\VignetteIndexEntry{Render a colour-depth MIP from registered LM data}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -17,20 +17,20 @@ knitr::opts_chunk$set(
 
 # Goal
 
-Take a registered light-microscopy image volume — here the
+Take a registered light-microscopy volume — here the
 *Capability* receptor staining
 `IS2_CapaR_no1_02_warp_m0g40c4e1e-1x16r3.nrrd` from
 [Kondo et al. 2020](https://doi.org/10.1016/j.cell.2020.04.014),
-warped into IS2 template space at 0.41 × 0.41 × 1.07 µm — bridge it
-into **JRC2018U_HR** (the NeuronBridge brain space:
-`1210 × 566 × 174` voxels at `0.5189 × 0.5189 × 1.0` µm), and render a
-colour-depth MIP via `nrrd_to_mip()`. The output is directly
-comparable to the connectome MIPs from the *connectome → MIP*
-vignette: same algorithm, same colour LUT, same grid.
+warped into IS2 at 0.41 × 0.41 × 1.07 µm — bridge it into
+**JRC2018U_HR** (NeuronBridge brain space, `1210 × 566 × 174` voxels
+at `0.5189 × 0.5189 × 1.0` µm), and render a colour-depth MIP via
+`nrrd_to_mip()`. The output is directly comparable to the connectome
+MIPs from [*Render a MIP from an EM neuron*](mip_from_em.html) — same
+algorithm, same colour LUT, same grid.
 
-For serving the bridged volume as a Neuroglancer layer alongside BANC
-(the natural follow-on once you have a JRC2018U-space NRRD in hand),
-see the *LM → Neuroglancer* vignette.
+To serve the bridged volume as a Neuroglancer layer alongside BANC,
+see [*Publish an LM volume as a Neuroglancer layer on
+BANC*](publish_lm_layer.html).
 
 ![Kondo 2020 CapaR colour-depth MIP, default threshold + denoise](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/lm_capar_colormip.png)
 
@@ -53,8 +53,8 @@ rainbow.
   of FIJI's *Mask Median Subtraction*).
 
 Both are skipped for binary input (e.g. the synthetic neuron
-voxelisations of the connectome MIP vignette). For power users
-there are explicit `"otsu"`, raw-cutoff, and quantile options.
+voxelisations of the [EM-MIP](mip_from_em.html) vignette). For power
+users there are explicit `"otsu"`, raw-cutoff, and quantile options.
 
 # Setup
 
@@ -210,8 +210,8 @@ nrrd_to_mip(v_jrc, threshold = 750L)
 nrrd_to_mip(v_jrc, threshold = "none", denoise = "none")
 ```
 
-The same arguments work in `method = "python"` (calls Stephan
-Gerhard's BANC port via `reticulate`) and the back-ends produce
+The same arguments work in `method = "python"` (calls Jasper
+Phelps's BANC port via `reticulate`) and the back-ends produce
 byte-equivalent output (sub-1/255 RGB rounding from skimage's HSV
 roundtrip is the only difference).
 
@@ -225,7 +225,7 @@ the same Janelia ColorMIP / Color Depth MIP specification (Otsuna
 | `method =` | Implementation | When to use |
 |---|---|---|
 | `"direct"` *(default)* | Pure R; vectorised `which.max` + LUT lookup | The fast path; no JVM, no Python |
-| `"python"` | [Stephan Gerhard's BANC port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py) called via `reticulate` | Validate against the upstream Python implementation |
+| `"python"` | [Jasper Phelps's BANC port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py) called via `reticulate` | Validate against the upstream Python implementation |
 | `"fiji"` | Janelia's `Color_Depth_MIP_batch_0308_2021.ijm` macro | Run the canonical FIJI implementation if you already have it installed |
 
 Apply the same threshold + denoise (so the comparison is

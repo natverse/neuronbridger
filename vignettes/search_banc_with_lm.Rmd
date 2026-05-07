@@ -1,8 +1,8 @@
 ---
-title: "Colour-MIP searches against the BANC"
+title: "Search BANC EM with an LM colour-depth MIP (SRENs)"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Colour-MIP searches against the BANC}
+  %\VignetteIndexEntry{Search BANC EM with an LM colour-depth MIP (SRENs)}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---

@@ -14,7 +14,7 @@
 #'     dependencies beyond \code{nat}, \code{png} and (for TIFF) \code{tiff}.
 #'     Pixel-perfect against the BANC Python port.}
 #'   \item{\code{method = "python"}}{Calls the Python implementation by
-#'     Stephan Gerhard distributed in
+#'     Jasper Phelps distributed in
 #'     \href{https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py}{the
 #'     BANC connectome package} (\code{fanc.render_neurons.make_colormip}) via
 #'     \code{reticulate}. The R helper loads each NRRD, hands the volume to
@@ -111,7 +111,7 @@
 #'                 savefolder = "~/asta_sez_mips")
 #' nrrd_to_mip("~/asta_sez_mips", target_space = "brain")
 #'
-#' # Validate against Stephan Gerhard's Python port:
+#' # Validate against Jasper Phelps's Python port:
 #' nrrd_to_mip("~/asta_sez_mips", method = "python")
 #'
 #' # Or hand off to the FIJI macro (interactive folder picker):
@@ -226,7 +226,7 @@ nrrd_to_mip <- function(input = NULL,
 }
 
 # Core algorithm in pure R: 3D array (x, y, z) -> 2D MIP (height, width, 3) in
-# [0, 1]. Mirrors fanc.render_neurons.make_colormip (Stephan Gerhard, BANC),
+# [0, 1]. Mirrors fanc.render_neurons.make_colormip (Jasper Phelps, BANC),
 # with optional pre-MIP denoising + thresholding for noisy LM volumes.
 colormip_from_array <- function(vol,
                                 target_space = c("brain", "VNC"),

@@ -1,8 +1,8 @@
 ---
-title: "Finding the SEZ AstA neuron: SS32423 + AstA-locus drivers + DCV soma scores"
+title: "Match a published GAL4 line to its EM cell (AstA-SEZ)"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Finding the SEZ AstA neuron: SS32423 + AstA-locus drivers + DCV soma scores}
+  %\VignetteIndexEntry{Match a published GAL4 line to its EM cell (AstA-SEZ)}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -15,37 +15,33 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Overview
+# Goal
 
-The split-GAL4 line **SS32423** (Sterne et al. 2021, the *aMulet* line)
-is reported to label an **Allatostatin-A (AstA)**-expressing neuron of
-the subesophageal zone (SEZ), but only weakly. Both of its hemidrivers
-sit in the AstA locus on 3R — the AD half is `VT019900` and the DBD
-half is `R65D06` — and the canonical "AstA-GAL4" Pfeiffer tile `R65D05`
-(Hergarden et al. 2012) is the immediate neighbour of `R65D06` on the
-chromosome. Together with `R65D07` and a few flanking tiles these
-enhancers form a natural panel of **AstA-locus drivers**, and any
-FlyWire-FAFB-v783 neuron they all match should be a strong candidate
-for "the" SEZ AstA cell.
+Find the FlyWire-FAFB-v783 cell matched by a published, weakly-labelling
+split-GAL4 — the kind of cell where the line says "this is the neuron"
+but the LM stack alone is not specific enough to be sure.
 
-This vignette chains four resources to converge on a small ranked
-candidate list of FAFB-v783 neurons that:
+The example here is **SS32423** (Sterne et al. 2021, *aMulet*), reported
+to label an **Allatostatin-A (AstA)** neuron of the subesophageal zone
+(SEZ). Both of its hemidrivers — AD `VT019900` and DBD `R65D06` — lie
+in the AstA locus on 3R. The canonical "AstA-GAL4" tile `R65D05`
+(Hergarden et al. 2012) is the chromosomal neighbour of `R65D06`, and
+together with `R65D07` and a few flanking tiles forms a natural panel
+of **AstA-locus drivers**. The FAFB-v783 cell that matches every panel
+member is the strong candidate.
 
-1. match SS32423 and its sibling AstA-locus drivers in NeuronBridge
-   colour-depth search (release `v3_9_0`);
-2. have a soma in an SEZ neuropil (GNG, SAD, AMMC, FLA);
-3. score in the top ~10th percentile of central-brain
-   `soma_dcv_density` — the dense-core-vesicle proxy for being
-   peptidergic — consistent with secreting AstA;
-4. visually agree with the SS32423 NeuronBridge MIP.
+The pipeline chains four filters to a short ranked list:
 
-The output is a small ranked list, and a comparison figure showing the
-SS32423 NeuronBridge MIP next to the candidate FlyWire neuron(s) you
-would take into experiments.
+1. NeuronBridge colour-depth match against SS32423 + the sibling
+   AstA-locus drivers (release `v3_9_0`);
+2. soma in an SEZ neuropil (GNG, SAD, AMMC, or FLA);
+3. top ~10th percentile of `soma_dcv_density` — the dense-core-vesicle
+   proxy for peptidergic identity, consistent with AstA secretion;
+4. visual agreement with the SS32423 MIP.
 
-A reproducer for everything below lives at
-`inst/scripts/run_asta_sez.R` — running it regenerates the figures in
-`inst/images/` and the ranked CSVs in `inst/extdata/asta_sez/`.
+Outputs: a ranked CSV (in `inst/extdata/asta_sez/`) and a side-by-side
+figure of the SS32423 MIP and the surviving candidate(s). A reproducer
+sits at `inst/scripts/run_asta_sez.R`.
 
 # Prerequisites
 
@@ -545,7 +541,7 @@ nrrd_to_mip_direct(savefolder, target_space = "brain", format = "png")
 
 The `colormip_direct_vs_fiji` vignette walks through the algorithm,
 contrasts `nrrd_to_mip_direct()` against the FIJI-launching
-`nrrd_to_mip()`, and validates byte-for-byte against Stephan Gerhard's
+`nrrd_to_mip()`, and validates byte-for-byte against Jasper Phelps's
 Python port in the BANC connectome package.
 
 # Step 10: Beyond the SEZ — the *other* AstA neurons SS32423 labels

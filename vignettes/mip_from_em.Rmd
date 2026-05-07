@@ -1,8 +1,8 @@
 ---
-title: "Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR"
+title: "Render a colour-depth MIP from an EM neuron"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR}
+  %\VignetteIndexEntry{Render a colour-depth MIP from an EM neuron}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -30,13 +30,13 @@ these images via three interchangeable back-ends, selected with
 | `method` | Implementation | When to use |
 |---|---|---|
 | `"direct"` *(default)* | Pure R (`which.max` along z, LUT lookup) | The fast path; no JVM, no Python |
-| `"python"` | Stephan Gerhard's port in [`fanc.render_neurons.make_colormip`](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py), called via `reticulate` | Validate against the BANC reference |
+| `"python"` | Jasper Phelps's port in [`fanc.render_neurons.make_colormip`](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py), called via `reticulate` | Validate against the BANC reference |
 | `"fiji"` | Janelia's `Color_Depth_MIP_batch_0308_2021.ijm` macro | Run the canonical FIJI implementation if you already have it installed |
 
 All three use the same 256-entry depth LUT (PsychedelicRainBow2-like
 ramp). The output of `"direct"` is byte-equivalent to `"python"`
 (modulo the 1/255 RGB rounding from skimage's HSV roundtrip), and is
-visually indistinguishable from the FIJI macro — Stephan's own
+visually indistinguishable from the FIJI macro — Jasper's own
 characterisation is *"nearly identical, with sub-percent RGB
 differences that do not affect downstream NeuronBridge searches."*
 
@@ -88,9 +88,9 @@ nat.jrcbrains::register_saalfeldlab_registrations()
 
 `AstA1` is the FlyWire/BANC label for the dorsal peptidergic ascending
 pair that the
-[`asta_sez`](https://natverse.github.io/neuronbridger/articles/asta_sez.html)
-vignette converges on from the SS32423 split-GAL4 line. Browse them in
-[BANC codex](https://codex.flywire.ai/app/search?dataset=banc&filter_string=AstA1).
+[*Match a published GAL4 line to its EM cell*](match_em_to_line.html)
+vignette converges on from the SS32423 split-GAL4 line. Browse the cells
+in [BANC codex](https://codex.flywire.ai/app/search?dataset=banc&filter_string=AstA1).
 
 ```{r asta1}
 ann   <- bancr::banc_codex_annotations()
@@ -146,7 +146,7 @@ nat::write.nrrd(vol, nrrd_path)
 nrrd_to_mip(savefolder, method = "direct", target_space = "brain")
 
 # (b) BANC's Python make_colormip via reticulate — to validate the R port
-#     against Stephan Gerhard's reference implementation:
+#     against Jasper Phelps's reference implementation:
 nrrd_to_mip(savefolder, method = "python", target_space = "brain")
 
 # (c) Janelia's FIJI macro — interactive folder picker, requires FIJI install:
@@ -166,7 +166,7 @@ same Janelia ColorMIP / Color Depth MIP specification:
 | `method =` | Implementation | When to use |
 |---|---|---|
 | `"direct"` *(default)* | Pure R; vectorised `which.max` + LUT lookup | The fast path; no JVM, no Python |
-| `"python"` | [Stephan Gerhard's BANC port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py) called via `reticulate` | Validate against the upstream Python implementation |
+| `"python"` | [Jasper Phelps's BANC port](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py) called via `reticulate` | Validate against the upstream Python implementation |
 | `"fiji"` | Janelia's `Color_Depth_MIP_batch_0308_2021.ijm` macro | Run the canonical FIJI implementation if you already have it installed |
 
 The synthetic-volume check below runs in any R session that has
@@ -255,7 +255,7 @@ rgb[!maxv > 0, ] <- 0                               # mask background
   [bioRxiv](https://www.biorxiv.org/content/10.1101/318006); ColorMIP
   Mask Search and ColorDepthMIP Generator FIJI plugins
   ([JaneliaSciComp/ColorMIP_Mask_Search](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search)).
-* **Python port**: Stephan Gerhard (braincircuits.io), shipped as
+* **Python port**: Jasper Phelps, shipped as
   `make_colormip()` in
   [`fanc.render_neurons`](https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py)
   inside the BANC fly-connectome package

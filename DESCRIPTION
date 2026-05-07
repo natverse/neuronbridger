@@ -1,7 +1,7 @@
 Package: neuronbridger
 Type: Package
 Title: R client utilities for interacting with the NeuronBridge matching service
-Version: 2.2.0
+Version: 2.3.0
 Authors@R: c(
     person("Alexander", "Bates", email = "alexander.shakeel.bates@gmail.com", 
       role = c("aut", "cre"), comment = c(ORCID = "0000-0002-1195-0445"))

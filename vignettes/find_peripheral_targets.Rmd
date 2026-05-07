@@ -1,8 +1,8 @@
 ---
-title: "Abdominal motor and endocrine neurons: from MANC to GAL4 lines to peripheral targets"
+title: "From EM neurons to peripheral targets via GAL4 lines"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Abdominal motor and endocrine neurons: from MANC to GAL4 lines to peripheral targets}
+  %\VignetteIndexEntry{From EM neurons to peripheral targets via GAL4 lines}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -15,33 +15,38 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Overview
+# Goal
 
-This vignette chains three resources to go from connectome cell types to candidate genetic reagents and, finally, to a peripheral tissue where those reagents might label something useful:
+Generate hypotheses linking VNC efferent neurons to specific peripheral
+tissues by chaining three resources:
 
-1.  The [MANC](https://www.janelia.org/project-team/flyem/manc-connectome) (Male Adult Nerve Cord) connectome, accessed via the [`malevnc`](https://github.com/natverse/malevnc) R package. We pick up two classes of neuron that leave the central nervous system through abdominal nerves:
+1. **[MANC](https://www.janelia.org/project-team/flyem/manc-connectome)**
+   (Male Adult Nerve Cord) connectome via the
+   [`malevnc`](https://github.com/natverse/malevnc) R package — pick up
+   abdominal efferents:
+    - **`MNad*`** abdominal motor neurons;
+    - **`EN*`** efferent / endocrine neurons with soma in an abdominal
+      neuromere (`A1`–`A8`). Note: the prefix is `EN`, not `ENN`.
+2. **[NeuronBridge](https://neuronbridge.janelia.org/)** colour-depth
+   MIP search (data release `v3_9_0`, the first to ship MANC MIPs) —
+   find GAL4 / split-GAL4 lines that label each EM cell.
+3. **[KDRC KGutProject](https://flyinfo.kr/FlexForm_KGutProject_Load.do?tmpl=template/E)**
+   ([Lim et al. 2021](https://doi.org/10.1080/01677063.2020.1853722)) —
+   for any matched line, look up which adult-gut region it stains. A
+   shared line is strong indirect evidence that the EM cell innervates
+   that region.
 
-    -   **Abdominal motor neurons** — cell types whose name starts with `MNad` (motor neuron, abdominal).
-    -   **Abdominal endocrine / efferent neurons** — cell types whose name starts with `EN` (efferent neuron) and whose soma sits in an abdominal neuromere (`A1`–`A8`). Note the prefix is `EN`, not `ENN`.
+Very few VNC efferents have a confirmed peripheral target, so the
+output is a ranked list of *candidates* for follow-up experiments.
 
-2.  [NeuronBridge](https://neuronbridge.janelia.org/), accessed via `neuronbridger`, to find GAL4 and split-GAL4 lines that match those EM neurons on colour-depth MIP search. We use NeuronBridge data release **`v3_9_0`**, which is the first release to include MANC MIPs. Earlier releases (the package default `v2_1_1`) only cover the hemibrain brain dataset.
-
-3.  The [KDRC KGutProject](https://flyinfo.kr/FlexForm_KGutProject_Load.do?tmpl=template/E) database of GAL4-line expression in the adult *Drosophila* gut ([Lim et al. 2021](https://doi.org/10.1080/01677063.2020.1853722)). For any NeuronBridge hit that also appears in KGutProject, we learn which gut region the line marks — a strong clue that the matched abdominal neuron projects to that tissue.
-
-Very few motor or endocrine neurons in the nerve cord have been pinned to a specific peripheral organ, so this pipeline is meant as a way to generate hypotheses you can follow up experimentally.
-
-> **Template space note.** This vignette runs against
-> NeuronBridge's pre-computed VNC ColorMIP libraries — it doesn't
-> render new MIPs from MANC meshes. Should you want to render MIPs
-> from MANC neurons (e.g. to compare against the FlyLight VNC hit),
-> the NeuronBridge VNC space is **`JRC2018VNCU_HR`** (a.k.a.
-> `JRC2018_VNC_UNISEX_461`, dims `573 × 1119 × 219`, voxdims
-> `0.461 × 0.461 × 0.7` µm) — the VNC analogue of the brain
-> `JRC2018U_HR` used by the
-> [*colour-MIPs from a connectome neuron*](colormip_direct_vs_fiji.html)
-> and [*colour-MIPs from a registered LM volume*](colormip_lm.html)
-> vignettes. Pass `target_space = "VNC"` to `nrrd_to_mip()` to render
-> into that grid.
+> **Template space.** This vignette uses NeuronBridge's pre-computed
+> VNC MIP libraries — it doesn't render new MIPs from MANC meshes.
+> If you want to render MIPs to compare directly, the VNC space is
+> `JRC2018VNCU_HR` (dims `573 × 1119 × 219`, voxdims
+> `0.461 × 0.461 × 0.7` µm) — the VNC analogue of `JRC2018U_HR` used
+> by [*Render a MIP from an EM neuron*](mip_from_em.html) and
+> [*Render a MIP from registered LM data*](mip_from_lm.html). Pass
+> `target_space = "VNC"` to `nrrd_to_mip()`.
 
 # Prerequisites
 

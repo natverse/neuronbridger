@@ -59,13 +59,22 @@ reference:
   - '`split_halves`'
 
 articles:
-- title: Tutorials
-  navbar: ~
+- title: Find lines for a target neuron
+  navbar: Find lines
+  desc: Take a known EM cell or a published GAL4 line and resolve the other side.
   contents:
-  - split_design
-  - abdominal_peripheral_targets
-  - asta_sez                      # 1. AstA search in SEZ
-  - colormip_direct_vs_fiji       # 2. colour-MIP from a connectome neuron (BANC AstA1) in JRC2018U_HR
-  - colormip_lm                   # 3. colour-MIP from registered LM data (Kondo CapaR) in JRC2018U_HR
-  - lm_layer_neuroglancer         # 4. LM .ng + BANC neuroglancer scene
-  - banc_colormip_search          # 5. colour-MIP search (LM SREN -> BANC efferents)
+  - design_split_gal4
+  - match_em_to_line
+  - find_peripheral_targets
+- title: Render colour-depth MIPs
+  navbar: Render MIPs
+  desc: Make a NeuronBridge-style MIP from an EM neuron or a registered LM volume.
+  contents:
+  - mip_from_em
+  - mip_from_lm
+- title: Search BANC with an LM image
+  navbar: Search BANC
+  desc: Use an LM volume as a query against the BANC EM connectome.
+  contents:
+  - search_banc_with_lm
+  - publish_lm_layer

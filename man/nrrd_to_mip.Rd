@@ -123,7 +123,7 @@ specification (Otsuna \emph{et al.} 2018,
     dependencies beyond \code{nat}, \code{png} and (for TIFF) \code{tiff}.
     Pixel-perfect against the BANC Python port.}
   \item{\code{method = "python"}}{Calls the Python implementation by
-    Stephan Gerhard distributed in
+    Jasper Phelps distributed in
     \href{https://github.com/jasper-tms/the-BANC-fly-connectome/blob/main/fanc/render_neurons.py}{the
     BANC connectome package} (\code{fanc.render_neurons.make_colormip}) via
     \code{reticulate}. The R helper loads each NRRD, hands the volume to
@@ -147,7 +147,7 @@ root_id_to_nrrd("720575940632295751",
                 savefolder = "~/asta_sez_mips")
 nrrd_to_mip("~/asta_sez_mips", target_space = "brain")
 
-# Validate against Stephan Gerhard's Python port:
+# Validate against Jasper Phelps's Python port:
 nrrd_to_mip("~/asta_sez_mips", method = "python")
 
 # Or hand off to the FIJI macro (interactive folder picker):
