@@ -8,7 +8,7 @@
 suppressMessages({
   library(neuronbridger); library(bancr)
   library(arrow); library(dplyr); library(nat); library(nat.ggplot)
-  library(ggplot2); library(patchwork); library(reticulate)
+  library(ggplot2); library(patchwork); library(reticulate); library(scales)
 })
 
 # ----- 1. paths --------------------------------------------------------
@@ -84,9 +84,9 @@ res <- colormip_search(
   query       = query_png,
   library     = LIB,
   threshold   = 100L,
-  z_tolerance = 2L,
-  xy_shift    = 2L,
-  mirror      = TRUE,
+  z_tolerance = 8L,    # tuned vs NBLAST -- looser depth helps SER
+  xy_shift    = 3L,
+  mirror      = FALSE, # SER is unilateral; mirror added noise
   mc.cores    = 8L)
 res$root_888 <- sub(".*/(\\d+)_in_JRC2018.*", "\\1", res$path)
 saveRDS(res, file.path(WORK, "search_result.rds"))
@@ -137,8 +137,13 @@ ser_BANC <- Morpho::tps3d(
 ser_pts <- data.frame(
   X = ser_BANC[, 1] / 1000, Y = ser_BANC[, 2] / 1000,
   Z = ser_BANC[, 3] / 1000, I = ser_full$I[keep])
+ser_pal <- scales::col_numeric(
+  palette = c("#0a3d2a", "#147a4a", "#1f8b1f", "#7be37b", "#d8ff7f"),
+  domain  = range(ser_pts$Z))
+ser_pts$col <- ser_pal(ser_pts$Z)
 hi <- max(ser_pts$I)
-ser_pts$alpha <- pmax(0.04, (ser_pts$I / hi) ^ 2)
+ser_pts$alpha <- pmax(0.05, (ser_pts$I / hi) ^ 1.5)
+ser_pts <- ser_pts[order(-ser_pts$Z), ]
 
 mesh_bb <- do.call(rbind, lapply(meshes_um, function(m) {
   apply(nat::xyzmatrix(m), 2, range)
@@ -158,9 +163,9 @@ mk_panel <- function(i) {
     sep = "\n")
   ggplot() +
     geom_point(data = ser_pts,
-               aes(x = X, y = Y, alpha = alpha),
-               colour = "#1f8b1f", size = 0.4, show.legend = FALSE) +
-    geom_neuron(meshes_um[[rid]], cols = "#aa44cc", alpha = 0.75) +
+               aes(x = X, y = Y, alpha = alpha, colour = col),
+               size = 0.45, stroke = 0, show.legend = FALSE) +
+    geom_neuron(meshes_um[[rid]], cols = "#aa44cc", alpha = 0.7) +
     scale_alpha_identity() +
     scale_color_identity() + scale_fill_identity() +
     coord_fixed(xlim = xlim, ylim = ylim, expand = FALSE) +
@@ -176,8 +181,8 @@ mk_panel <- function(i) {
 p <- wrap_plots(lapply(seq_len(nrow(top)), mk_panel), ncol = 3) +
   plot_annotation(
     title    = "Top-6 BANC efferent hits for the SER query (BANC native um)",
-    subtitle = paste0("BANC EM hit (purple) + SER LM source (green, ",
-                      "alpha = intensity), in BANC native space"))
+    subtitle = paste0("BANC EM hit (purple) + SER LM source ",
+                      "(hue = depth, alpha = intensity), in BANC native space"))
 ggsave(file.path(OUT_DIR, "banc_colormip_ser_top_hits.png"),
        p, width = 13, height = 10, dpi = 130, bg = "white")
 

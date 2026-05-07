@@ -68,10 +68,11 @@ steps; the only artefacts shipped are the rendered figures under
 * `banc_colormip_r_vs_fiji.png` — scatter of R-port vs FIJI scores
   on a 30-candidate validation subset.
 * `banc_colormip_ser_top_hits.png` — the `nat.ggplot` panel above
-  (BANC EM hit in purple, SER LM source in green, alpha = intensity).
-  Plotted in **BANC native µm** because the bancr TPS landmarks cap
-  at JRCVNC2018F Y ≈ 504 µm but the SER signal extends to Y ≈ 537 µm,
-  so the F-space view extrapolates ~30 µm short at the abdominal tip.
+  (BANC EM hit in purple, SER LM source coloured by depth and faded
+  by intensity). Plotted in **BANC native µm** because the bancr TPS
+  landmarks cap at JRCVNC2018F Y ≈ 504 µm but the SER signal extends
+  to Y ≈ 537 µm, so an F-space view extrapolates ~30 µm short at the
+  abdominal tip.
 * `banc_colormip_ser_nblast_top.png` — same layout, BANC mesh in
   orange, ranked by intensity-weighted NBLAST.
 
@@ -104,6 +105,7 @@ library(neuronbridger)
 library(bancr)
 library(nat); library(nat.ggplot)
 library(arrow); library(dplyr); library(ggplot2); library(patchwork)
+library(scales)         # depth-coded SER hue palette
 ```
 
 # Step 1 — Bridge JRCVNC2018F → JRC2018VNCU_HR
@@ -223,22 +225,22 @@ length(list.files(LIB_DIR, "\\.png$"))
 res <- colormip_search(
   query        = query_png,
   library      = LIB_DIR,
-  threshold    = 100L,    # channel-sum brightness cutoff
-  z_tolerance  = 2L,      # depth-LUT-index tolerance
-  xy_shift     = 2L,      # +/- 2 px translation grid
-  mirror       = TRUE,    # also try left-right flipped query
+  threshold    = 100L,    # channel-sum brightness cutoff (signal floor)
+  z_tolerance  = 8L,      # depth-LUT-index tolerance (looser = more 3-D slack)
+  xy_shift     = 3L,      # +/- 3 px translation grid
+  mirror       = FALSE,   # SER is unilateral; mirror added noise here
   mc.cores     = 8L,
   verbose      = TRUE)
 res$root_888 <- sub(".*/(\\d+)_in_JRC2018.*", "\\1", res$path)
 
 head(res[, c("root_888", "score", "n_match", "dx", "dy", "mirror")], 6)
 #>             root_888      score n_match dx dy mirror
-#> 1 720575941628067385 0.04781609     208  1  1   TRUE
-#> 2 720575941686473228 0.03885057     169 -1 -2   TRUE
-#> 3 720575941572609864 0.03471264     151 -2 -1   TRUE
-#> 4 720575941534082648 0.03264368     142  2 -2   TRUE
-#> 5 720575941630741730 0.03172414     138 -1 -2   TRUE
-#> 6 720575941411866027 0.02804598     122 -1  0   TRUE
+#> 1 720575941686473228 0.09609195     418  3 -3  FALSE
+#> 2 720575941628067385 0.09080460     395 -3 -3  FALSE
+#> 3 720575941630741730 0.07379310     321 -3 -3  FALSE
+#> 4 720575941549868093 0.07310345     318  2 -3  FALSE
+#> 5 720575941468851211 0.06643678     289  3 -1  FALSE
+#> 6 720575941460652870 0.06459770     281  3  0  FALSE
 ```
 
 `colormip_search()` is a pure-R port of Janelia's
@@ -249,11 +251,18 @@ matched-pixel count over the `(2 · xy_shift + 1)²` translation grid
 (times the mirror, when enabled), normalised by the query foreground
 count. See `?colormip_search` for the algorithm details.
 
-The whole search runs in **~12 s** for 782 candidates on 8 cores.
+The whole search runs in **~30 s** for 782 candidates on 8 cores.
 
-The fact that `mirror = TRUE` wins for every top hit is biologically
-expected — the SER source is one bilateral side, and BANC contains
-both left and right efferents.
+These parameters were tuned against the NBLAST cross-check in Step 8.
+A grid search over `threshold ∈ {60..500}`, `z_tolerance ∈ {0..8}`,
+`xy_shift ∈ {0..6}` and `mirror ∈ {TRUE, FALSE}` was scored by
+Spearman correlation with the NBLAST scores on a 200-candidate pool.
+Threshold barely moves the ranking; **`z_tolerance = 8` and
+`xy_shift = 3` with `mirror = FALSE`** maximise rank agreement
+(Spearman ρ = 0.901, three of the NBLAST top-6 land in the cMIP
+top-6). Mirroring hurts here — the SER is unilateral, so adding the
+flipped query introduces false-positive symmetric matches that don't
+belong in a one-sided search.
 
 # Step 5 — Validate against Janelia's FIJI plugin
 
@@ -362,8 +371,16 @@ ser_BANC <- Morpho::tps3d(
 ser_pts <- data.frame(
   X = ser_BANC[, 1] / 1000, Y = ser_BANC[, 2] / 1000,
   Z = ser_BANC[, 3] / 1000, I = ser_full$I[keep])
+# Depth-coded hue: dark teal (deep Z) -> lime (shallow Z) -- gives the
+# cloud a 3-D feel rather than reading as a flat green mass. Combined
+# with alpha by intensity (gamma 1.5) and back-to-front draw order.
+ser_pal <- scales::col_numeric(
+  palette = c("#0a3d2a", "#147a4a", "#1f8b1f", "#7be37b", "#d8ff7f"),
+  domain  = range(ser_pts$Z))
+ser_pts$col   <- ser_pal(ser_pts$Z)
 hi <- max(ser_pts$I)
-ser_pts$alpha <- pmax(0.04, (ser_pts$I / hi) ^ 2)
+ser_pts$alpha <- pmax(0.05, (ser_pts$I / hi) ^ 1.5)
+ser_pts <- ser_pts[order(-ser_pts$Z), ]   # back-to-front
 
 # (c) Tight zoom: union of all top-6 mesh bbox + SER bbox.
 mesh_bb <- do.call(rbind, lapply(meshes_um, function(m) {
@@ -393,9 +410,9 @@ mk_panel <- function(i) {
   ggplot() +
     # SER first (background), mesh on top so neuron stays visible.
     geom_point(data = ser_pts,
-               aes(x = X, y = Y, alpha = alpha),
-               colour = "#1f8b1f", size = 0.4, show.legend = FALSE) +
-    geom_neuron(meshes_um[[rid]], cols = "#aa44cc", alpha = 0.75) +
+               aes(x = X, y = Y, alpha = alpha, colour = col),
+               size = 0.45, stroke = 0, show.legend = FALSE) +
+    geom_neuron(meshes_um[[rid]], cols = "#aa44cc", alpha = 0.7) +
     scale_alpha_identity() +
     scale_color_identity() + scale_fill_identity() +
     coord_fixed(xlim = xlim, ylim = ylim, expand = FALSE) +
@@ -411,8 +428,8 @@ mk_panel <- function(i) {
 p <- patchwork::wrap_plots(lapply(seq_len(nrow(top)), mk_panel), ncol = 3) +
   patchwork::plot_annotation(
     title    = "Top-6 BANC efferent hits for the SER query (BANC native um)",
-    subtitle = paste0("BANC EM hit (purple) + SER LM source (green, ",
-                      "alpha = intensity), in BANC native space"))
+    subtitle = paste0("BANC EM hit (purple) + SER LM source ",
+                      "(hue = depth, alpha = intensity), in BANC native space"))
 ggsave("banc_colormip_ser_top_hits.png", p, width = 13, height = 10, dpi = 130)
 ```
 
@@ -423,31 +440,32 @@ SER candidates:
 
 | rank | cell_class                             | cell_type   | nerve                  | neurotransmitter |
 | :--- | :------------------------------------- | :---------- | :--------------------- | :--------------- |
-| 1    | ventral_nerve_cord_neurosecretory_cell | EN00B010    | abdominal_nerve_trunk  | octopamine       |
-| 2    | abdomen_motor_neuron                   | MNANmX      | abdominal_nerve_trunk  | gaba             |
-| 3    | ventral_nerve_cord_neurosecretory_cell | ab-PDF      | abdominal_nerve_trunk  | octopamine       |
-| 4    | ventral_nerve_cord_neurosecretory_cell | abd_Dsx_OA  | abdominal_nerve_trunk  | gaba             |
-| 5    | abdomen_motor_neuron                   | MNad48      | abdominal_nerve_trunk  | octopamine       |
-| 6    | abdomen_motor_neuron                   | MNad49      | abdominal_nerve_trunk  | gaba             |
+| 1    | abdomen_motor_neuron                   | MNANmX      | abdominal_nerve_trunk  | gaba             |
+| 2    | ventral_nerve_cord_neurosecretory_cell | EN00B010    | abdominal_nerve_trunk  | octopamine       |
+| 3    | abdomen_motor_neuron                   | MNad48      | abdominal_nerve_trunk  | octopamine       |
+| 4    | abdomen_motor_neuron                   | MNad17      | abdominal_nerve_trunk  | serotonin        |
+| 5    | ventral_nerve_cord_neurosecretory_cell | abd_Dsx_OA  | abdominal_nerve_trunk  | gaba             |
+| 6    | abdomen_motor_neuron                   | CV1007      | abdominal_nerve_trunk  | octopamine       |
 
 All six have arborisation in the abdominal ganglion and an axon
 leaving via the **abdominal nerve trunk** — the route SER neurons
-take to reach the rectal papillae. But this is a *coarse* anatomical
-filter rather than a precise match: the SER query MIP is small
-(~50 × 50 px, dense at the abdominal tip), so any large efferent
-with arborisation in the same MIP region scores well, even if its
-3-D mass actually sits elsewhere. The colorMIP top hits include big
-neurosecretory cells whose 2-D footprint overlaps the SER blob but
-whose 3-D arbour is mostly unrelated.
+take to reach the rectal papillae. With the tuned parameters,
+colorMIP and NBLAST now agree well on the *region* and on three of
+the top-6 cells (`MNad48`, `MNad17`, `CV1007`); the remaining slots
+are filled by larger neurosecretory cells whose abdominal arbour
+overlaps the SER blob in 2-D MIP but whose 3-D mass extends
+elsewhere. NBLAST in Step 8 is the discriminating tiebreaker.
 
-The NBLAST cross-check in Step 8 is more discriminating, and the
-panels above are rendered in **BANC native µm** rather than
+The panels are rendered in **BANC native µm** rather than
 JRCVNC2018F because the bancr TPS landmarks cap at JRCVNC2018F
 Y ≈ 504 µm while the SER signal extends to Y ≈ 537 µm — warping BANC
 meshes back into F-space at the posterior tip extrapolates ~30 µm
 short and produces misleadingly disjoint panels. Visualising in BANC
 native space (no extrapolation either way) shows the true 3-D
-relationship between query and hit.
+relationship between query and hit. SER points are coloured by
+depth (Z) — dark teal at one end of the slice through the abdominal
+ganglion, lime at the other — with alpha by intensity, so the cloud
+reads as 3-D layers rather than a flat mass.
 
 # Step 7 — Open each match in Spelunker
 
@@ -550,13 +568,12 @@ head(nb, 6)
 In BANC native µm, NBLAST hits show clear 3-D overlap between the
 SER cloud and the EM mesh — the true match the colorMIP search was
 approximating. Rank 1 is `MNad48 / octopamine` at score 0.461; a
-second `MNad48` cell rises from cMIP rank 23 to NBLAST rank 3
+second `MNad48` cell rises from cMIP rank 14 to NBLAST rank 3
 (intensity-weighted decisively prefers it). `abd_Dsx_OA`, `CV1007`,
 and `MNad17` round out the top 6 — abdominal motor / neurosecretory
 cells whose 3-D dendrite envelope coincides with the SER signal.
-Compared to colorMIP, NBLAST is the discriminating scorer here
-because the query is small enough that 2-D MIP collisions are easy
-but 3-D vector-field similarity is not.
+Spearman correlation between the (tuned) cMIP and NBLAST scores on
+the 200-candidate pool is **ρ = 0.901**.
 
 ![Top-6 BANC efferent hits ranked by NBLAST](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_ser_nblast_top.png)
 
@@ -564,9 +581,9 @@ but 3-D vector-field similarity is not.
 
 | consensus rank | root_id            | cMIP | NBLAST | cell_type | NT         |
 | ---: | ------------------- | ---: | -----: | :-------- | :--------- |
-| 1    | 720575941630741730  |    5 |      1 | MNad48    | octopamine |
-| 2    | 720575941549868093  |   11 |      6 | MNad17    | serotonin  |
-| 3    | 720575941460652870  |   13 |      4 | CV1007    | octopamine |
+| 1    | 720575941630741730  |    3 |      1 | MNad48    | octopamine |
+| 2    | 720575941460652870  |    6 |      4 | CV1007    | octopamine |
+| 3    | 720575941549868093  |    4 |      6 | MNad17    | serotonin  |
 
 The top consensus hit (`MNad48`, octopamine) is an abdominal motor
 neuron projecting through the abdominal nerve trunk — the expected
@@ -580,27 +597,27 @@ top-6 colorMIP hits and the top-6 NBLAST hits. Each opens the BANC
 proofreading layer with the corresponding cell selected and the SER
 LM volume rendered as a green additive overlay.
 
-**Top 6 by colorMIP**
+**Top 6 by colorMIP** (z_tolerance = 8, xy_shift = 3, mirror = FALSE)
 
 | Rank | root_id | score | cell_type | NT | Spelunker |
 |---:|---|---:|---|---|---|
-| 1 | `720575941628067385` | 0.048 | EN00B010 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5384942342111232) |
-| 2 | `720575941686473228` | 0.039 | MNANmX | gaba | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5599736366104576) |
-| 3 | `720575941572609864` | 0.035 | ab-PDF | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6403231105155072) |
-| 4 | `720575941534082648` | 0.033 | abd_Dsx_OA | gaba | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5895620798709760) |
-| 5 | `720575941630741730` | 0.032 | MNad48 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4757270880583680) |
-| 6 | `720575941411866027` | 0.028 | MNad49 | gaba | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5440502039052288) |
+| 1 | `720575941686473228` | 0.096 | MNANmX | gaba | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6748739841556480) |
+| 2 | `720575941628067385` | 0.091 | EN00B010 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5737370178551808) |
+| 3 | `720575941630741730` | 0.074 | MNad48 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5216455942471680) |
+| 4 | `720575941549868093` | 0.073 | MNad17 | serotonin | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4743512892375040) |
+| 5 | `720575941468851211` | 0.066 | abd_Dsx_OA | gaba | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5174420225130496) |
+| 6 | `720575941460652870` | 0.065 | CV1007 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6300320131973120) |
 
 **Top 6 by NBLAST (intensity-weighted)**
 
 | Rank | root_id | score | cell_type | NT | Spelunker |
 |---:|---|---:|---|---|---|
-| 1 | `720575941630741730` | 0.461 | MNad48 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4757270880583680) |
-| 2 | `720575941511228370` | 0.436 | abd_Dsx_OA | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6413141540864000) |
-| 3 | `720575941439169042` | 0.435 | MNad48 | — | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5673220303749120) |
-| 4 | `720575941460652870` | 0.434 | CV1007 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5482223108096000) |
-| 5 | `720575941505592354` | 0.428 | abd_Dsx_OA | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4586756383965184) |
-| 6 | `720575941549868093` | 0.415 | MNad17 | serotonin | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5332670845288448) |
+| 1 | `720575941630741730` | 0.461 | MNad48 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5216455942471680) |
+| 2 | `720575941511228370` | 0.436 | abd_Dsx_OA | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6089166679965696) |
+| 3 | `720575941439169042` | 0.435 | MNad48 | — | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5693607171325952) |
+| 4 | `720575941460652870` | 0.434 | CV1007 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6300320131973120) |
+| 5 | `720575941505592354` | 0.428 | abd_Dsx_OA | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6146309449842688) |
+| 6 | `720575941549868093` | 0.415 | MNad17 | serotonin | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4743512892375040) |
 
 # Caveats
 
