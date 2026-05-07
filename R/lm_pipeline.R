@@ -731,6 +731,7 @@ jrc2018u_to_jrc2018f_h5 <- function(input,
 #' @return list with \code{precomputed_dir}, \code{registry_entry}
 #'   (one-row tibble), \code{timings} (named numeric, s).
 #' @export
+#' @keywords internal
 lsm_to_banc_layer <- function(input,
                               gene,
                               sample,
