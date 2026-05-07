@@ -77,7 +77,7 @@ For each candidate the score is the best match count over the
 \code{(2 * xy_shift + 1)^2} translation grid (and its mirror image
 when \code{mirror = TRUE}), normalised by the query foreground count.
 
-Validated against Janelia's plugin (top-50 Spearman > 0.95 on the SER
+Validated against Janelia's plugin (top-50 Spearman > 0.95 on the SREN
 efferent benchmark in the \code{banc_colormip_search} vignette);
 switch to \code{method = "fiji"} on \code{\link{nrrd_to_mip}} or run
 the FIJI plugin directly if you need byte-perfect parity with the

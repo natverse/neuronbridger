@@ -68,4 +68,4 @@ articles:
   - colormip_direct_vs_fiji       # 2. colour-MIP from a connectome neuron (BANC AstA1) in JRC2018U_HR
   - colormip_lm                   # 3. colour-MIP from registered LM data (Kondo CapaR) in JRC2018U_HR
   - lm_layer_neuroglancer         # 4. LM .ng + BANC neuroglancer scene
-  - banc_colormip_search          # 5. colour-MIP search (LM SER -> BANC efferents)
+  - banc_colormip_search          # 5. colour-MIP search (LM SREN -> BANC efferents)
