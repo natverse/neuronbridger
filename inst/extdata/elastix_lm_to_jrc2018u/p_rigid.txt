@@ -1,4 +1,6 @@
-// Affine after rigid init. Switch CoG init to false (rigid handled it).
+// Initial rigid (Euler) registration to handle large initial rotation
+// between Deng confocal and JRC2018U template. Uses CenterOfGravity
+// init from image moments.
 (FixedInternalImagePixelType "float")
 (MovingInternalImagePixelType "float")
 (FixedImageDimension 3)
@@ -16,12 +18,14 @@
 (Metric "AdvancedMattesMutualInformation")
 (NumberOfHistogramBins 32)
 (Optimizer "AdaptiveStochasticGradientDescent")
-(MaximumNumberOfIterations 800 800 800 800)
+(MaximumNumberOfIterations 1000 1000 1000 1000)
 (AutomaticParameterEstimation "true")
 (ImageSampler "RandomCoordinate")
 (NumberOfSpatialSamples 8192)
 (NewSamplesEveryIteration "true")
-(Transform "AffineTransform")
+(Transform "EulerTransform")
+(AutomaticTransformInitialization "true")
+(AutomaticTransformInitializationMethod "CenterOfGravity")
 (AutomaticScalesEstimation "true")
 (WriteResultImage "false")
 (DefaultPixelValue 0)

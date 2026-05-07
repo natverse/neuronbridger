@@ -558,7 +558,8 @@ lm_to_jrc2018u_elastix <- function(nc82,
                         package = "neuronbridger")
     if (!nzchar(pdir) || !dir.exists(pdir))
       stop("inst/extdata/elastix_lm_to_jrc2018u not in installed package")
-    param_files <- c(file.path(pdir, "p_affine.txt"),
+    param_files <- c(file.path(pdir, "p_rigid.txt"),
+                     file.path(pdir, "p_affine.txt"),
                      file.path(pdir, "p_bspline.txt"))
   }
   for (p in param_files)
