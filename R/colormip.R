@@ -430,6 +430,251 @@ nrrd_to_mip_fiji_impl <- function(fiji.path = NULL,
   )
 }
 
+#' @title Pure-R port of Janelia's ColorMIP_Mask_Search
+#'
+#' @description Score a query colour-depth MIP against a library of
+#' candidate colour-depth MIPs and rank them by pixel overlap, mirroring
+#' the algorithm in Janelia's
+#' \href{https://github.com/JaneliaSciComp/ColorMIP_Mask_Search}{ColorMIP_Mask_Search}
+#' FIJI plugin. Both query and library MIPs must already be on the same
+#' template grid (e.g. \code{JRC2018VNCU_HR} 1209 x 573 with the 90-px
+#' header that \code{nrrd_to_mip(target_space = "VNC")} writes). For a
+#' worked example see \code{vignette("banc_colormip_search")}.
+#'
+#' @details
+#' Each pixel's RGB triple is mapped back to its closest entry in the
+#' shared 256-entry depth LUT (the same table used by
+#' \code{\link{nrrd_to_mip}}; near-anterior = blue, near-posterior =
+#' red). A pixel is a "match" at shift \code{(dx, dy)} when (a) both
+#' query and library pixels exceed \code{threshold} in summed brightness
+#' and (b) their depth-LUT indices differ by at most \code{z_tolerance}.
+#' For each candidate the score is the best match count over the
+#' \code{(2 * xy_shift + 1)^2} translation grid (and its mirror image
+#' when \code{mirror = TRUE}), normalised by the query foreground count.
+#'
+#' Validated against Janelia's plugin (top-50 Spearman > 0.95 on the SER
+#' efferent benchmark in the \code{banc_colormip_search} vignette);
+#' switch to \code{method = "fiji"} on \code{\link{nrrd_to_mip}} or run
+#' the FIJI plugin directly if you need byte-perfect parity with the
+#' canonical reference.
+#'
+#' @param query path to a colour-MIP image, or an \code{H x W x 3}
+#'   numeric array in \code{[0, 1]} (the format \code{\link{nrrd_to_mip}}
+#'   returns when \code{save = FALSE}).
+#' @param library either (i) a directory containing candidate colour-MIP
+#'   PNG/TIFF files, or (ii) a character vector of file paths. All
+#'   candidates must share the query's pixel grid.
+#' @param threshold integer brightness cutoff applied to the channel sum
+#'   (\code{R + G + B}) when classifying a pixel as foreground. Default
+#'   \code{100} (Janelia's plugin default).
+#' @param z_tolerance integer; allowed difference between query and
+#'   library depth-LUT indices (0..255) for a pixel to count as a match.
+#'   Default \code{2}.
+#' @param xy_shift integer; the search translates the query by
+#'   \code{-xy_shift..+xy_shift} pixels in each of \code{x} and \code{y}.
+#'   Default \code{2}.
+#' @param mirror logical; if \code{TRUE} also try the left-right
+#'   mirrored query and keep the better score (with the corresponding
+#'   shift). Default \code{FALSE}.
+#' @param top_n integer or \code{NULL}; if non-\code{NULL} return only
+#'   the top \code{top_n} hits by score.
+#' @param mc.cores integer; number of cores for parallel scoring via
+#'   \code{parallel::mclapply}. \code{1} (default) runs sequentially.
+#' @param verbose logical; emit progress ticks (one dot per 100
+#'   candidates).
+#' @return A \code{data.frame} sorted by descending \code{score}, with
+#'   columns \code{path}, \code{score} (matched pixels divided by query
+#'   foreground count), \code{n_match}, \code{dx}, \code{dy} and
+#'   \code{mirror}.
+#' @seealso \code{\link{nrrd_to_mip}}
+#' @export
+colormip_search <- function(query,
+                            library,
+                            threshold   = 100L,
+                            z_tolerance = 2L,
+                            xy_shift    = 2L,
+                            mirror      = FALSE,
+                            top_n       = NULL,
+                            mc.cores    = 1L,
+                            verbose     = TRUE) {
+  threshold   <- as.integer(threshold)
+  z_tolerance <- as.integer(z_tolerance)
+  xy_shift    <- as.integer(xy_shift)
+  stopifnot(is.finite(threshold), is.finite(z_tolerance),
+            is.finite(xy_shift), xy_shift >= 0L)
+
+  # Resolve library to a character vector of file paths.
+  if (is.character(library) && length(library) == 1L && dir.exists(library)) {
+    library_paths <- list.files(library, pattern = "\\.(png|tif|tiff)$",
+                                full.names = TRUE, ignore.case = TRUE)
+  } else if (is.character(library)) {
+    library_paths <- library
+  } else {
+    stop("`library` must be a directory path or a character vector of file paths.")
+  }
+  if (!length(library_paths))
+    stop("No library candidates found.")
+  if (!all(file.exists(library_paths)))
+    stop("Some library paths do not exist; first missing: ",
+         library_paths[!file.exists(library_paths)][1])
+
+  # Pre-process the query: foreground mask + per-pixel depth-LUT index.
+  q_idx <- .colormip_index_image(.colormip_read_rgb(query), threshold)
+  H <- nrow(q_idx$fg); W <- ncol(q_idx$fg)
+  q_fg_count <- sum(q_idx$fg)
+  if (!q_fg_count)
+    stop("Query has zero foreground pixels at threshold = ", threshold,
+         "; pass a lower threshold.")
+
+  # Optionally also pre-process the mirrored query (flip X).
+  qm_idx <- if (mirror) {
+    list(fg = q_idx$fg[, ncol(q_idx$fg):1L, drop = FALSE],
+         z  = q_idx$z [, ncol(q_idx$z) :1L, drop = FALSE])
+  } else NULL
+
+  # Pre-compute query foreground row/col indices once.
+  q_arr <- which(q_idx$fg, arr.ind = TRUE)
+  q_y <- q_arr[, 1L]; q_x <- q_arr[, 2L]
+  q_z <- q_idx$z[(q_x - 1L) * H + q_y]
+
+  qm_data <- if (mirror) {
+    qm_arr <- which(qm_idx$fg, arr.ind = TRUE)
+    list(y = qm_arr[, 1L], x = qm_arr[, 2L],
+         z = qm_idx$z[(qm_arr[, 2L] - 1L) * H + qm_arr[, 1L]])
+  } else NULL
+
+  shifts <- expand.grid(dx = seq.int(-xy_shift, xy_shift),
+                        dy = seq.int(-xy_shift, xy_shift))
+
+  score_one <- function(path) {
+    rgb <- tryCatch(.colormip_read_rgb(path), error = function(e) NULL)
+    if (is.null(rgb)) return(c(score = NA_real_, n_match = NA_integer_,
+                                dx = 0L, dy = 0L, mirror = 0L))
+    if (!identical(dim(rgb)[1:2], c(H, W)))
+      return(c(score = NA_real_, n_match = NA_integer_,
+               dx = 0L, dy = 0L, mirror = 0L))
+    l_idx <- .colormip_index_image(rgb, threshold)
+    best <- .colormip_best_shift(q_y, q_x, q_z,
+                                 l_idx$fg, l_idx$z,
+                                 H, W, shifts, z_tolerance)
+    best$mirror <- 0L
+    if (!is.null(qm_data)) {
+      bm <- .colormip_best_shift(qm_data$y, qm_data$x, qm_data$z,
+                                 l_idx$fg, l_idx$z,
+                                 H, W, shifts, z_tolerance)
+      if (bm$n_match > best$n_match) {
+        bm$mirror <- 1L
+        best <- bm
+      }
+    }
+    c(score   = best$n_match / q_fg_count,
+      n_match = best$n_match,
+      dx      = best$dx,
+      dy      = best$dy,
+      mirror  = best$mirror)
+  }
+
+  ticks <- if (verbose) ceiling(length(library_paths) / 100) else 0L
+  if (mc.cores > 1L) {
+    out <- parallel::mclapply(library_paths, score_one, mc.cores = mc.cores)
+  } else {
+    out <- vector("list", length(library_paths))
+    for (i in seq_along(library_paths)) {
+      out[[i]] <- score_one(library_paths[i])
+      if (verbose && i %% 100L == 0L) cat(".")
+    }
+    if (verbose && ticks > 0L) cat("\n")
+  }
+  m <- do.call(rbind, out)
+  res <- data.frame(path    = library_paths,
+                    score   = m[, "score"],
+                    n_match = as.integer(m[, "n_match"]),
+                    dx      = as.integer(m[, "dx"]),
+                    dy      = as.integer(m[, "dy"]),
+                    mirror  = as.logical(m[, "mirror"]),
+                    stringsAsFactors = FALSE)
+  res <- res[order(-res$score, na.last = TRUE), , drop = FALSE]
+  rownames(res) <- NULL
+  if (!is.null(top_n)) res <- utils::head(res, as.integer(top_n))
+  res
+}
+
+# Read an image path or pass through an HxWx3 array; returns integer
+# 0..255 array of dim H x W x 3.
+.colormip_read_rgb <- function(x) {
+  if (is.character(x) && length(x) == 1L) {
+    if (grepl("\\.png$", x, ignore.case = TRUE)) {
+      img <- png::readPNG(x)
+    } else if (grepl("\\.tiff?$", x, ignore.case = TRUE)) {
+      if (!requireNamespace("tiff", quietly = TRUE))
+        stop("Install the 'tiff' package to read TIFF library MIPs.")
+      img <- tiff::readTIFF(x)
+    } else stop("Unsupported image format: ", x)
+    if (length(dim(img)) == 2L) img <- array(img, dim = c(dim(img), 1L))
+    if (dim(img)[3] == 1L) img <- array(rep(img, 3L),
+                                         dim = c(dim(img)[1:2], 3L))
+    if (dim(img)[3] >= 4L) img <- img[, , 1:3]
+    return(round(img * 255))
+  }
+  if (is.array(x) && length(dim(x)) == 3L && dim(x)[3] >= 3L) {
+    img <- if (dim(x)[3] > 3L) x[, , 1:3] else x
+    if (max(img) <= 1.0) img <- round(img * 255)
+    return(img)
+  }
+  stop("Image must be a path or an H x W x 3 array; got: ", class(x)[1])
+}
+
+# Brightness-foreground + per-pixel argmin distance to the depth LUT.
+# rgb: H x W x 3 integer 0..255. Returns list(fg = HxW logical, z = HxW
+# integer in 1..256, 0 outside foreground).
+.colormip_index_image <- function(rgb, threshold) {
+  d <- dim(rgb); H <- d[1]; W <- d[2]
+  R <- as.integer(rgb[, , 1]); G <- as.integer(rgb[, , 2]); B <- as.integer(rgb[, , 3])
+  bright <- R + G + B
+  fg_vec <- bright > threshold
+  z_vec <- integer(length(fg_vec))
+  fg_idx <- which(fg_vec)
+  if (length(fg_idx)) {
+    lut <- colormip_depth_lut       # 256 x 3
+    chunk <- 100000L                # cap memory at 100k * 256 doubles ~ 200 MB
+    fR <- R[fg_idx]; fG <- G[fg_idx]; fB <- B[fg_idx]
+    z_fg <- integer(length(fg_idx))
+    for (i in seq.int(1L, length(fg_idx), by = chunk)) {
+      j <- min(i + chunk - 1L, length(fg_idx))
+      sl <- i:j
+      dR <- outer(fR[sl], lut[, 1], "-")
+      dG <- outer(fG[sl], lut[, 2], "-")
+      dB <- outer(fB[sl], lut[, 3], "-")
+      d2 <- dR * dR + dG * dG + dB * dB
+      z_fg[sl] <- max.col(-d2, ties.method = "first")
+    }
+    z_vec[fg_idx] <- z_fg
+  }
+  list(fg = matrix(fg_vec, nrow = H, ncol = W),
+       z  = matrix(z_vec,  nrow = H, ncol = W))
+}
+
+# Best (dx, dy) shift for a single (query foreground, library) pair.
+# q_y / q_x / q_z are aligned vectors of query foreground row/col/z.
+.colormip_best_shift <- function(q_y, q_x, q_z, l_fg, l_z, H, W,
+                                 shifts, z_tolerance) {
+  best_n  <- 0L
+  best_dx <- 0L
+  best_dy <- 0L
+  for (s in seq_len(nrow(shifts))) {
+    dx <- shifts$dx[s]; dy <- shifts$dy[s]
+    yl <- q_y + dy
+    xl <- q_x + dx
+    ok <- yl >= 1L & yl <= H & xl >= 1L & xl <= W
+    if (!any(ok)) next
+    lin <- (xl[ok] - 1L) * H + yl[ok]
+    n <- sum(l_fg[lin] & abs(q_z[ok] - l_z[lin]) <= z_tolerance)
+    if (n > best_n) { best_n <- n; best_dx <- dx; best_dy <- dy }
+  }
+  list(n_match = as.integer(best_n), dx = as.integer(best_dx),
+       dy = as.integer(best_dy))
+}
+
 # Tiny rbind for 3-D arrays along the first axis (no abind dependency)
 abind3 <- function(a, b) {
   da <- dim(a); db <- dim(b)

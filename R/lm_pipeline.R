@@ -509,6 +509,11 @@ lsm_to_nrrd <- function(input, output_dir, prefix = NULL, python = NULL,
 #' the ImageJ TIFF resolution tags are typically uncalibrated for these
 #' "registered" exports and would otherwise read as 1 px / unit.
 #'
+#' Pure R: uses \code{tiff::readTIFF} to read every page of the
+#' hyperstack, infers the channel/slice axis order from the
+#' \code{ImageDescription} tag (\code{channels=}, \code{slices=}), and
+#' writes per-channel \code{im3d} NRRDs via \code{nat::write.nrrd}.
+#'
 #' @param input path to a 2-channel ImageJ-format TIFF.
 #' @param output_dir directory for output NRRDs (created if missing).
 #' @param voxdims length-3 numeric \code{c(x, y, z)} voxel size in
@@ -519,9 +524,7 @@ lsm_to_nrrd <- function(input, output_dir, prefix = NULL, python = NULL,
 #'   (zero-based, matching the TIFF order). Default \code{c(0L, 1L)}.
 #' @param labels per-channel labels used in the output filenames
 #'   (\code{<stem>_<label>.nrrd}). Defaults to \code{ch0}, \code{ch1}, ...
-#' @param python optional Python interpreter; defaults to whichever
-#'   \code{reticulate} would use.
-#' @param verbose logical; pass-through to the Python helper.
+#' @param verbose logical; emit a one-line shape summary.
 #' @return a named character vector of absolute NRRD paths, one per
 #'   requested channel.
 #' @export
@@ -530,45 +533,80 @@ tif_to_nrrd_channels <- function(input, output_dir, voxdims,
                                  prefix   = NULL,
                                  channels = c(0L, 1L),
                                  labels   = NULL,
-                                 python   = NULL,
                                  verbose  = TRUE) {
   input      <- path.expand(input)
   output_dir <- path.expand(output_dir)
   stopifnot(file.exists(input), nzchar(output_dir),
             is.numeric(voxdims), length(voxdims) == 3L)
+  if (!requireNamespace("tiff", quietly = TRUE))
+    stop("`tiff_to_nrrd_channels()` requires the 'tiff' package: ",
+         "install.packages('tiff').")
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-
-  helper <- system.file("python", "imagej_tif_to_nrrd.py",
-                        package = "neuronbridger")
-  if (!nzchar(helper) || !file.exists(helper))
-    stop("inst/python/imagej_tif_to_nrrd.py not found in installed package")
-
-  if (is.null(python)) {
-    if (!requireNamespace("reticulate", quietly = TRUE))
-      stop("reticulate is required to find a Python interpreter.")
-    python <- reticulate::py_config()$python
-  }
 
   stem <- prefix %||% sub("\\.[^.]+$", "", basename(input))
   if (is.null(labels)) labels <- paste0("ch", channels)
   if (length(labels) != length(channels))
     stop("`labels` must have the same length as `channels`.")
 
-  args <- c(shQuote(helper), shQuote(input), shQuote(output_dir),
-            "--vx-um", format(voxdims[1], scientific = FALSE),
-            "--vy-um", format(voxdims[2], scientific = FALSE),
-            "--vz-um", format(voxdims[3], scientific = FALSE),
-            "--prefix", shQuote(stem),
-            "--channels", as.character(as.integer(channels)),
-            "--labels",   labels)
+  # Read every page (one per (Z, C) slice in an ImageJ hyperstack).
+  # tiff::readTIFF returns a 2-D matrix (Y, X) per page when
+  # info = FALSE; pages are concatenated into a list when all = TRUE.
+  pages <- tiff::readTIFF(input, all = TRUE, info = FALSE,
+                          as.is = TRUE, native = FALSE)
+  meta  <- attr(tiff::readTIFF(input, info = TRUE, native = FALSE),
+                "description")
+  if (is.null(meta)) meta <- ""
 
-  rval <- system2(python, args = args,
-                  stdout = if (verbose) "" else NULL,
-                  stderr = if (verbose) "" else NULL)
-  if (rval != 0L)
-    stop("imagej_tif_to_nrrd.py exited ", rval, " on ", basename(input))
+  # Parse "channels=" and "slices=" from the ImageJ description.
+  parse_int <- function(re, default = NA_integer_) {
+    m <- regmatches(meta, regexpr(re, meta, perl = TRUE))
+    if (length(m)) as.integer(sub(".*=", "", m)) else default
+  }
+  n_c <- parse_int("channels=\\d+")
+  n_z <- parse_int("slices=\\d+")
+  if (is.na(n_c) || is.na(n_z)) {
+    stop("could not parse `channels=` / `slices=` from ImageJ ",
+         "ImageDescription. ImageDescription was: ",
+         substr(meta, 1, 200))
+  }
+  if (length(pages) != n_c * n_z)
+    stop(sprintf("expected %d pages (%d channels x %d slices), got %d",
+                 n_c * n_z, n_c, n_z, length(pages)))
 
-  out <- file.path(output_dir, paste0(stem, "_", labels, ".nrrd"))
+  ny <- nrow(pages[[1]]); nx <- ncol(pages[[1]])
+  if (verbose)
+    message(sprintf("  source shape ZxCxYxX = %dx%dx%dx%d",
+                    n_z, n_c, ny, nx))
+
+  # ImageJ hyperstack page order: Z varies slowest, C fastest. Page i
+  # (1-based) maps to z = ((i-1) %/% n_c), c = ((i-1) %% n_c).
+  page_index <- function(z, ch) (z * n_c + ch) + 1L
+
+  out <- character(length(channels))
+  for (i in seq_along(channels)) {
+    ci <- as.integer(channels[i])
+    if (ci < 0L || ci >= n_c)
+      stop(sprintf("channel index %d out of range (0..%d)", ci, n_c - 1L))
+    # Allocate (X, Y, Z) array (nat::im3d convention).
+    vol <- array(NA_integer_, dim = c(nx, ny, n_z))
+    for (z in seq_len(n_z) - 1L) {
+      pg <- pages[[page_index(z, ci)]]            # Y x X matrix
+      vol[, , z + 1L] <- t(pg)                    # transpose to X x Y
+    }
+    storage.mode(vol) <- "integer"
+    im <- nat::im3d(vol, dims = dim(vol),
+                    voxdims = as.numeric(voxdims),
+                    origin  = c(0, 0, 0))
+    outfile <- file.path(output_dir, paste0(stem, "_", labels[i], ".nrrd"))
+    nat::write.nrrd(im, outfile,
+                    dtype = if (max(vol) <= 255L) "byte" else "ushort",
+                    enc   = "gzip")
+    if (verbose)
+      message(sprintf("  wrote %s  shape(X,Y,Z)=%dx%dx%d  voxdims_um=%g,%g,%g",
+                      outfile, nx, ny, n_z,
+                      voxdims[1], voxdims[2], voxdims[3]))
+    out[i] <- outfile
+  }
   names(out) <- labels
   out
 }
@@ -785,13 +823,15 @@ jrc2018u_to_jrc2018f_h5 <- function(input,
 #'
 #' The H5 (\code{JRCVNC2018U_JRCVNC2018F.h5}, ships with
 #' \pkg{flybrains}'s \code{download_jrc_vnc_transforms()}) stores a
-#' single \code{dfield}/\code{invdfield} pair sampled on the
-#' JRCVNC2018U grid; the dfield direction is JRCVNC2018U ->
-#' JRCVNC2018F, which is exactly the OUTPUT -> SOURCE lookup needed
-#' for resampling an F-image onto the U grid --- so we do NOT pass
-#' \code{-i}. Asking for the HR output grid directly works because
-#' JRCVNC2018U and JRCVNC2018U_HR share the same physical coordinate
-#' system; the JAR interpolates the dfield onto the requested grid.
+#' \code{dfield}/\code{invdfield} pair sampled on the JRCVNC2018U
+#' grid. The \code{dfield} is the \emph{forward} (source -> dest) push
+#' from JRCVNC2018F to JRCVNC2018U, matching the brain-side
+#' \code{<DEST>_<SRC>.h5} naming convention used by
+#' \code{nat.jrcbrains}; for image resampling we want OUTPUT (U) ->
+#' SOURCE (F), so we pass \code{-i} to invert it. Asking for the HR
+#' output grid directly works because JRCVNC2018U and JRCVNC2018U_HR
+#' share the same physical coordinate system --- the JAR interpolates
+#' the dfield onto the requested grid.
 #'
 #' @param input source-space NRRD (must already be in JRCVNC2018F
 #'   physical coordinates --- e.g. the output of
@@ -845,7 +885,7 @@ jrcvnc2018f_to_jrcvnc2018u_hr_h5 <- function(input,
                            shQuote(interval),
                            "-r", res,
                            "-q", as.integer(threads),
-                           shQuote(xfm_arg)),     # NB: no -i here
+                           "-i", shQuote(xfm_arg)),
                   stdout = if (verbose) "" else NULL,
                   stderr = if (verbose) "" else NULL)
   if (rval != 0L)
