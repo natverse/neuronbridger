@@ -501,6 +501,79 @@ lsm_to_nrrd <- function(input, output_dir, prefix = NULL, python = NULL,
 }
 
 
+#' @title Split a 2-channel ImageJ-format TIFF into per-channel NRRDs
+#' @description VNC analogue of \code{\link{lsm_to_nrrd}} for sources
+#' that have already been registered into a Janelia template space and
+#' arrive as plain ImageJ hyperstack TIFFs (no LSM metadata). The
+#' caller passes the voxdims they know from the target template ---
+#' the ImageJ TIFF resolution tags are typically uncalibrated for these
+#' "registered" exports and would otherwise read as 1 px / unit.
+#'
+#' @param input path to a 2-channel ImageJ-format TIFF.
+#' @param output_dir directory for output NRRDs (created if missing).
+#' @param voxdims length-3 numeric \code{c(x, y, z)} voxel size in
+#'   microns (e.g. \code{c(0.4, 0.4, 0.4)} for a JRCVNC2018F-aligned
+#'   source).
+#' @param prefix optional output stem (default = input file basename).
+#' @param channels integer indices of the channels to extract
+#'   (zero-based, matching the TIFF order). Default \code{c(0L, 1L)}.
+#' @param labels per-channel labels used in the output filenames
+#'   (\code{<stem>_<label>.nrrd}). Defaults to \code{ch0}, \code{ch1}, ...
+#' @param python optional Python interpreter; defaults to whichever
+#'   \code{reticulate} would use.
+#' @param verbose logical; pass-through to the Python helper.
+#' @return a named character vector of absolute NRRD paths, one per
+#'   requested channel.
+#' @export
+#' @keywords internal
+tif_to_nrrd_channels <- function(input, output_dir, voxdims,
+                                 prefix   = NULL,
+                                 channels = c(0L, 1L),
+                                 labels   = NULL,
+                                 python   = NULL,
+                                 verbose  = TRUE) {
+  input      <- path.expand(input)
+  output_dir <- path.expand(output_dir)
+  stopifnot(file.exists(input), nzchar(output_dir),
+            is.numeric(voxdims), length(voxdims) == 3L)
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+  helper <- system.file("python", "imagej_tif_to_nrrd.py",
+                        package = "neuronbridger")
+  if (!nzchar(helper) || !file.exists(helper))
+    stop("inst/python/imagej_tif_to_nrrd.py not found in installed package")
+
+  if (is.null(python)) {
+    if (!requireNamespace("reticulate", quietly = TRUE))
+      stop("reticulate is required to find a Python interpreter.")
+    python <- reticulate::py_config()$python
+  }
+
+  stem <- prefix %||% sub("\\.[^.]+$", "", basename(input))
+  if (is.null(labels)) labels <- paste0("ch", channels)
+  if (length(labels) != length(channels))
+    stop("`labels` must have the same length as `channels`.")
+
+  args <- c(shQuote(helper), shQuote(input), shQuote(output_dir),
+            "--vx-um", format(voxdims[1], scientific = FALSE),
+            "--vy-um", format(voxdims[2], scientific = FALSE),
+            "--vz-um", format(voxdims[3], scientific = FALSE),
+            "--prefix", shQuote(stem),
+            "--channels", as.character(as.integer(channels)),
+            "--labels",   labels)
+
+  rval <- system2(python, args = args,
+                  stdout = if (verbose) "" else NULL,
+                  stderr = if (verbose) "" else NULL)
+  if (rval != 0L)
+    stop("imagej_tif_to_nrrd.py exited ", rval, " on ", basename(input))
+
+  out <- file.path(output_dir, paste0(stem, "_", labels, ".nrrd"))
+  names(out) <- labels
+  out
+}
+
+
 #' @title Register a native LSM volume to JRC2018U via Elastix
 #' @description Runs Elastix multi-resolution affine + B-spline to
 #' align a native-confocal NC82 volume to the JRC2018U_HR template,
@@ -567,11 +640,24 @@ lm_to_jrc2018u_elastix <- function(nc82,
 
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
+  # Optional fixed-image mask. The bundled central-brain mask (template
+  # voxels in X 165-460 um, the central brain region the Deng confocal
+  # FOV actually covers) keeps the metric from being dragged by the
+  # template's optic-lobe regions which the source can't match. Improves
+  # both Pearson r and inside-neuropil-mesh fraction.
+  fixed_mask <- getOption(
+    "neuronbridger.jrc2018u_fixed_mask",
+    default = system.file("extdata", "elastix_lm_to_jrc2018u",
+                          "JRC2018U_centralbrain_mask.nrrd",
+                          package = "neuronbridger"))
+
   t0 <- Sys.time()
   args <- c("-f", shQuote(template),
             "-m", shQuote(nc82),
             "-out", shQuote(output_dir),
             "-threads", as.integer(threads))
+  if (nzchar(fixed_mask) && file.exists(fixed_mask))
+    args <- c(args, "-fMask", shQuote(fixed_mask))
   for (p in param_files) args <- c(args, "-p", shQuote(p))
 
   rval <- system2(elastix, args = args,
@@ -685,6 +771,90 @@ jrc2018u_to_jrc2018f_h5 <- function(input,
 
   if (verbose)
     message(sprintf("  [stage B''] %s (%.1fs)",
+                    basename(output),
+                    as.numeric(difftime(Sys.time(), t0, units = "secs"))))
+  invisible(output)
+}
+
+
+#' @title JRCVNC2018F -> JRCVNC2018U_HR image-mode warp via H5 displacement field
+#' @description Bridges a JRCVNC2018F-aligned NRRD onto the canonical
+#' NeuronBridge VNC grid (\code{JRC2018_VNC_UNISEX_HR}, 573 x 1119 x
+#' 219 @ 0.461 / 0.461 / 0.7 um) in a single \code{RenderTransformed}
+#' call.
+#'
+#' The H5 (\code{JRCVNC2018U_JRCVNC2018F.h5}, ships with
+#' \pkg{flybrains}'s \code{download_jrc_vnc_transforms()}) stores a
+#' single \code{dfield}/\code{invdfield} pair sampled on the
+#' JRCVNC2018U grid; the dfield direction is JRCVNC2018U ->
+#' JRCVNC2018F, which is exactly the OUTPUT -> SOURCE lookup needed
+#' for resampling an F-image onto the U grid --- so we do NOT pass
+#' \code{-i}. Asking for the HR output grid directly works because
+#' JRCVNC2018U and JRCVNC2018U_HR share the same physical coordinate
+#' system; the JAR interpolates the dfield onto the requested grid.
+#'
+#' @param input source-space NRRD (must already be in JRCVNC2018F
+#'   physical coordinates --- e.g. the output of
+#'   \code{\link{tif_to_nrrd_channels}} on a 660 x 1342 x 358 voxel
+#'   ImageJ "registration" export at 0.4 um isotropic).
+#' @param output target NRRD path on the JRCVNC2018U_HR grid.
+#' @param h5_path path to \code{JRCVNC2018U_JRCVNC2018F.h5}. Defaults
+#'   to \code{~/flybrain-data/JRCVNC2018U_JRCVNC2018F.h5} (where
+#'   \code{flybrains.download_jrc_vnc_transforms()} writes it).
+#' @param threads integer; passed to the JAR's \code{-q} flag.
+#' @param verbose logical; pass-through to the JAR.
+#' @return invisibly, the absolute path to the written NRRD.
+#' @export
+#' @keywords internal
+jrcvnc2018f_to_jrcvnc2018u_hr_h5 <- function(input,
+                                             output,
+                                             h5_path = NULL,
+                                             threads = 8L,
+                                             verbose = TRUE) {
+  input  <- path.expand(input)
+  output <- path.expand(output)
+  stopifnot(file.exists(input), nzchar(output))
+  jar  <- .neuronbridger_xformimage_jar()
+  java <- .neuronbridger_java_bin()
+  if (is.null(h5_path)) {
+    candidates <- c(
+      "~/flybrain-data/JRCVNC2018U_JRCVNC2018F.h5",
+      "~/Library/Application Support/flybrain-data/JRCVNC2018U_JRCVNC2018F.h5"
+    )
+    h5_path <- Find(file.exists, sapply(candidates, path.expand))
+    if (is.null(h5_path))
+      stop("JRCVNC2018U_JRCVNC2018F.h5 not found. Run python ",
+           "`import flybrains; flybrains.download_jrc_vnc_transforms()`.")
+  }
+
+  # JRCVNC2018U_HR output grid: 573 x 1119 x 219 voxels at 0.461 / 0.461
+  # / 0.7 um. Same physical coordinate system as JRCVNC2018U-native
+  # (660 x 1290 x 382 @ 0.4 um), just resampled coarser; the dfield
+  # interpolates fine onto either.
+  interval <- "0,0,0:572,1118,218"
+  res      <- "0.461,0.461,0.7"
+  xfm_arg  <- paste0(h5_path, ":dfield:invdfield")
+
+  t0 <- Sys.time()
+  rval <- system2(java,
+                  args = c("-Xmx16g",
+                           "-cp", shQuote(jar),
+                           "process.RenderTransformed",
+                           shQuote(input),
+                           shQuote(output),
+                           shQuote(interval),
+                           "-r", res,
+                           "-q", as.integer(threads),
+                           shQuote(xfm_arg)),     # NB: no -i here
+                  stdout = if (verbose) "" else NULL,
+                  stderr = if (verbose) "" else NULL)
+  if (rval != 0L)
+    stop("RenderTransformed exited ", rval, " on ", basename(input))
+  if (!file.exists(output))
+    stop("RenderTransformed did not write ", output)
+
+  if (verbose)
+    message(sprintf("  [vnc-bridge] %s (%.1fs)",
                     basename(output),
                     as.numeric(difftime(Sys.time(), t0, units = "secs"))))
   invisible(output)

@@ -1,51 +1,31 @@
-// Elastix B-spline registration --- 3D, multi-resolution
-// Tuned for fly NC82 confocal -> JRC2018 NC82 template
-// Use *after* affine: pass both via `elastix -p p_affine.txt -p p_bspline.txt`
-
 (FixedInternalImagePixelType "float")
 (MovingInternalImagePixelType "float")
 (FixedImageDimension 3)
 (MovingImageDimension 3)
 (UseDirectionCosines "true")
-
-// --- registration
-(Registration "MultiResolutionRegistration")
+(Registration "MultiMetricMultiResolutionRegistration")
 (NumberOfResolutions 4)
-(ImagePyramidSchedule 8 8 4   4 4 2   2 2 1   1 1 1)
-
+(ImagePyramidSchedule 8 8 4  4 4 2  2 2 1  1 1 1)
 (FixedImagePyramid "FixedSmoothingImagePyramid")
 (MovingImagePyramid "MovingSmoothingImagePyramid")
-
 (Interpolator "LinearInterpolator")
 (ResampleInterpolator "FinalBSplineInterpolator")
 (FinalBSplineInterpolationOrder 3)
 (Resampler "DefaultResampler")
-
-// --- metric
-(Metric "AdvancedMattesMutualInformation")
+(Metric "AdvancedMattesMutualInformation" "TransformBendingEnergyPenalty")
+(Metric0Weight 1.0)
+(Metric1Weight 50.0)
 (NumberOfHistogramBins 32)
-
-// --- optimizer
 (Optimizer "AdaptiveStochasticGradientDescent")
-(MaximumNumberOfIterations 800 800 800 800)
+(MaximumNumberOfIterations 1500 1500 1500 1500)
 (AutomaticParameterEstimation "true")
-
-// --- sampler
 (ImageSampler "RandomCoordinate")
 (NumberOfSpatialSamples 8192)
 (NewSamplesEveryIteration "true")
-
-// --- transform: B-spline at decreasing grid spacing per resolution.
-// Final spacing is the spacing at the last (full-resolution) step.
-// 16 microns is a common fly-brain choice; FinalGridSpacingInVoxels
-// scales with the FIXED image voxel spacing (0.519 um) so 32 voxels
-// = 16.6 microns at the final level.
 (Transform "BSplineTransform")
 (GridSpacingSchedule 8 4 2 1)
 (FinalGridSpacingInPhysicalUnits 16 16 16)
 (BSplineTransformSplineOrder 3)
-
-// --- output
 (WriteResultImage "true")
 (ResultImagePixelType "unsigned char")
 (ResultImageFormat "nrrd")
