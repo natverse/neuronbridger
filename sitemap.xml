@@ -1,13 +1,13 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>/404.html</loc></url>
-<url><loc>/articles/abdominal_peripheral_targets.html</loc></url>
-<url><loc>/articles/asta_sez.html</loc></url>
-<url><loc>/articles/banc_colormip_search.html</loc></url>
-<url><loc>/articles/colormip_direct_vs_fiji.html</loc></url>
-<url><loc>/articles/colormip_lm.html</loc></url>
+<url><loc>/articles/design_split_gal4.html</loc></url>
+<url><loc>/articles/find_peripheral_targets.html</loc></url>
 <url><loc>/articles/index.html</loc></url>
-<url><loc>/articles/lm_layer_neuroglancer.html</loc></url>
-<url><loc>/articles/split_design.html</loc></url>
+<url><loc>/articles/match_em_to_line.html</loc></url>
+<url><loc>/articles/mip_from_em.html</loc></url>
+<url><loc>/articles/mip_from_lm.html</loc></url>
+<url><loc>/articles/publish_lm_layer.html</loc></url>
+<url><loc>/articles/search_banc_with_lm.html</loc></url>
 <url><loc>/authors.html</loc></url>
 <url><loc>/index.html</loc></url>
 <url><loc>/reference/colormip_search.html</loc></url>

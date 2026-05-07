@@ -24,7 +24,7 @@ worked example see vignette(&quot;banc_colormip_search&quot;)."><meta property="
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">neuronbridger</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.3.0</span>
       </span>
     </div>
 
@@ -38,26 +38,32 @@ worked example see vignette(&quot;banc_colormip_search&quot;)."><meta property="
 
     <span class="caret"></span>
   </a>
-  <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/split_design.html">split GAL4 design</a>
+  <ul class="dropdown-menu" role="menu"><li class="divider">
+    <li class="dropdown-header">Find lines</li>
+    <li>
+      <a href="../articles/design_split_gal4.html">Design a split-GAL4 line for an EM neuron</a>
     </li>
     <li>
-      <a href="../articles/abdominal_peripheral_targets.html">Abdominal motor and endocrine neurons: from MANC to GAL4 lines to peripheral targets</a>
+      <a href="../articles/match_em_to_line.html">Match a published GAL4 line to its EM cell (AstA-SEZ)</a>
     </li>
     <li>
-      <a href="../articles/asta_sez.html">Finding the SEZ AstA neuron: SS32423 + AstA-locus drivers + DCV soma scores</a>
+      <a href="../articles/find_peripheral_targets.html">From EM neurons to peripheral targets via GAL4 lines</a>
+    </li>
+    <li class="divider">
+    <li class="dropdown-header">Render MIPs</li>
+    <li>
+      <a href="../articles/mip_from_em.html">Render a colour-depth MIP from an EM neuron</a>
     </li>
     <li>
-      <a href="../articles/colormip_direct_vs_fiji.html">Colour-depth MIPs from a connectome neuron (BANC AstA1) in JRC2018U_HR</a>
+      <a href="../articles/mip_from_lm.html">Render a colour-depth MIP from registered LM data</a>
+    </li>
+    <li class="divider">
+    <li class="dropdown-header">Search BANC</li>
+    <li>
+      <a href="../articles/search_banc_with_lm.html">Search BANC EM with an LM colour-depth MIP (SRENs)</a>
     </li>
     <li>
-      <a href="../articles/colormip_lm.html">Colour-depth MIPs from a registered LM volume (Kondo 2020 CapaR) in JRC2018U_HR</a>
-    </li>
-    <li>
-      <a href="../articles/lm_layer_neuroglancer.html">Serving an LM volume as a Neuroglancer layer alongside BANC</a>
-    </li>
-    <li>
-      <a href="../articles/banc_colormip_search.html">Colour-MIP searches against the BANC</a>
+      <a href="../articles/publish_lm_layer.html">Publish an LM volume as a Neuroglancer layer on BANC</a>
     </li>
   </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"><li>
@@ -88,7 +94,7 @@ the algorithm in Janelia's
 FIJI plugin. Both query and library MIPs must already be on the same
 template grid (e.g. <code>JRC2018VNCU_HR</code> 1209 x 573 with the 90-px
 header that <code>nrrd_to_mip(target_space = "VNC")</code> writes). For a
-worked example see <code><a href="../articles/banc_colormip_search.html">vignette("banc_colormip_search")</a></code>.</p>
+worked example see <code>vignette("banc_colormip_search")</code>.</p>
     </div>
 
     <div id="ref-usage">
@@ -178,7 +184,7 @@ and (b) their depth-LUT indices differ by at most <code>z_tolerance</code>.
 For each candidate the score is the best match count over the
 <code>(2 * xy_shift + 1)^2</code> translation grid (and its mirror image
 when <code>mirror = TRUE</code>), normalised by the query foreground count.</p>
-<p>Validated against Janelia's plugin (top-50 Spearman &gt; 0.95 on the SER
+<p>Validated against Janelia's plugin (top-50 Spearman &gt; 0.95 on the SREN
 efferent benchmark in the <code>banc_colormip_search</code> vignette);
 switch to <code>method = "fiji"</code> on <code><a href="nrrd_to_mip.html">nrrd_to_mip</a></code> or run
 the FIJI plugin directly if you need byte-perfect parity with the
