@@ -1,0 +1,50 @@
+// Elastix affine registration --- 3D, multi-resolution
+// Tuned for fly NC82 confocal -> JRC2018 NC82 template
+
+// --- top-level
+(FixedInternalImagePixelType "float")
+(MovingInternalImagePixelType "float")
+(FixedImageDimension 3)
+(MovingImageDimension 3)
+(UseDirectionCosines "true")
+
+// --- registration
+(Registration "MultiResolutionRegistration")
+(NumberOfResolutions 4)
+(ImagePyramidSchedule  8 8 4   4 4 2   2 2 1   1 1 1)
+
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+
+(Interpolator "LinearInterpolator")
+(ResampleInterpolator "FinalBSplineInterpolator")
+(FinalBSplineInterpolationOrder 3)
+(Resampler "DefaultResampler")
+
+// --- metric
+(Metric "AdvancedMattesMutualInformation")
+(NumberOfHistogramBins 32)
+
+// --- optimizer
+(Optimizer "AdaptiveStochasticGradientDescent")
+(MaximumNumberOfIterations 500 500 500 500)
+(AutomaticParameterEstimation "true")
+
+// --- sampler
+(ImageSampler "RandomCoordinate")
+(NumberOfSpatialSamples 4096)
+(NewSamplesEveryIteration "true")
+
+// --- transform
+(Transform "AffineTransform")
+(AutomaticTransformInitialization "true")
+(AutomaticTransformInitializationMethod "GeometricalCenter")
+(AutomaticScalesEstimation "true")
+
+// --- output
+(WriteResultImage "false")
+(ResultImagePixelType "unsigned char")
+(ResultImageFormat "nrrd")
+(WriteTransformParametersEachIteration "false")
+(WriteTransformParametersEachResolution "false")
+(DefaultPixelValue 0)

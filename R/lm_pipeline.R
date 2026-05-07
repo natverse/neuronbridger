@@ -234,6 +234,8 @@ jrc2018f_to_banc_elastix <- function(input,
                                      transform_dir = NULL,
                                      transformix   = "transformix",
                                      verbose       = TRUE) {
+  input  <- path.expand(input)
+  output <- path.expand(output)
   stopifnot(file.exists(input), nzchar(output))
   if (is.null(transform_dir)) {
     if (!requireNamespace("bancr", quietly = TRUE))
@@ -429,3 +431,395 @@ lm_to_banc_layer <- function(input,
 }
 
 `%||%` <- function(a, b) if (is.null(a) || (is.character(a) && !nzchar(a))) b else a
+
+
+# ----------------------------------------------------------------------
+# Deng et al. 2019 LSM pipeline: native confocal -> JRC2018U -> JRC2018F
+# -> BANC. Adds three Stages on top of the existing chain:
+#
+#   Stage 0   LSM (Carl Zeiss multi-channel) -> NRRD (NC82 + GFP)
+#   Stage A'  native NC82 + GFP -> JRC2018U  (Elastix multi-resolution
+#                                             affine + B-spline)
+#   Stage B'' JRC2018U -> JRC2018F           (RenderTransformed JAR
+#                                             with JRC2018U_JRC2018F.h5;
+#                                             dfield is already in the
+#                                             output->source direction
+#                                             we need, so no `-i`)
+#
+# Stage C and Stage D are reused from the Kondo pipeline.
+# ----------------------------------------------------------------------
+
+
+#' @title Extract NC82 + GFP channels from a Deng-2019 .lsm file
+#' @description Wraps the bundled Python helper
+#' \code{inst/python/lsm_to_nrrd.py} (uses \pkg{tifffile} + \pkg{SimpleITK})
+#' to extract channel 0 (GFP) and channel 1 (NC82) into two
+#' \code{.nrrd} files with proper voxdims metadata. Channel order is
+#' assumed; for any LSM cohort that swaps the order, pass the channel
+#' indices via \code{...} (forwarded as \code{--gfp-channel} /
+#' \code{--nc82-channel}).
+#' @param input path to the source .lsm file.
+#' @param output_dir directory where \code{<stem>_nc82.nrrd} and
+#'   \code{<stem>_gfp.nrrd} are written; created if missing.
+#' @param prefix optional output stem (default = input file basename).
+#' @param python path to a Python interpreter with \pkg{tifffile} +
+#'   \pkg{SimpleITK} installed; defaults to whichever \code{reticulate}
+#'   would use.
+#' @return a length-2 named character of \code{c(nc82 = ..., gfp = ...)}
+#'   absolute paths to the written NRRDs.
+#' @export
+#' @keywords internal
+lsm_to_nrrd <- function(input, output_dir, prefix = NULL, python = NULL,
+                        verbose = TRUE) {
+  input      <- path.expand(input)
+  output_dir <- path.expand(output_dir)
+  stopifnot(file.exists(input), nzchar(output_dir))
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+  helper <- system.file("python", "lsm_to_nrrd.py", package = "neuronbridger")
+  if (!nzchar(helper) || !file.exists(helper))
+    stop("inst/python/lsm_to_nrrd.py not found in installed package")
+
+  if (is.null(python)) {
+    if (!requireNamespace("reticulate", quietly = TRUE))
+      stop("reticulate is required to find a Python interpreter.")
+    python <- reticulate::py_config()$python
+  }
+
+  stem <- prefix %||% sub("\\.[^.]+$", "", basename(input))
+  args <- c(shQuote(helper), shQuote(input), shQuote(output_dir),
+            "--prefix", shQuote(stem))
+
+  rval <- system2(python, args = args,
+                  stdout = if (verbose) "" else NULL,
+                  stderr = if (verbose) "" else NULL)
+  if (rval != 0L)
+    stop("lsm_to_nrrd.py exited ", rval, " on ", basename(input))
+
+  c(nc82 = file.path(output_dir, paste0(stem, "_nc82.nrrd")),
+    gfp  = file.path(output_dir, paste0(stem, "_gfp.nrrd")))
+}
+
+
+#' @title Register a native LSM volume to JRC2018U via Elastix
+#' @description Runs Elastix multi-resolution affine + B-spline to
+#' align a native-confocal NC82 volume to the JRC2018U_HR template,
+#' then applies the same transform to the matching GFP channel via
+#' \code{transformix}. Parameter files default to the package's
+#' \code{inst/extdata/elastix_lm_to_jrc2018u/} bundle.
+#' @param nc82 path to native NC82 NRRD (the registration moving image).
+#' @param gfp path to native GFP NRRD (same voxdims as \code{nc82}).
+#' @param output_dir directory for Elastix outputs (transform params,
+#'   warped NC82, warped GFP).
+#' @param template path to JRC2018U template NRRD (the registration
+#'   fixed image). Defaults to \code{~/templates/JRC2018_UNISEX_20x_HR.nrrd}
+#'   --- override via \code{options(neuronbridger.jrc2018u_template = ...)}.
+#' @param param_files length-2 character of Elastix parameter file
+#'   paths (\code{p_affine.txt}, \code{p_bspline.txt}). Defaults to
+#'   the package bundle.
+#' @param elastix path to the \code{elastix} binary.
+#' @param transformix path to the \code{transformix} binary.
+#' @param threads number of threads (Elastix default uses all).
+#' @return a list with \code{nc82_jrc2018u} (warped reference NRRD path),
+#'   \code{gfp_jrc2018u} (warped GFP NRRD path), \code{params}
+#'   (Elastix output directory), and \code{final_metric} (last metric
+#'   value reported by Elastix).
+#' @export
+#' @keywords internal
+lm_to_jrc2018u_elastix <- function(nc82,
+                                   gfp,
+                                   output_dir,
+                                   template     = NULL,
+                                   param_files  = NULL,
+                                   elastix      = "elastix",
+                                   transformix  = "transformix",
+                                   threads      = 8L,
+                                   verbose      = TRUE) {
+  nc82       <- path.expand(nc82)
+  gfp        <- path.expand(gfp)
+  output_dir <- path.expand(output_dir)
+  stopifnot(file.exists(nc82), file.exists(gfp), nzchar(output_dir))
+  if (Sys.which(elastix) == "")
+    stop("`", elastix, "` not on PATH. Install Elastix 5.x.")
+  if (Sys.which(transformix) == "")
+    stop("`", transformix, "` not on PATH.")
+
+  if (is.null(template))
+    template <- getOption("neuronbridger.jrc2018u_template",
+                          default = path.expand("~/templates/JRC2018_UNISEX_20x_HR.nrrd"))
+  if (!file.exists(template))
+    stop("JRC2018U template not found at: ", template,
+         ".\nDownload via: ",
+         "curl -fL -o ~/templates/JRC2018_UNISEX_20x_HR.nrrd ",
+         "https://janelia-flylight-templates.s3.amazonaws.com/JRC2018_Unisex_20x_HR/JRC2018_UNISEX_20x_HR.nrrd")
+
+  if (is.null(param_files)) {
+    pdir <- system.file("extdata", "elastix_lm_to_jrc2018u",
+                        package = "neuronbridger")
+    if (!nzchar(pdir) || !dir.exists(pdir))
+      stop("inst/extdata/elastix_lm_to_jrc2018u not in installed package")
+    param_files <- c(file.path(pdir, "p_affine.txt"),
+                     file.path(pdir, "p_bspline.txt"))
+  }
+  for (p in param_files)
+    if (!file.exists(p)) stop("missing Elastix parameter file: ", p)
+
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+  t0 <- Sys.time()
+  args <- c("-f", shQuote(template),
+            "-m", shQuote(nc82),
+            "-out", shQuote(output_dir),
+            "-threads", as.integer(threads))
+  for (p in param_files) args <- c(args, "-p", shQuote(p))
+
+  rval <- system2(elastix, args = args,
+                  stdout = if (verbose) "" else NULL,
+                  stderr = if (verbose) "" else NULL)
+  if (rval != 0L)
+    stop("elastix exited ", rval, " --- see ", output_dir, "/elastix.log")
+
+  # Apply the final transform (TransformParameters.<last>.txt) to GFP.
+  tps <- list.files(output_dir,
+                    pattern = "^TransformParameters\\.[0-9]+\\.txt$",
+                    full.names = TRUE)
+  if (!length(tps)) stop("no TransformParameters.<n>.txt in ", output_dir)
+  final_tp <- tps[order(as.integer(sub("^.*TransformParameters\\.([0-9]+)\\.txt$",
+                                       "\\1", tps)))][[length(tps)]]
+
+  gfp_out_dir <- file.path(output_dir, "gfp_xform")
+  dir.create(gfp_out_dir, showWarnings = FALSE, recursive = TRUE)
+  rval <- system2(transformix,
+                  args = c("-in",  shQuote(gfp),
+                           "-tp",  shQuote(final_tp),
+                           "-out", shQuote(gfp_out_dir),
+                           "-threads", as.integer(threads)),
+                  stdout = if (verbose) "" else NULL,
+                  stderr = if (verbose) "" else NULL)
+  if (rval != 0L)
+    stop("transformix (apply-to-GFP) exited ", rval, " --- see ",
+         gfp_out_dir, "/transformix.log")
+
+  # Locate result.* (varies by extension among nrrd / mhd)
+  nc82_warped <- list.files(output_dir,
+                            pattern = "^result\\.[0-9]+\\.(nrrd|mhd|nii(\\.gz)?)$",
+                            full.names = TRUE)
+  gfp_warped  <- list.files(gfp_out_dir,
+                            pattern = "^result\\.(nrrd|mhd|nii(\\.gz)?)$",
+                            full.names = TRUE)
+
+  # Pull final metric value out of elastix.log if present
+  log_path <- file.path(output_dir, "elastix.log")
+  fm <- NA_real_
+  if (file.exists(log_path)) {
+    tail <- tail(readLines(log_path, warn = FALSE), 200)
+    m <- regmatches(tail, regexpr("Final metric value\\s*=\\s*[-+0-9.eE]+", tail))
+    if (length(m)) fm <- as.numeric(sub(".*=\\s*", "", m[[length(m)]]))
+  }
+
+  if (verbose)
+    message(sprintf("  [stage A'] elastix done (%.1fs, final metric = %s)",
+                    as.numeric(difftime(Sys.time(), t0, units = "secs")),
+                    if (is.na(fm)) "?" else format(fm, digits = 4)))
+
+  list(nc82_jrc2018u = if (length(nc82_warped)) nc82_warped[[length(nc82_warped)]] else NA_character_,
+       gfp_jrc2018u  = if (length(gfp_warped))  gfp_warped[[1L]] else NA_character_,
+       params        = output_dir,
+       final_metric  = fm)
+}
+
+
+#' @title JRC2018U -> JRC2018F image-mode warp via H5 displacement field
+#' @description Same shape as \code{\link{fcwb_to_jrc2018f_h5}}, but
+#' uses the \code{JRC2018U_JRC2018F.h5} bridging registration. The
+#' dfield in that file maps JRC2018F -> JRC2018U; for image
+#' resampling we want OUTPUT (JRC2018F) -> SOURCE (JRC2018U), which
+#' is exactly the dfield direction --- so unlike \code{fcwb_to_jrc2018f_h5}
+#' we DO NOT pass \code{-i} to the JAR.
+#' @inheritParams fcwb_to_jrc2018f_h5
+#' @export
+#' @keywords internal
+jrc2018u_to_jrc2018f_h5 <- function(input,
+                                    output,
+                                    h5_path = NULL,
+                                    threads = 8L,
+                                    verbose = TRUE) {
+  input  <- path.expand(input)
+  output <- path.expand(output)
+  stopifnot(file.exists(input), nzchar(output))
+  jar  <- .neuronbridger_xformimage_jar()
+  java <- .neuronbridger_java_bin()
+  if (is.null(h5_path)) {
+    candidates <- c(
+      "~/Library/Application Support/R/nat.jrcbrains/JRC2018U_JRC2018F/JRC2018U_JRC2018F.h5",
+      "~/.local/share/R/nat.jrcbrains/JRC2018U_JRC2018F/JRC2018U_JRC2018F.h5"
+    )
+    h5_path <- Find(file.exists, sapply(candidates, path.expand))
+    if (is.null(h5_path))
+      stop("JRC2018U_JRC2018F.h5 not found. Run ",
+           "nat.jrcbrains::download_saalfeldlab_registrations().")
+  }
+
+  interval <- "0,0,0:1651,767,478"        # JRC2018F output grid
+  res      <- "0.38,0.38,0.38"
+  xfm_arg  <- paste0(h5_path, ":0/dfield:0/invdfield")
+
+  t0 <- Sys.time()
+  rval <- system2(java,
+                  args = c("-Xmx16g",
+                           "-cp", shQuote(jar),
+                           "process.RenderTransformed",
+                           shQuote(input),
+                           shQuote(output),
+                           shQuote(interval),
+                           "-r", res,
+                           "-q", as.integer(threads),
+                           shQuote(xfm_arg)),     # NB: no -i here
+                  stdout = if (verbose) "" else NULL,
+                  stderr = if (verbose) "" else NULL)
+  if (rval != 0L)
+    stop("RenderTransformed exited ", rval, " on ", basename(input))
+  if (!file.exists(output))
+    stop("RenderTransformed did not write ", output)
+
+  if (verbose)
+    message(sprintf("  [stage B''] %s (%.1fs)",
+                    basename(output),
+                    as.numeric(difftime(Sys.time(), t0, units = "secs"))))
+  invisible(output)
+}
+
+
+#' @title Bridge a Deng et al. 2019 LSM volume into BANC voxel coordinates
+#' @description Top-level orchestrator for the Deng pipeline. Chains
+#' Stage 0 (LSM extract) + Stage A' (Elastix native -> JRC2018U) +
+#' Stage B'' (H5 JRC2018U -> JRC2018F) + the existing Stage C
+#' (transformix JRC2018F -> BANC) + Stage D (nrrd_to_precomputed),
+#' producing a Neuroglancer precomputed image layer named
+#' \code{<gene>_<sample>.ng/} on the BANC grid.
+#'
+#' @section Software prerequisites:
+#' \itemize{
+#'   \item Elastix 5.x \code{elastix} + \code{transformix} on PATH
+#'   \item Java 17+ + the saalfeldlab \code{RenderTransformed} JAR
+#'   \item Python (via \pkg{reticulate}) with \pkg{tifffile} +
+#'         \pkg{SimpleITK}
+#'   \item \pkg{nat.jrcbrains} H5 registrations downloaded
+#'         (\code{nat.jrcbrains::download_saalfeldlab_registrations()})
+#'   \item JRC2018U template NRRD at
+#'         \code{~/templates/JRC2018_UNISEX_20x_HR.nrrd}
+#'         (download from \code{janelia-flylight-templates} S3).
+#' }
+#'
+#' @param input source .lsm path.
+#' @param gene short gene name; forms layer name \code{<gene>_<sample>}.
+#' @param sample sample identifier (e.g. \code{BRAIN-F}, \code{VNC-M},
+#'   or any user-chosen short tag).
+#' @param channel the upstream channel string recorded in the registry
+#'   (default \code{"GFP"}).
+#' @param dataset master folder under \code{light_level/} (default
+#'   \code{"deng_et_al_2019"}).
+#' @param output_dir parent directory for intermediates + final
+#'   precomputed layer.
+#' @param source_path optional original storage path for provenance.
+#' @param chunk_size length-3 integer chunk size for the precomputed
+#'   layer.
+#' @param keep_intermediates logical; keep the per-stage intermediate
+#'   NRRDs (default \code{FALSE}).
+#' @param threads passed to Elastix + RenderTransformed.
+#' @return list with \code{precomputed_dir}, \code{registry_entry}
+#'   (one-row tibble), \code{timings} (named numeric, s).
+#' @export
+lsm_to_banc_layer <- function(input,
+                              gene,
+                              sample,
+                              channel             = "GFP",
+                              dataset             = "deng_et_al_2019",
+                              output_dir,
+                              source_path         = NULL,
+                              chunk_size          = c(64L, 64L, 64L),
+                              keep_intermediates  = FALSE,
+                              threads             = 8L,
+                              verbose             = TRUE) {
+  stopifnot(file.exists(input), nzchar(gene), nzchar(sample), nzchar(dataset))
+  if (missing(output_dir) || is.null(output_dir))
+    stop("`output_dir` is required.")
+  output_dir <- path.expand(output_dir)
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+  name      <- paste(gene, sample, sep = "_")
+  raw_dir   <- file.path(output_dir, "raw")
+  reg_dir   <- file.path(output_dir, "elastix", name)
+  jrcf_nrrd <- file.path(output_dir, paste0(name, "_in_JRC2018F.nrrd"))
+  banc_nrrd <- file.path(output_dir, paste0(name, "_aligned240721_to_BANC.nrrd"))
+  pc_dir    <- file.path(output_dir, paste0(name, ".ng"))
+
+  t_all <- Sys.time()
+  t0_extract <- system.time({
+    chans <- lsm_to_nrrd(input, raw_dir, prefix = name, verbose = verbose)
+  })[["elapsed"]]
+
+  t1_register <- system.time({
+    r <- lm_to_jrc2018u_elastix(
+      nc82       = chans[["nc82"]],
+      gfp        = chans[["gfp"]],
+      output_dir = reg_dir,
+      threads    = threads,
+      verbose    = verbose)
+  })[["elapsed"]]
+
+  t2_h5 <- system.time(
+    jrc2018u_to_jrc2018f_h5(r$gfp_jrc2018u, jrcf_nrrd,
+                            threads = threads,
+                            verbose = verbose)
+  )[["elapsed"]]
+
+  t3_banc <- system.time(
+    jrc2018f_to_banc_elastix(jrcf_nrrd, banc_nrrd, verbose = verbose)
+  )[["elapsed"]]
+
+  t4_pc <- system.time(
+    nrrd_to_precomputed(
+      input      = banc_nrrd,
+      output     = pc_dir,
+      resolution = c(400, 400, 400),
+      data_type  = "uint8",
+      encoding   = "raw",
+      chunk_size = chunk_size,
+      overwrite  = TRUE
+    )
+  )[["elapsed"]]
+
+  if (!keep_intermediates) {
+    for (f in c(jrcf_nrrd, banc_nrrd))
+      if (file.exists(f)) file.remove(f)
+    unlink(reg_dir, recursive = TRUE)
+    unlink(raw_dir, recursive = TRUE)
+  }
+
+  registry_entry <- tibble::tibble(
+    dataset         = dataset,
+    gene            = gene,
+    sample          = sample,
+    channel         = channel,
+    name            = name,
+    gs_url          = sprintf("gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/%s/%s.ng/",
+                              dataset, name),
+    alignment_space = "BANC",
+    voxdims_nm      = list(c(400L, 400L, 400L)),
+    source_filename = basename(input),
+    source_path     = source_path %||% input,
+    uploaded        = format(Sys.Date())
+  )
+
+  list(precomputed_dir = pc_dir,
+       registry_entry  = registry_entry,
+       elastix_metric  = r$final_metric,
+       timings         = c(stage0_lsm_extract       = t0_extract,
+                           stageA_native_to_jrcu    = t1_register,
+                           stageB_jrcu_to_jrcf      = t2_h5,
+                           stageC_jrcf_to_banc      = t3_banc,
+                           stageD_precomputed       = t4_pc,
+                           total                    = as.numeric(
+                             difftime(Sys.time(), t_all, units = "secs"))))
+}
