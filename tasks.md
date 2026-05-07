@@ -276,3 +276,108 @@ u <- bancr::banc_lm_scene(
   (`~/Library/Application Support/R/nat.jrcbrains/`); will re-fill
   with `download_saalfeldlab_registrations(filenames = "JRC2018F_JFRC2010.h5")`
   once figshare cooperates.
+
+## Done (2026-05-04 → 2026-05-07): Kondo et al. 2020 LM library on BANC
+
+- **Image-mode IS2 → BANC chain** for Kondo et al. 2020 receptor
+  knock-in stacks. Stage A CMTK reformatx (IS2 → FCWB), Stage B
+  saalfeldlab template-building `RenderTransformed` with
+  `JRC2018F_FCWB.h5` (FCWB → JRC2018F), Stage C Elastix transformix
+  with bancr's bundled `brain_240721/BANC_to_template.txt`
+  (JRC2018F → BANC voxel), Stage D `nrrd_to_precomputed`. ~12 min/sample
+  on Apple-silicon Mac, 8 threads. Replaces an earlier points-mode
+  prototype that didn't scale (>3h/sample).
+- **`R/lm_pipeline.R`** with public helpers `is2_to_fcwb_cmtk()`,
+  `fcwb_to_jrc2018f_h5()`, `jrc2018f_to_banc_elastix()`, plus the
+  top-level `lm_to_banc_layer()` orchestrator that emits a registry
+  entry per sample.
+- Two correctness fixes baked in: (a) source NRRDs are 12-bit-packed
+  in uint16; without a `>>4` shift the Elastix output saturates at
+  255 across the brain. (b) saalfeldlab dfield in `JRC2018F_FCWB.h5`
+  is FCWB → JRC2018F (forward); for image resampling we need the
+  inverse, applied via the JAR's `-i` flag.
+- **`inst/scripts/kondo_to_banc.R`** — historical-record batch driver,
+  modes `test | glutamate | all`. Skip-list for 22 corrupt
+  (gzip-truncated) NRRDs in the local mirror that need re-download
+  from G-Node before they can be processed. 120 layers warped +
+  uploaded to `gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/kondo_et_al_2020/`.
+- **`bancr::banc_lm_links`** packaged data object: 4-column tibble
+  (source, gene, sample, ngl_link) of pre-minted Spelunker URLs for
+  every layer in the master registry. 120 rows after the Kondo full
+  set lands. Built by `data-raw/make_banc_lm_links.R` from the
+  master `gs://...light_level/registry.json`.
+
+## Done (2026-05-07): Deng et al. 2019 image-mode pipeline (BRAIN)
+
+- **`R/lm_pipeline.R` extension** with Deng-specific helpers:
+  - `lsm_to_nrrd()` — wraps `inst/python/lsm_to_nrrd.py` (tifffile +
+    SimpleITK) to extract NC82 (ch1) + GFP (ch0) from a Carl Zeiss
+    LSM into two NRRDs with proper voxdims.
+  - `lm_to_jrc2018u_elastix()` — Elastix multi-stage native →
+    JRC2018U registration (rigid CoG + affine + B-spline λ=50
+    bending penalty), using bundled `inst/extdata/elastix_lm_to_jrc2018u/`
+    parameter files. Auto-passes a bundled
+    `JRC2018U_centralbrain_mask.nrrd` as `-fMask` to focus the
+    metric on the central-brain region the source confocal FOV
+    actually covers.
+  - `jrc2018u_to_jrc2018f_h5()` — Stage B'' bridge using
+    `JRC2018U_JRC2018F.h5` (no `-i` flag — dfield direction matches
+    the resampling direction we need, unlike the FCWB case).
+  - `lsm_to_banc_layer()` — top-level orchestrator stitching all five
+    stages.
+- **Production registration = "v22"**: rigid (CoG init) + affine
+  (12-DOF) + bending-penalty B-spline (λ=50, 16 µm grid, 4-level,
+  1500 iters) + central-brain fixed mask. Selected after a 25+
+  -variation parameter sweep across metric (Mattes MI vs NCC), grid
+  spacing, iteration count, regularization weight, mask presence.
+  Test-set scores on CapaR-BRAIN-F: NMI 1.21, Pearson r 0.86,
+  inside-mesh thr=20 = 48% strict / 60% with 10%-inflated mesh.
+- **Cross-method bake-off**: CMTK (registrationx) gave broken
+  placement out-of-box (NRRD orientation issue with no `space`
+  tag; needs NIfTI inputs to fix). ANTs SyN with default and
+  fly-tuned (SyNRA, CC metric, custom iterations) parameters
+  produces marginally higher Pearson r (0.87) but worse anatomical
+  placement (inside-mesh thr=20 = 42% vs 48%). v22 = best practical
+  baseline. Manual-landmark init is the most likely path to break
+  the ceiling, deferred.
+- **`inst/scripts/deng_to_banc.R`** — historical-record batch driver,
+  modes `test | brain | vnc | all`. Currently running over the 270
+  *BRAIN*.lsm files in the local mirror; ~5 min/sample → ~22 h
+  unattended.
+
+## In-flight (2026-05-07)
+
+- [ ] **Run Deng BRAIN cohort (270 LSMs) through v22.** Started
+      ~13:15 local on 2026-05-07; ETA ~11:00 the next day. Each sample
+      produces a `<gene>_<sample>.ng/` precomputed dir under
+      `~/deng_to_banc/deng_et_al_2019/`. Upload to
+      `gs://...light_level/deng_et_al_2019/` + registry merge happens
+      after the batch finishes.
+- [ ] **VNC pipeline** (`lsm_vnc_to_banc_layer()`): native LSM →
+      JRC2018VNCF → BANC. Skips the U → F bridge — no
+      `JRC2018VNCU_JRC2018VNCF.h5` is published, and bancr's
+      `vnc_240721/` chain registers against `JRC2018_VNC_FEMALE`
+      directly, so we can target that. First test on
+      CapaR-L-T1-VNC-F: NMI 1.21, **Pearson r 0.92** (better than
+      brain's 0.86 — VNC is structurally easier). Wired up but
+      needs (a) a VNC central-cord mask analog, (b) a
+      `jrcvnc2018f_to_banc_elastix()` wrapper, (c) an orchestrator
+      `lsm_vnc_to_banc_layer()`, (d) a chunked inside-mesh scorer
+      (BANC VNC volume = 6.1 G voxels, blows R's default 64 GB
+      vector limit when read whole).
+
+## Open / stretch goals
+
+- Manual-landmark init for samples where v22 doesn't satisfy QC.
+  Hand-click ~10 corresponding points (mushroom-body lobes,
+  antennal lobes, central-complex landmarks) per sample via bigwarp
+  → derive an initial affine → run v22's bspline on top.
+- ANTs SyNRA with truly fly-tuned params (longer iters,
+  regularization tuning) — best chance to beat Elastix v22 if needed.
+- Per-sample QC step in the batch driver: compute Pearson r on the
+  Stage A' output + inside-neuropil after Stage C; flag samples
+  below thresholds (r < 0.7 or inside_+10% < 50%) for manual review.
+- Multi-channel registration (NC82 + GFP simultaneously) — would
+  require ITK/ANTs custom configuration; significant code effort.
+- Push the Deng layers' Spelunker URLs into `bancr::banc_lm_links`
+  via `data-raw/make_banc_lm_links.R` after upload + registry merge.
