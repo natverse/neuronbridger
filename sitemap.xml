@@ -10,8 +10,12 @@
 <url><loc>/authors.html</loc></url>
 <url><loc>/index.html</loc></url>
 <url><loc>/reference/index.html</loc></url>
+<url><loc>/reference/jrc2018u_to_jrc2018f_h5.html</loc></url>
 <url><loc>/reference/kdrc.html</loc></url>
 <url><loc>/reference/lm_pipeline.html</loc></url>
+<url><loc>/reference/lm_to_jrc2018u_elastix.html</loc></url>
+<url><loc>/reference/lsm_to_banc_layer.html</loc></url>
+<url><loc>/reference/lsm_to_nrrd.html</loc></url>
 <url><loc>/reference/neuronbridge_avoid.html</loc></url>
 <url><loc>/reference/neuronbridge_hits.html</loc></url>
 <url><loc>/reference/neuronbridge_ids.html</loc></url>
