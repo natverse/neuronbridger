@@ -2,6 +2,7 @@
 <url><loc>/404.html</loc></url>
 <url><loc>/articles/abdominal_peripheral_targets.html</loc></url>
 <url><loc>/articles/asta_sez.html</loc></url>
+<url><loc>/articles/banc_colormip_search.html</loc></url>
 <url><loc>/articles/colormip_direct_vs_fiji.html</loc></url>
 <url><loc>/articles/colormip_lm.html</loc></url>
 <url><loc>/articles/index.html</loc></url>
@@ -9,8 +10,10 @@
 <url><loc>/articles/split_design.html</loc></url>
 <url><loc>/authors.html</loc></url>
 <url><loc>/index.html</loc></url>
+<url><loc>/reference/colormip_search.html</loc></url>
 <url><loc>/reference/index.html</loc></url>
 <url><loc>/reference/jrc2018u_to_jrc2018f_h5.html</loc></url>
+<url><loc>/reference/jrcvnc2018f_to_jrcvnc2018u_hr_h5.html</loc></url>
 <url><loc>/reference/kdrc.html</loc></url>
 <url><loc>/reference/lm_pipeline.html</loc></url>
 <url><loc>/reference/lm_to_jrc2018u_elastix.html</loc></url>
@@ -26,6 +29,7 @@
 <url><loc>/reference/nrrd_to_mip.html</loc></url>
 <url><loc>/reference/nrrd_to_precomputed.html</loc></url>
 <url><loc>/reference/split_halves.html</loc></url>
+<url><loc>/reference/tif_to_nrrd_channels.html</loc></url>
 <url><loc>/tasks.html</loc></url>
 </urlset>
 
