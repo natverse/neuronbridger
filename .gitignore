@@ -9,9 +9,10 @@ examples
 .httr-oauth
 .Renviron
 inst/doc
-# Note: docs/ is intentionally NOT ignored — GitHub Pages serves
-# https://natverse.org/neuronbridger/ from main:/docs. Run
-# pkgdown::build_site() and commit docs/ alongside any vignette change.
+# GitHub Pages now serves https://natverse.org/neuronbridger/ from the
+# `gh-pages` branch (the .github/workflows/pkgdown.yaml deploy target),
+# so a locally-built `docs/` is just scratch and should not be committed.
+docs/
 neuronbridger/
 nrrd/
 mip/
