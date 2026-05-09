@@ -24,12 +24,27 @@
 #     TOP_K -- per-sample top hits to keep (default 25)
 
 suppressMessages({
-  library(neuronbridger)
+  # Prefer the working-tree neuronbridger if present at NB_DEV_ROOT or
+  # the cwd's parent path (the script ships under inst/scripts/).
+  dev_root <- Sys.getenv("NB_DEV_ROOT", unset = "")
+  if (!nzchar(dev_root)) {
+    cwd <- normalizePath(getwd(), mustWork = FALSE)
+    if (file.exists(file.path(cwd, "DESCRIPTION")) &&
+        identical(read.dcf(file.path(cwd, "DESCRIPTION"), "Package")[[1]],
+                  "neuronbridger")) dev_root <- cwd
+  }
+  if (nzchar(dev_root) && dir.exists(dev_root)) {
+    devtools::load_all(dev_root, quiet = TRUE)
+  } else {
+    library(neuronbridger)
+  }
   library(bancr)
   library(nat)
+  library(nat.flybrains)
   library(nat.templatebrains)
   library(nat.jrcbrains)
   library(nat.nblast)
+  nat.jrcbrains::register_saalfeldlab_registrations()
   library(tibble); library(dplyr); library(readr)
 })
 
@@ -96,7 +111,9 @@ process_one <- function(lsm, top_k = TOP_K) {
   out_dir   <- file.path(WORK_DIR, name)
   out_csv   <- file.path(dirname(OUT_CSV), paste0(name, "_hits.csv"))
   if (file.exists(out_csv)) {
-    message("  SKIP (have CSV): ", name); return(readr::read_csv(out_csv, show_col_types = FALSE))
+    message("  SKIP (have CSV): ", name)
+    return(readr::read_csv(out_csv, show_col_types = FALSE,
+                           col_types = readr::cols(banc_id = "c")))
   }
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
@@ -156,31 +173,33 @@ process_one <- function(lsm, top_k = TOP_K) {
   lm_pts <- sweep(fg - 1L, 2, vd, "*")
   lm_dp  <- nat::dotprops(lm_pts, k = 5L)
 
-  banc_dps <- tryCatch({
-    meshes <- bancr::banc_read_neuron_meshes(hit_ids)
-    in_jf  <- nat.templatebrains::xform_brain(meshes,
-                                              sample = "BANC", reference = "JRC2018F")
-    target <- if (region == "brain") "JRC2018U" else "JRCVNC2018U"
-    in_tg  <- nat.templatebrains::xform_brain(in_jf,
-                                              sample = "JRC2018F", reference = target)
-    nat::nlapply(in_tg, nat::dotprops, k = 5L, .progress = "none")
-  }, error = function(e) {
-    message("  NBLAST setup failed for ", name, ": ", conditionMessage(e))
-    NULL
-  })
-  nblast_scores <- if (!is.null(banc_dps)) {
+  # Per-neuron NBLAST — skip ones that fail to load or warp.
+  target_tb <- if (region == "brain") "JRC2018U"  else "JRCVNC2018U"
+  source_tb <- if (region == "brain") "JRC2018F"  else "JRCVNC2018F"
+  region_tps <- if (region == "brain") "brain" else "vnc"
+  nblast_scores <- vapply(seq_along(hit_ids), function(i) {
     tryCatch({
-      as.numeric(nat.nblast::nblast(banc_dps, target = lm_dp, normalised = TRUE))
-    }, error = function(e) {
-      message("  NBLAST run failed for ", name, ": ", conditionMessage(e))
-      rep(NA_real_, length(hit_ids))
-    })
-  } else rep(NA_real_, length(hit_ids))
+      m <- bancr::banc_read_neuron_meshes(hit_ids[i])
+      if (length(m) == 0L) return(NA_real_)
+      m_jf <- bancr::banc_to_JRC2018F(m,
+                                      method = "tpsreg",
+                                      banc.units = "nm",
+                                      region = region_tps)
+      m_tg <- nat.templatebrains::xform_brain(m_jf,
+                                              sample = source_tb, reference = target_tb)
+      pts <- nat::xyzmatrix(m_tg)
+      if (nrow(pts) < 6L) return(NA_real_)
+      dp  <- nat::dotprops(pts, k = 5L)
+      as.numeric(nat.nblast::nblast(dp, target = lm_dp, normalised = TRUE))
+    }, error = function(e) NA_real_)
+  }, numeric(1))
+  cat(sprintf("  NBLAST: %d / %d scored\n",
+              sum(!is.na(nblast_scores)), length(nblast_scores)))
 
   out <- tibble::tibble(
     deng_sample = name,
     region      = region,
-    banc_id     = hit_ids,
+    banc_id     = as.character(hit_ids),
     cm_score    = hits$score,
     cm_n_match  = hits$n_match,
     cm_dx       = hits$dx,
