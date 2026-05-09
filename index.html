@@ -253,8 +253,8 @@ mip_gmr_example
 <span><span class="co"># Now plot!</span></span>
 <span><span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/nopen3d.html" class="external-link">nopen3d</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu">hemibrainr</span><span class="fu">::</span><span class="fu">hemibrain_view</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://dmurdoch.github.io/rgl/dev/reference/plot3d.html" class="external-link">plot3d</a></span><span class="op">(</span><span class="va">all.pns</span><span class="op">[</span><span class="va">id</span><span class="op">]</span>, col <span class="op">=</span> <span class="st">"black"</span>, lwd <span class="op">=</span> <span class="fl">5</span>, soma <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span> <span class="co"># in black, the DM1 uPN</span></span>
-<span><span class="fu"><a href="https://dmurdoch.github.io/rgl/dev/reference/plot3d.html" class="external-link">plot3d</a></span><span class="op">(</span><span class="va">all.pns</span>, soma <span class="op">=</span> <span class="fl">500</span>, lwd <span class="op">=</span> <span class="fl">0.5</span>, alpha <span class="op">=</span> <span class="fl">0.25</span><span class="op">)</span></span>
+<span><span class="fu">plot3d</span><span class="op">(</span><span class="va">all.pns</span><span class="op">[</span><span class="va">id</span><span class="op">]</span>, col <span class="op">=</span> <span class="st">"black"</span>, lwd <span class="op">=</span> <span class="fl">5</span>, soma <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span> <span class="co"># in black, the DM1 uPN</span></span>
+<span><span class="fu">plot3d</span><span class="op">(</span><span class="va">all.pns</span>, soma <span class="op">=</span> <span class="fl">500</span>, lwd <span class="op">=</span> <span class="fl">0.5</span>, alpha <span class="op">=</span> <span class="fl">0.25</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># See the problem?</span></span>
 <span><span class="co">## These are all different neurons, and many different neuron types. There is only oneDM1 uPN. </span></span>
@@ -267,7 +267,7 @@ em_dm1_upn
 <span><span class="va">search</span> <span class="op">=</span> <span class="st">"542634818"</span></span>
 <span></span>
 <span><span class="co"># And we do not want these other PNs</span></span>
-<span><span class="va">avoid</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/nat/man/setdiff.html" class="external-link">setdiff</a></span><span class="op">(</span><span class="fu">hemibrainr</span><span class="fu">::</span><span class="va">pn.ids</span>,<span class="va">search</span><span class="op">)</span></span>
+<span><span class="va">avoid</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sets.html" class="external-link">setdiff</a></span><span class="op">(</span><span class="fu">hemibrainr</span><span class="fu">::</span><span class="va">pn.ids</span>,<span class="va">search</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Search! ASnd get info on those neurons we do not like as well.</span></span>
 <span><span class="va">nb.a</span> <span class="op">=</span> <span class="fu"><a href="reference/neuronbridge_avoid.html">neuronbridge_avoid</a></span><span class="op">(</span>search <span class="op">=</span> <span class="va">search</span>, avoid <span class="op">=</span> <span class="va">avoid</span><span class="op">)</span></span>
@@ -313,11 +313,11 @@ em_dm1_upn
 <span></span>
 <span><span class="co"># Plot in 3d!</span></span>
 <span><span class="fu">hemibrainr</span><span class="fu">::</span><span class="fu">hemibrain_view</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://dmurdoch.github.io/rgl/dev/reference/plot3d.html" class="external-link">plot3d</a></span><span class="op">(</span><span class="va">cont.neurons</span>, lwd  <span class="op">=</span> <span class="fl">2</span>, soma <span class="op">=</span> <span class="fl">500</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://dmurdoch.github.io/rgl/dev/reference/plot3d.html" class="external-link">plot3d</a></span><span class="op">(</span><span class="fu">hemibrainr</span><span class="fu">::</span><span class="va">hemibrain.surf</span>, col <span class="op">=</span> <span class="st">"grey"</span>, alpha <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span>
+<span><span class="fu">plot3d</span><span class="op">(</span><span class="va">cont.neurons</span>, lwd  <span class="op">=</span> <span class="fl">2</span>, soma <span class="op">=</span> <span class="fl">500</span><span class="op">)</span></span>
+<span><span class="fu">plot3d</span><span class="op">(</span><span class="fu">hemibrainr</span><span class="fu">::</span><span class="va">hemibrain.surf</span>, col <span class="op">=</span> <span class="st">"grey"</span>, alpha <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># And compare with the LM data:</span></span>
-<span><span class="fu"><a href="https://dmurdoch.github.io/rgl/dev/reference/open3d.html" class="external-link">open3d</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="fu">open3d</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">mips</span> <span class="op">=</span> <span class="fu"><a href="reference/neuronbridge_mip.html">neuronbridge_mip</a></span><span class="op">(</span><span class="va">line</span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/neuronbridge_mip.html">scan_mip</a></span><span class="op">(</span><span class="va">mips</span>,type<span class="op">=</span><span class="st">"images"</span>, sleep <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></code></pre></div>
 <figure><img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/em_hits.png" alt="em_hits"><figcaption aria-hidden="true">
