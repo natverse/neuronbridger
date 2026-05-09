@@ -21,6 +21,7 @@ results/
 .claude/
 CLAUDE.md
 CLAUDE.local.md
+tasks.md
 *.Rcheck/
 *.tar.gz
 vignettes/*.html
