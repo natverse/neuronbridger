@@ -1,0 +1,236 @@
+---
+title: "Search BANC for matches to Deng 2019 LM stains via colour-MIP"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Search BANC for matches to Deng 2019 LM stains via colour-MIP}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Goal
+
+For each Deng et al. 2019 GAL4 line LM stain, find the BANC EM neurons
+that most likely express it. The recipe:
+
+1. Re-warp the raw `.lsm` to a NeuronBridge-compatible template
+   (`JRC2018_UNISEX_20x_HR` for brain, `JRC2018_VNC_UNISEX_HR` for VNC).
+2. Render a colour-depth MIP of the warp via `nrrd_to_mip()`.
+3. Score that MIP against the BANC neuron MIP library hosted at
+   `gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/`
+   using `colormip_search()`.
+4. NBLAST the top-K BANC neurons against the LM-derived dotprops to give
+   a complementary morphological score.
+5. Emit a master CSV: one row per (Deng sample, BANC hit) carrying both
+   colour-MIP and NBLAST scores.
+
+The BANC LM-overlay layers in
+[`bancr::banc_lm_links`](../reference/banc_lm_links.html) live in BANC
+voxel space — that's the right grid for *visual* overlay on the EM, but
+NeuronBridge searches need MIPs on the canonical template grids. So we
+re-warp once, just for this workflow.
+
+# Setup
+
+```{r install, eval = FALSE}
+remotes::install_github("natverse/neuronbridger")
+remotes::install_github("flyconnectome/bancr")
+remotes::install_github("natverse/nat.flybrains")
+remotes::install_github("natverse/nat.jrcbrains")
+nat.jrcbrains::download_saalfeldlab_registrations()
+
+# CMTK + Elastix + reticulate + cloud-volume + jq
+# (see vignette("publish_lm_layer") for full installation notes)
+```
+
+```{r libs}
+library(neuronbridger)
+library(bancr)
+library(nat)
+library(nat.templatebrains)
+library(nat.jrcbrains)
+nat.jrcbrains::register_saalfeldlab_registrations()
+```
+
+# Stage 1 — Re-warp an LSM to the NeuronBridge template grid
+
+The production pipeline (`lsm_to_banc_layer()`) targets the BANC voxel
+grid. For colour-MIP search we want the canonical NeuronBridge grids
+instead. The bspline + affine elastix params from
+`inst/extdata/elastix_lm_to_jrc2018u/` are template-agnostic, so we just
+swap the fixed image:
+
+```{r rewarp}
+lsm_to_nb_template <- function(nc82, gfp, output_dir,
+                               region = c("brain", "VNC"),
+                               threads = 8L, verbose = TRUE) {
+  region   <- match.arg(region)
+  template <- switch(region,
+                     brain = "~/templates/JRC2018_UNISEX_20x_HR.nrrd",
+                     VNC   = "~/templates/JRC2018_VNC_UNISEX_HR.nrrd")
+  template <- path.expand(template)
+  dir.create(path.expand(output_dir), showWarnings = FALSE, recursive = TRUE)
+
+  # Disable the brain-specific central-brain mask (it's on the 1652x768x479
+  # JRC2018U grid; doesn't fit the 1210x566x174 HR grid).
+  options(neuronbridger.jrc2018u_fixed_mask = "")
+
+  lm_to_jrc2018u_elastix(
+    nc82       = nc82,
+    gfp        = gfp,
+    output_dir = output_dir,
+    template   = template,
+    threads    = threads,
+    verbose    = verbose
+  )
+}
+```
+
+```{r rewarp-one-sample}
+res <- lsm_to_nb_template(
+  nc82       = "~/deng_to_banc/raw/CapaR-L-T1-BRAIN-F_nc82.nrrd",
+  gfp        = "~/deng_to_banc/raw/CapaR-L-T1-BRAIN-F_gfp.nrrd",
+  output_dir = "~/deng_to_banc/nb_template/CapaR-L-T1-BRAIN-F",
+  region     = "brain"
+)
+res$gfp_jrc2018u   # path to the warped GFP NRRD (1210 x 566 x 174 @ 0.519/0.519/1.0 um)
+```
+
+A single brain sample takes ~90 s on an M1 (8 threads). Run the same
+function with `region = "VNC"` for VNC samples; the output is on the
+JRC2018VNCU_HR grid (573 × 1119 × 219 @ 0.461/0.461/0.7 µm) and
+`nrrd_to_mip(target_space = "VNC")` adds the standard 90-pixel header
+that BANC VNC MIPs carry.
+
+# Stage 2 — Render the colour-MIP
+
+```{r mip}
+v <- nat::read.nrrd(res$gfp_jrc2018u)
+storage.mode(v) <- "integer"   # mmand denoise rejects raw bytes
+mip_path <- nrrd_to_mip(
+  v,
+  save         = TRUE,
+  format       = "png",
+  target_space = "brain",
+  method       = "direct",
+  savefolder   = "~/deng_to_banc/nb_mips/CapaR-L-T1-BRAIN-F"
+)
+```
+
+The PNG matches the BANC library's grid (1210 × 566 for brain;
+573 × 1209 for VNC, including the 90-pixel header).
+
+# Stage 3 — Search the BANC library
+
+The BANC neuron MIP library — 93k brain MIPs and 25k VNC MIPs at
+2026-05 — lives at
+`gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/`.
+Either pre-sync it locally, or hand `colormip_search()` a vector of
+gs-mounted paths:
+
+```{r sync, eval = FALSE}
+# One-time sync of the brain library to ~/banc_colormips/
+system(paste("gsutil -m rsync -r",
+             "gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_UNISEX_20x_HR/",
+             "~/banc_colormips/JRC2018_UNISEX_20x_HR/"))
+```
+
+```{r search}
+hits <- colormip_search(
+  query       = mip_path,
+  library     = "~/banc_colormips/JRC2018_UNISEX_20x_HR",
+  threshold   = 100L,
+  z_tolerance = 2L,
+  xy_shift    = 2L,
+  mirror      = TRUE,           # CapaR is bilateral; symmetric query
+  top_n       = 25L,
+  mc.cores    = 8L,
+  verbose     = TRUE
+)
+head(hits)
+#>                                                                                                     path
+#> 1 .../JRC2018_UNISEX_20x_HR/720575941512345678_in_JRC2018_UNISEX_20x_HR.png
+#> 2 .../JRC2018_UNISEX_20x_HR/720575941598765432_in_JRC2018_UNISEX_20x_HR.png
+#>      score n_match dx dy mirror
+#> 1   0.842   25344  -1  0  FALSE
+#> 2   0.731   21984   1 -1  FALSE
+```
+
+`score` is matched-pixel-fraction-of-query-foreground; values above ~0.5
+are typically meaningful overlap, above 0.7 are strong candidates.
+
+# Stage 4 — NBLAST top hits against the LM signal
+
+For each top hit, fetch the BANC neuron mesh + skeletonise as dotprops,
+build dotprops from the LM signal volume, and NBLAST. NBLAST uses
+positional + tangent agreement, complementary to colorMIP's purely
+visual pixel overlap.
+
+```{r nblast}
+library(nat.nblast)
+
+# Convert top hits' filenames to BANC root IDs
+hit_ids <- sub(".*/(\\d+)_in_.*", "\\1", head(hits$path, 25))
+
+# LM dotprops from the warped LM volume
+lm_pts <- nat::xyzmatrix(which(v > 30, arr.ind = TRUE)) *
+          rep(c(0.5189, 0.5189, 1.0), each = nrow(.))   # voxel -> um
+lm_dp  <- nat::dotprops(lm_pts, k = 5L)
+
+# BANC meshes -> dotprops in JRC2018U_HR (mesh -> JRC2018F via tpsreg, then to U_HR)
+banc_meshes <- bancr::banc_read_neuron_meshes(hit_ids)
+banc_in_jrcf <- nat.templatebrains::xform_brain(banc_meshes,
+                                                 sample = "BANC",
+                                                 reference = "JRC2018F")
+banc_in_jrcu <- nat.templatebrains::xform_brain(banc_in_jrcf,
+                                                 sample = "JRC2018F",
+                                                 reference = "JRC2018U")
+banc_dps <- nat::nlapply(banc_in_jrcu, nat::dotprops, k = 5L)
+
+# Score: hit dotprops as queries vs LM dotprops as target
+nblast_scores <- nat.nblast::nblast(banc_dps, target = lm_dp, normalised = TRUE)
+```
+
+# Stage 5 — Master hits CSV
+
+Combine colorMIP + NBLAST scores per Deng sample and write a flat CSV:
+
+```{r master, eval = FALSE}
+master <- tibble::tibble(
+  deng_sample = "CapaR-L-T1-BRAIN-F",
+  banc_id     = hit_ids,
+  cm_score    = head(hits$score, 25),
+  cm_dx       = head(hits$dx, 25),
+  cm_dy       = head(hits$dy, 25),
+  cm_mirror   = head(hits$mirror, 25),
+  nblast      = as.numeric(nblast_scores)[seq_along(hit_ids)]
+)
+readr::write_csv(master, "~/deng_to_banc/colormip_hits/CapaR-L-T1-BRAIN-F.csv")
+```
+
+# Stage 6 — Run over all Deng samples
+
+The reproducer at `inst/scripts/deng_colormip_search.R` walks the
+54-brain + (eventually) ~44-VNC Deng cohort, re-warps, MIPs, searches
+and NBLASTs in one pass, and emits a single master CSV at
+`~/deng_to_banc/colormip_hits/master.csv`. Per-sample runtime ≈ 2–3 min
+(~90 s rewarp + ~30 s search if the BANC library is pre-synced + ~30 s
+NBLAST on top-25). Full cohort runtime ≈ 4 h.
+
+# Provenance
+
+* **BANC neuron colorMIPs**: 93,724 brain (JRC2018U_HR) + 25,034 VNC
+  (JRCVNC2018U_HR with 90-pixel header) MIPs at
+  `gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/`.
+* **Search algorithm**: `colormip_search()` (this package) — pure-R port
+  of Janelia's ColorMIP_Mask_Search, validated byte-for-byte against
+  Jasper Phelps's BANC port; see
+  [`mip_from_em.html`](mip_from_em.html).
+* **NBLAST**: `nat.nblast::nblast()` (Costa et al. 2016).
