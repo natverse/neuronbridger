@@ -6,6 +6,7 @@
 \alias{fcwb_to_jrc2018f_h5}
 \alias{jrc2018f_to_banc_elastix}
 \alias{lm_to_banc_layer}
+\alias{lsm_vnc_to_banc_layer}
 \title{Bridge a source-space LM volume into BANC voxel coordinates}
 \usage{
 is2_to_fcwb_cmtk(
@@ -44,6 +45,22 @@ lm_to_banc_layer(
   keep_intermediates = FALSE,
   sample_space = "IS2",
   right_shift = 4L,
+  threads = 8L,
+  verbose = TRUE
+)
+
+lsm_vnc_to_banc_layer(
+  input,
+  gene,
+  sample,
+  channel = "GFP",
+  dataset = "deng_et_al_2019",
+  output_dir,
+  source_path = NULL,
+  ds_nm = c(1600L, 1600L, 800L),
+  python = NULL,
+  chunk_size = c(64L, 64L, 32L),
+  keep_intermediates = FALSE,
   threads = 8L,
   verbose = TRUE
 )
@@ -102,6 +119,14 @@ atlas.}
 
 \item{keep_intermediates}{logical; keep the FCWB / JRC2018F / BANC
 intermediate NRRDs for inspection (default \code{FALSE}).}
+
+\item{ds_nm}{length-3 integer; output BANC voxel size in nm.
+Default \code{c(1600, 1600, 800)} (4× xy / 2× z downsample of the
+400 nm BANC grid).}
+
+\item{python}{path to a Python interpreter that has
+\code{SimpleITK} + \code{numpy} on its module path. Defaults to
+the conda-managed Python the rest of the package uses.}
 }
 \value{
 path to the FCWB-aligned NRRD.
@@ -146,6 +171,22 @@ Apple-silicon Mac with 8 threads:
   \item Stage D (nrrd_to_precomputed): ~30 s
   \item \strong{total}: ~5 min/volume
 }
+
+\code{lsm_vnc_to_banc_layer()} is the VNC analogue of
+\code{\link{lsm_to_banc_layer}}. It registers a VNC LSM directly to
+the JRC2018VNCF template (single-stage Stage A'), then warps the
+aligned GFP volume into BANC voxel space using
+\code{bancr::banc_to_jrcvnc2018f_tpsreg} via an inverse-warp +
+max-pool resample (no thresholding, every LM intensity preserved).
+The final BANC NRRD is written as a Neuroglancer precomputed layer
+at \code{<output_dir>/<gene>_<sample>.ng/}.
+
+VNC differs from the brain pipeline in two ways: (1) the bancr
+\code{vnc_240721/} elastix bridge is incomplete (only inverts the
+fine bspline, missing the manual + elastix affines), so we skip it
+and use the tpsreg directly; (2) the source LSMs are typically a
+~90 µm Z slab vs the cord's ~130 µm depth, so Stage A' has some
+Z under-determination that no choice of bridge can fix.
 }
 \section{External dependencies}{
 

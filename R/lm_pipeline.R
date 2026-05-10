@@ -1035,3 +1035,150 @@ lsm_to_banc_layer <- function(input,
                            total                    = as.numeric(
                              difftime(Sys.time(), t_all, units = "secs"))))
 }
+
+
+#' @rdname lm_pipeline
+#' @description \code{lsm_vnc_to_banc_layer()} is the VNC analogue of
+#' \code{\link{lsm_to_banc_layer}}. It registers a VNC LSM directly to
+#' the JRC2018VNCF template (single-stage Stage A'), then warps the
+#' aligned GFP volume into BANC voxel space using
+#' \code{bancr::banc_to_jrcvnc2018f_tpsreg} via an inverse-warp +
+#' max-pool resample (no thresholding, every LM intensity preserved).
+#' The final BANC NRRD is written as a Neuroglancer precomputed layer
+#' at \code{<output_dir>/<gene>_<sample>.ng/}.
+#'
+#' VNC differs from the brain pipeline in two ways: (1) the bancr
+#' \code{vnc_240721/} elastix bridge is incomplete (only inverts the
+#' fine bspline, missing the manual + elastix affines), so we skip it
+#' and use the tpsreg directly; (2) the source LSMs are typically a
+#' ~90 µm Z slab vs the cord's ~130 µm depth, so Stage A' has some
+#' Z under-determination that no choice of bridge can fix.
+#'
+#' @param ds_nm length-3 integer; output BANC voxel size in nm.
+#'   Default \code{c(1600, 1600, 800)} (4× xy / 2× z downsample of the
+#'   400 nm BANC grid).
+#' @param python path to a Python interpreter that has
+#'   \code{SimpleITK} + \code{numpy} on its module path. Defaults to
+#'   the conda-managed Python the rest of the package uses.
+#' @export
+lsm_vnc_to_banc_layer <- function(input,
+                                  gene,
+                                  sample,
+                                  channel             = "GFP",
+                                  dataset             = "deng_et_al_2019",
+                                  output_dir,
+                                  source_path         = NULL,
+                                  ds_nm               = c(1600L, 1600L, 800L),
+                                  python              = NULL,
+                                  chunk_size          = c(64L, 64L, 32L),
+                                  keep_intermediates  = FALSE,
+                                  threads             = 8L,
+                                  verbose             = TRUE) {
+  stopifnot(file.exists(input), nzchar(gene), nzchar(sample), nzchar(dataset))
+  if (!requireNamespace("bancr", quietly = TRUE))
+    stop("bancr is required for the VNC bridge tpsreg.")
+  if (!requireNamespace("jsonlite", quietly = TRUE))
+    stop("jsonlite is required to export the tpsreg to Python.")
+  if (missing(output_dir) || is.null(output_dir))
+    stop("`output_dir` is required.")
+  output_dir <- path.expand(output_dir)
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+  name      <- paste(gene, sample, sep = "_")
+  raw_dir   <- file.path(output_dir, "raw")
+  reg_dir   <- file.path(output_dir, "elastix", name)
+  banc_nrrd <- file.path(output_dir, paste0(name, "_aligned240721_to_BANC.nrrd"))
+  pc_dir    <- file.path(output_dir, paste0(name, ".ng"))
+  tps_json  <- file.path(output_dir, "banc_to_jrcvnc2018f_tpsreg.json")
+
+  # Cache the tpsreg coefficients as JSON for the Python helper.
+  if (!file.exists(tps_json)) {
+    tps <- bancr::banc_to_jrcvnc2018f_tpsreg
+    jsonlite::write_json(list(refmat = tps$refmat,
+                              tarmat = tps$tarmat,
+                              lambda = tps$lambda),
+                         tps_json, auto_unbox = TRUE, digits = 10,
+                         matrix = "rowmajor")
+  }
+
+  vnc_template <- getOption("neuronbridger.jrcvnc2018f_template",
+                            default = path.expand("~/templates/JRC2018_VNC_FEMALE_461.nrrd"))
+
+  py <- python %||% reticulate::conda_python("r-reticulate")
+  if (!file.exists(py)) py <- Sys.which("python3")
+  if (!nzchar(py)) stop("No usable Python interpreter found.")
+  py_helper <- system.file("python", "lm_vnc_inverse_warp.py",
+                           package = "neuronbridger")
+  if (!nzchar(py_helper)) stop("inst/python/lm_vnc_inverse_warp.py not in installed package.")
+
+  t_all <- Sys.time()
+
+  # Stage 0: LSM -> NC82 + GFP NRRDs
+  t0 <- system.time({
+    chans <- lsm_to_nrrd(input, raw_dir, prefix = name, verbose = verbose)
+  })[["elapsed"]]
+
+  # Stage A': native LSM -> JRC2018VNCF via Elastix
+  options(neuronbridger.jrc2018u_fixed_mask = "")  # no central-cord mask yet
+  t1 <- system.time({
+    r <- lm_to_jrc2018u_elastix(
+      nc82       = chans[["nc82"]],
+      gfp        = chans[["gfp"]],
+      output_dir = reg_dir,
+      template   = vnc_template,
+      threads    = threads,
+      verbose    = verbose
+    )
+  })[["elapsed"]]
+
+  # Stage B (VNC): JRC2018VNCF -> BANC voxel via tpsreg inverse-warp + max-pool
+  t2 <- system.time({
+    args <- c(shQuote(r$gfp_jrc2018u),
+              shQuote(tps_json),
+              shQuote(banc_nrrd),
+              as.character(ds_nm))
+    rval <- system2(py, args = c(shQuote(py_helper), args),
+                    stdout = if (verbose) "" else NULL,
+                    stderr = if (verbose) "" else NULL)
+    if (rval != 0L) stop("inverse-warp Python helper exited ", rval)
+  })[["elapsed"]]
+
+  # Stage D: NRRD -> Neuroglancer precomputed
+  t3 <- system.time(
+    nrrd_to_precomputed(input = banc_nrrd, output = pc_dir,
+                        resolution = ds_nm, data_type = "uint8",
+                        encoding = "raw", chunk_size = chunk_size,
+                        compress = FALSE, overwrite = TRUE)
+  )[["elapsed"]]
+
+  if (!keep_intermediates) {
+    if (file.exists(banc_nrrd)) file.remove(banc_nrrd)
+    unlink(reg_dir, recursive = TRUE)
+    unlink(raw_dir, recursive = TRUE)
+  }
+
+  registry_entry <- tibble::tibble(
+    dataset         = dataset,
+    gene            = gene,
+    sample          = sample,
+    channel         = channel,
+    name            = name,
+    gs_url          = sprintf("gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/%s/%s.ng/",
+                              dataset, name),
+    alignment_space = "BANC",
+    voxdims_nm      = list(as.integer(ds_nm)),
+    source_filename = basename(input),
+    source_path     = source_path %||% input,
+    uploaded        = format(Sys.Date())
+  )
+
+  list(precomputed_dir = pc_dir,
+       registry_entry  = registry_entry,
+       elastix_metric  = r$final_metric,
+       timings         = c(stage0_lsm_extract       = t0,
+                           stageA_native_to_jrcvncf = t1,
+                           stageB_jrcvncf_to_banc   = t2,
+                           stageD_precomputed       = t3,
+                           total                    = as.numeric(
+                             difftime(Sys.time(), t_all, units = "secs"))))
+}

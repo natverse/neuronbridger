@@ -23,10 +23,16 @@
 # NRRDs cached locally + transformix on PATH + the Saalfeld
 # template-building JAR):
 #
-#   Rscript inst/scripts/kondo_to_banc.R [test|glutamate|all]
+#   Rscript inst/scripts/kondo_to_banc.R [test|glutamate|all] [--upload] [--register]
 #     test       --  3 volumes  --- runtime probe
 #     glutamate  -- 22 volumes  --- 11 glutamate-receptor genes x 2 samples
 #     all        -- 142 volumes --- everything in the Kondo inventory
+#     --upload   --  on completion, gsutil cp -r each .ng dir to GCS
+#                    (gs://lee-lab.../light_level/kondo_et_al_2020/).
+#     --register --  on completion, merge registry_entries.json into the
+#                    master registry.json on GCS, then re-mint
+#                    bancr::banc_lm_links via the bancr data-raw helper.
+#                    Implies --upload.
 #
 # The script is resumable: any `<gene>_<sample>.ng/` directory that
 # already exists under OUT_ROOT/<dataset>/ is silently skipped.
@@ -91,9 +97,17 @@ suppressMessages({
 DROP_DIR  <- "/Users/asbates/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat/kondo_et_al_2020/nrrd"
 OUT_ROOT  <- "~/kondo_to_banc"
 DATASET   <- "kondo_et_al_2020"
+GS_BASE   <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level"
+BANCR_REPO <- "~/Projects/flyconnectome/bancr"
 
-mode <- commandArgs(trailingOnly = TRUE)
-if (!length(mode)) mode <- "test"
+# --- args -----------------------------------------------------------
+.args   <- commandArgs(trailingOnly = TRUE)
+mode    <- {
+  m <- setdiff(.args, c("--upload", "--register"))
+  if (!length(m)) "test" else m[1]
+}
+upload   <- "--upload"   %in% .args || "--register" %in% .args
+register <- "--register" %in% .args
 
 # --- gene cohorts (Kondo 2020 inventory, by neurotransmitter family) --
 
@@ -311,18 +325,39 @@ reg_json    <- list(
     row
   })
 )
+local_reg <- file.path(out_dir, "registry_entries.json")
 writeLines(jsonlite::toJSON(reg_json, auto_unbox = TRUE, pretty = TRUE),
-           file.path(out_dir, "registry_entries.json"))
+           local_reg)
 
-# --- next-step instructions -------------------------------------------
+# --- optional upload + registry merge ------------------------------
+if (upload) {
+  cat("\n=== uploading .ng dirs to GCS ===\n")
+  cmd <- sprintf("gsutil -m cp -Z -r %s/*.ng %s/%s/",
+                 shQuote(out_dir), GS_BASE, DATASET)
+  cat("$ ", cmd, "\n", sep = "")
+  if (system(cmd) != 0L) stop("gsutil cp failed")
+}
+if (register) {
+  cat("\n=== merging into master registry.json ===\n")
+  master_url <- sprintf("%s/registry.json", GS_BASE)
+  tmp_master <- tempfile(fileext = ".json")
+  tmp_merged <- tempfile(fileext = ".json")
+  if (system2("gsutil", c("cat", master_url),
+              stdout = tmp_master) != 0L) stop("gsutil cat failed")
+  cmd <- sprintf("jq '.volumes += $batch.volumes' --argfile batch %s %s > %s",
+                 shQuote(local_reg), shQuote(tmp_master), shQuote(tmp_merged))
+  if (system(cmd) != 0L) stop("jq merge failed")
+  cmd <- sprintf("gsutil cp %s %s", shQuote(tmp_merged), master_url)
+  if (system(cmd) != 0L) stop("gsutil push failed")
+  cat("master registry updated\n")
 
-cat("\nNext steps (lee-lab maintainers only --- bucket is public-read but ",
-    "private-write):\n", sep = "")
-cat(sprintf("  gsutil -m cp -r %s/*.ng gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/%s/\n",
-            out_dir, DATASET))
-cat("\nThen merge the per-batch registry_entries.json into the master ",
-    "registry:\n", sep = "")
-cat("  gsutil cat gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/registry.json | \\\n")
-cat(sprintf("    jq '.volumes += $batch.volumes' --argfile batch %s/registry_entries.json | \\\n",
-            out_dir))
-cat("    gsutil cp - gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/registry.json\n")
+  cat("\n=== re-minting bancr::banc_lm_links ===\n")
+  bancr_dir <- normalizePath(path.expand(BANCR_REPO), mustWork = FALSE)
+  if (dir.exists(bancr_dir)) {
+    cmd <- sprintf("cd %s && Rscript data-raw/make_banc_lm_links.R",
+                   shQuote(bancr_dir))
+    system(cmd)
+  } else {
+    cat("(skipping banc_lm_links — bancr repo not at ", bancr_dir, ")\n", sep = "")
+  }
+}
