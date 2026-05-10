@@ -48,13 +48,17 @@ augment_sample <- function(csv_path) {
                           col_types = readr::cols(banc_id = "c"))
   if (!nrow(hits)) return(hits)
 
-  # 1. Lookup v888 IDs from root_626 (the colormip library's ID)
+  # 1. Lookup v888 IDs from root_626 (the colormip library's ID).
+  # Per user instruction: prefer root_888 if present, else fall back to root_626.
   lk <- m888 |>
     dplyr::select(root_626, root_888, super_cluster, cell_function,
                   neurotransmitter_predicted) |>
     dplyr::distinct(root_626, .keep_all = TRUE)
   aug <- hits |>
     dplyr::left_join(lk, by = c("banc_id" = "root_626"))
+  # canonical id col: root_888 if available, else root_626 (= banc_id)
+  aug$preferred_id <- ifelse(is.na(aug$root_888), aug$banc_id, aug$root_888)
+  aug$id_source    <- ifelse(is.na(aug$root_888), "root_626", "root_888")
 
   # 2. Voxel attribution: take each LM fg voxel's BANC nm coord, find its
   # nearest L2-skeleton point across the top-K SWCs, increment that hit's count
