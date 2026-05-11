@@ -27,7 +27,8 @@
 #
 # Usage:
 #   Rscript inst/scripts/colormip_search_against_banc.R \
-#     <query_mip_dir> <region (brain|VNC)> <warps_root> <out_dir> [TOP_K]
+#     <query_mip_dir> <region (brain|VNC)> <warps_root> <out_dir> \
+#     [TOP_K] [--force] [--data-root <path>]
 #
 #     query_mip_dir   directory of query colour-MIP PNGs (one per
 #                     sample); typically the output of
@@ -37,10 +38,24 @@
 #     warps_root      directory containing the JRC2018U_HR /
 #                     JRCVNC2018U_HR-aligned LM volumes
 #                     (<sample>_in_<template>.nrrd) — needed for the
-#                     LM dotprops + voxel-attribution steps.
+#                     LM dotprops + voxel-attribution steps. Pass the
+#                     "elastix" subdir or wherever your warped GFP
+#                     NRRDs live; the script looks for
+#                     <warps_root>/<sample>/elastix/gfp_xform/result.nrrd
+#                     and <warps_root>/<sample>.nrrd.
 #     out_dir         per-sample <name>_hits.csv files + master CSV
 #                     are written here.
 #     TOP_K           per-sample top hits to keep (default 25).
+#     --force         recompute even if <name>_hits.csv already exists.
+#     --data-root P   override local data root (used to find the BANC
+#                     colorMIP library + v888 metadata + L2 SWCs).
+#                     Default: ~/Library/CloudStorage/Dropbox-HMS/...
+#
+# Local layout expected under <data-root>:
+#   banc_colormips/{JRC2018_UNISEX_20x_HR,JRC2018_VNC_UNISEX_461}/
+#                            BANC neuron colorMIP libraries
+#   banc_meta/banc_888_meta.feather             v888 metadata
+#   banc_meta/banc_banc_space_swc/<id>_l2.swc   v888 L2 skeletons
 
 suppressMessages({
   pkg_dir <- normalizePath(getwd(), mustWork = FALSE)
@@ -59,20 +74,29 @@ suppressMessages({
 })
 
 # --- args ----------------------------------------------------------
+DEFAULT_DATA_ROOT <- "~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat"
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 4) stop("usage: colormip_search_against_banc.R QUERY_DIR REGION WARPS_ROOT OUT_DIR [TOP_K]")
+dr_idx <- which(args == "--data-root")
+data_root <- if (length(dr_idx) && dr_idx < length(args)) args[dr_idx + 1L] else Sys.getenv("NEURONBRIDGER_DATA_ROOT", unset = DEFAULT_DATA_ROOT)
+DATA_ROOT <- path.expand(data_root)
+if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
+force <- "--force" %in% args
+args  <- setdiff(args, "--force")
+
+if (length(args) < 4) stop("usage: colormip_search_against_banc.R QUERY_DIR REGION WARPS_ROOT OUT_DIR [TOP_K] [--force] [--data-root <path>]")
 QUERY_DIR  <- path.expand(args[1])
 REGION     <- match.arg(args[2], c("brain", "VNC"))
 WARPS_ROOT <- path.expand(args[3])
 OUT_DIR    <- path.expand(args[4])
 TOP_K      <- if (length(args) >= 5) as.integer(args[5]) else 25L
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
+cat("DATA_ROOT: ", DATA_ROOT, "\n", sep = "")
 
-LIB_DIR <- file.path(path.expand("~/banc_colormips"),
+LIB_DIR <- file.path(DATA_ROOT, "banc_colormips",
                      if (REGION == "brain") "JRC2018_UNISEX_20x_HR"
                      else "JRC2018_VNC_UNISEX_461")
-META    <- "~/banc_meta/banc_888_meta.feather"
-SWC_DIR <- path.expand("~/banc_meta/banc_banc_space_swc")
+META    <- file.path(DATA_ROOT, "banc_meta", "banc_888_meta.feather")
+SWC_DIR <- file.path(DATA_ROOT, "banc_meta", "banc_banc_space_swc")
 GS_LIB  <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721"
 GS_SWC  <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/compiled_data/banc_888/banc_banc_space_swc"
 
@@ -101,7 +125,10 @@ META_LK <- m888 |> dplyr::select(root_626, root_888, super_cluster,
 process_query <- function(mip_path) {
   name <- sub("\\.png$", "", basename(mip_path))
   out_csv <- file.path(OUT_DIR, paste0(name, "_hits.csv"))
-  if (file.exists(out_csv)) { message("SKIP ", name, " (CSV exists)"); return(out_csv) }
+  if (file.exists(out_csv) && !force) {
+    message("SKIP ", name, " (CSV exists; pass --force to recompute)")
+    return(out_csv)
+  }
   message("\n=== ", name, " ===")
 
   # 1. colorMIP search

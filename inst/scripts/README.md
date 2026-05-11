@@ -22,37 +22,44 @@ data-import step.
 
 ### Common arguments
 
-`*_to_banc.R` registration scripts share two flags:
+All five pipeline scripts accept:
 
-* `--upload`   on completion, `gsutil -m cp -Z -r` each `*.ng/`
+* `--data-root <path>`   root for every local source + output. Defaults
+  to `~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat`
+  (or the `$NEURONBRIDGER_DATA_ROOT` env var if set).
+* `--force`              recompute even if the per-sample output
+  already exists (default skips and prints a SKIP line).
+
+The three `*_to_banc.R` registration scripts also accept:
+
+* `--upload`     on completion, `gsutil -m cp -Z -r` each `*.ng/`
   directory into `gs://lee-lab.../light_level/<dataset>/`.
-* `--register` on completion, merge the per-batch
+* `--register`   on completion, merge the per-batch
   `registry_entries.json` into the master `registry.json` on GCS,
   then re-mint `bancr::banc_lm_links` (runs
   `bancr/data-raw/make_banc_lm_links.R`). Implies `--upload`.
 
-Each script is also resumable: any sample whose `.ng/` (or per-sample
-PNG / CSV) already exists is silently skipped.
-
 ### Typical run order
 
 ```bash
-# (one-time) sync the BANC neuron MIP libraries locally
-mkdir -p ~/banc_colormips
+DATA="$HOME/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat"
+
+# (one-time) sync the BANC neuron MIP libraries
+mkdir -p "$DATA/banc_colormips"
 gsutil -m rsync -r \
   gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_UNISEX_20x_HR/ \
-  ~/banc_colormips/JRC2018_UNISEX_20x_HR/
+  "$DATA/banc_colormips/JRC2018_UNISEX_20x_HR/"
 gsutil -m rsync -r \
   gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_VNC_UNISEX_461/ \
-  ~/banc_colormips/JRC2018_VNC_UNISEX_461/
+  "$DATA/banc_colormips/JRC2018_VNC_UNISEX_461/"
 
-# (one-time) sync v888 metadata + L2 skeletons (for NBLAST + voxel-attr)
-mkdir -p ~/banc_meta/banc_banc_space_swc
+# (one-time) sync v888 metadata + L2 skeletons
+mkdir -p "$DATA/banc_meta/banc_banc_space_swc"
 gsutil cp \
   gs://lee-lab_brain-and-nerve-cord-fly-connectome/compiled_data/banc_888/banc_888_meta.feather \
-  ~/banc_meta/
+  "$DATA/banc_meta/"
 
-# 1. Register LM data + ship to GCS
+# 1. Register LM data + ship to GCS (skips per-sample outputs that exist)
 Rscript inst/scripts/kondo_to_banc.R       all   --register
 Rscript inst/scripts/deng_brain_to_banc.R  all   --register
 Rscript inst/scripts/deng_vnc_to_banc.R    all   --register
@@ -64,22 +71,55 @@ Rscript inst/scripts/make_colormip_library.R kondo brain   all
 
 # 3. Search against BANC + emit master ranked CSV
 Rscript inst/scripts/colormip_search_against_banc.R \
-  ~/deng_to_banc/colormip_library/brain  brain \
-  ~/deng_to_banc/colormip_library/brain  ~/deng_to_banc/colormip_hits  25
+  "$DATA/deng_to_banc/colormip_library/brain"  brain \
+  "$DATA/deng_to_banc/colormip_search"  "$DATA/deng_to_banc/colormip_hits"  25
 ```
 
 ### Data paths
 
+All local paths are derived from `--data-root` (or the
+`$NEURONBRIDGER_DATA_ROOT` env var; default
+`~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat/`).
+
+**Local sources** (read; relative to `<data-root>/`):
+
+| What | Path |
+|---|---|
+| Deng raw LSMs (Bowen / Lee lab mirror) | `imaging-CCT-Bowen/<gene>-<...>-(BRAIN|VNC)-<sex>.lsm` |
+| Kondo IS2 NRRDs (G-Node mirror)        | `kondo_et_al_2020/nrrd/IS2_<gene>_no<n>_02_warp_*.nrrd` |
+| Templates                              | `templates/JRC2018_UNISEX_20x_HR.nrrd`, `JRC2018_VNC_UNISEX_HR.nrrd`, `JRC2018_VNC_FEMALE_461.nrrd` |
+| BANC v888 metadata (synced once)       | `banc_meta/banc_888_meta.feather` |
+| BANC v888 L2 SWCs (synced once)        | `banc_meta/banc_banc_space_swc/<root_888>_l2.swc` |
+| BANC neuron colorMIP libraries (synced once) | `banc_colormips/{JRC2018_UNISEX_20x_HR,JRC2018_VNC_UNISEX_461}/` |
+
+**Local outputs** (write; relative to `<data-root>/`):
+
+| What | Path |
+|---|---|
+| BANC-aligned `.ng` (Deng)              | `deng_to_banc/deng_et_al_2019/<gene>_<region>-<sex>.ng/` |
+| BANC-aligned `.ng` (Kondo)             | `kondo_to_banc/kondo_et_al_2020/<gene>_no<n>.ng/` |
+| Per-batch registry stub + timings      | `<dataset_out>/registry_entries.json`, `timings.csv` |
+| NB-template MIPs                       | `{deng,kondo}_to_banc/colormip_library/{brain,VNC}/<name>.png` |
+| Search hits per sample                 | `deng_to_banc/colormip_hits/<name>_hits.csv` |
+| Master ranked CSV                      | `deng_to_banc/colormip_hits/master_augmented.csv` |
+
+**GCS** (`gs://lee-lab_brain-and-nerve-cord-fly-connectome/`):
+
+| What | Path |
+|---|---|
+| Master LM registry                                   | `light_level/registry.json` |
+| Per-dataset LM layers                                | `light_level/{kondo_et_al_2020,deng_et_al_2019}/<name>.ng/` |
+| BANC neuron colour-MIP library                       | `neuron_colormips/template_alignment_240721/{JRC2018_UNISEX_20x_HR,JRC2018_VNC_UNISEX_461}/` |
+| BANC v888 metadata (root_626 ↔ root_888 ↔ cell_type) | `compiled_data/banc_888/banc_888_meta.feather` |
+| BANC v888 L2 skeletons (BANC nm)                     | `compiled_data/banc_888/banc_banc_space_swc/<root_888>_l2.swc` |
+
+**R packages**:
+
 | What | Where |
 |---|---|
-| Deng raw LSMs (Bowen / Lee lab mirror) | `~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat/imaging-CCT-Bowen/<gene>-<...>-(BRAIN|VNC)-<sex>.lsm` |
-| Kondo IS2 NRRDs (G-Node mirror)        | `~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat/kondo_et_al_2020/nrrd/IS2_<gene>_no<n>_02_warp_*.nrrd` |
-| BANC LM precomputed layers (output)     | `gs://lee-lab.../light_level/<dataset>/<gene>_<sample>.ng/` |
-| Master LM registry                      | `gs://lee-lab.../light_level/registry.json` |
-| BANC neuron colour-MIP library          | `gs://lee-lab.../neuron_colormips/template_alignment_240721/{JRC2018_UNISEX_20x_HR,JRC2018_VNC_UNISEX_461}/` |
-| BANC v888 metadata (root_626 ↔ root_888 ↔ cell_type) | `gs://lee-lab.../compiled_data/banc_888/banc_888_meta.feather` |
-| BANC v888 L2 skeletons (BANC nm)        | `gs://lee-lab.../compiled_data/banc_888/banc_banc_space_swc/<root_888>_l2.swc` |
-| Templates expected on disk              | `~/templates/JRC2018_UNISEX_20x_HR.nrrd`, `~/templates/JRC2018_VNC_UNISEX_HR.nrrd`, `~/templates/JRC2018_VNC_FEMALE_461.nrrd` |
+| Master LM-link table (174 rows = 120 Kondo + 54 Deng BRAIN as of 2026-05-09) | `bancr::banc_lm_links` |
+| `bancr` repo (for re-minting links)                  | `~/Projects/flyconnectome/bancr` |
+| Saalfeldlab JRC2018 H5 bridges (brain + VNC)         | `~/Library/Application Support/R/nat.jrcbrains/{JRC2018U_JRC2018F,JRCVNC2018U_JRCVNC2018F,...}/` (VNC ones symlinked from `~/flybrain-data/` where Python `flybrains.download_jrc_vnc_transforms()` writes them) |
 
 ## Vignette reproducers
 

@@ -20,16 +20,24 @@
 #   Stage 2   nrrd_to_mip(method = "direct") -> PNG.
 #
 # Usage:
-#   Rscript inst/scripts/make_colormip_library.R DATASET REGION [test|all]
+#   Rscript inst/scripts/make_colormip_library.R DATASET REGION \
+#     [test|all] [--force] [--data-root <path>]
 #
-#     DATASET   "deng" | "kondo"
-#     REGION    "brain" | "VNC"   (Kondo is brain-only)
-#     test      4-sample probe;  all = full cohort
+#     DATASET         "deng" | "kondo"
+#     REGION          "brain" | "VNC"  (Kondo is brain-only)
+#     test            4-sample probe;  all = full cohort
+#     --force         recompute even if the PNG already exists
+#                     (default skips existing outputs).
+#     --data-root P   override local data root. Default:
+#                     ~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat
+#                     (or $NEURONBRIDGER_DATA_ROOT).
 #
-# Outputs:
-#   ~/{deng,kondo}_to_banc/colormip_library/{brain,VNC}/<name>_in_<template>.png
-#
-# Re-runs are resumable: per-sample PNGs that already exist are skipped.
+# Local layout expected under <data-root>:
+#   imaging-CCT-Bowen/         Deng raw LSMs
+#   kondo_et_al_2020/nrrd/     Kondo IS2 NRRDs
+#   templates/                 JRC2018_UNISEX_20x_HR.nrrd, JRC2018_VNC_UNISEX_HR.nrrd
+#   {deng,kondo}_to_banc/      outputs (this script writes
+#                              colormip_library/{brain,VNC}/<name>.png here)
 
 suppressMessages({
   pkg_dir <- normalizePath(getwd(), mustWork = FALSE)
@@ -44,16 +52,19 @@ suppressMessages({
 })
 
 # --- knobs ---------------------------------------------------------
-DENG_LSM_DIR <- "/Users/asbates/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat/imaging-CCT-Bowen"
-KONDO_DIR    <- "/Users/asbates/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat/kondo_et_al_2020/nrrd"
-TPL <- list(
-  brain = path.expand("~/templates/JRC2018_UNISEX_20x_HR.nrrd"),
-  VNC   = path.expand("~/templates/JRC2018_VNC_UNISEX_HR.nrrd")
-)
+DEFAULT_DATA_ROOT <- "~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat"
 
 args <- commandArgs(trailingOnly = TRUE)
+dr_idx <- which(args == "--data-root")
+data_root <- if (length(dr_idx) && dr_idx < length(args)) args[dr_idx + 1L] else Sys.getenv("NEURONBRIDGER_DATA_ROOT", unset = DEFAULT_DATA_ROOT)
+DATA_ROOT <- path.expand(data_root)
+if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
+
+force <- "--force" %in% args
+args  <- setdiff(args, "--force")
+
 if (length(args) < 2) {
-  stop("usage: make_colormip_library.R DATASET REGION [test|all]")
+  stop("usage: make_colormip_library.R DATASET REGION [test|all] [--force] [--data-root <path>]")
 }
 dataset <- match.arg(args[1], c("deng", "kondo"))
 region  <- match.arg(args[2], c("brain", "VNC"))
@@ -61,9 +72,17 @@ mode    <- if (length(args) >= 3) args[3] else "test"
 if (dataset == "kondo" && region == "VNC")
   stop("Kondo et al. 2020 is brain-only.")
 
-OUT_ROOT <- path.expand(sprintf("~/%s_to_banc/colormip_library/%s",
-                                dataset, region))
+DENG_LSM_DIR <- file.path(DATA_ROOT, "imaging-CCT-Bowen")
+KONDO_DIR    <- file.path(DATA_ROOT, "kondo_et_al_2020", "nrrd")
+TPL <- list(
+  brain = file.path(DATA_ROOT, "templates", "JRC2018_UNISEX_20x_HR.nrrd"),
+  VNC   = file.path(DATA_ROOT, "templates", "JRC2018_VNC_UNISEX_HR.nrrd")
+)
+OUT_ROOT <- file.path(DATA_ROOT,
+                      sprintf("%s_to_banc", dataset),
+                      "colormip_library", region)
 dir.create(OUT_ROOT, showWarnings = FALSE, recursive = TRUE)
+cat("DATA_ROOT: ", DATA_ROOT, "\n", sep = "")
 
 # Disable the brain-specific central-brain mask — it's on the JRC2018U grid,
 # not JRC2018U_HR or JRC2018VNCU_HR.
@@ -102,8 +121,9 @@ process_deng <- function(lsm) {
       (region == "VNC"   && meta$region != "VNC"))   return(NULL)
   name <- sprintf("%s_%s-%s", meta$gene, meta$region, meta$sex)
   out_png <- file.path(OUT_ROOT, paste0(name, ".png"))
-  if (file.exists(out_png)) {
-    message("SKIP ", name, " (PNG exists)"); return(out_png)
+  if (file.exists(out_png) && !force) {
+    message("SKIP ", name, " (PNG exists; pass --force to recompute)")
+    return(out_png)
   }
   message("\n--- ", name, " ---")
   raw_dir <- file.path(OUT_ROOT, "raw")

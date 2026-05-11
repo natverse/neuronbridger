@@ -23,19 +23,29 @@
 # NRRDs cached locally + transformix on PATH + the Saalfeld
 # template-building JAR):
 #
-#   Rscript inst/scripts/kondo_to_banc.R [test|glutamate|all] [--upload] [--register]
-#     test       --  3 volumes  --- runtime probe
-#     glutamate  -- 22 volumes  --- 11 glutamate-receptor genes x 2 samples
-#     all        -- 142 volumes --- everything in the Kondo inventory
-#     --upload   --  on completion, gsutil cp -r each .ng dir to GCS
-#                    (gs://lee-lab.../light_level/kondo_et_al_2020/).
-#     --register --  on completion, merge registry_entries.json into the
-#                    master registry.json on GCS, then re-mint
-#                    bancr::banc_lm_links via the bancr data-raw helper.
-#                    Implies --upload.
+#   Rscript inst/scripts/kondo_to_banc.R \
+#     [test|glutamate|all] [--upload] [--register] [--data-root <path>]
+#
+#     test            --  3 volumes  --- runtime probe
+#     glutamate       -- 22 volumes  --- 11 glutamate-receptor genes x 2 samples
+#     all             -- 142 volumes --- everything in the Kondo inventory
+#     --upload        --  on completion, gsutil cp -Z .ng dirs to GCS
+#                         (gs://lee-lab.../light_level/kondo_et_al_2020/).
+#     --register      --  on completion, merge registry_entries.json into
+#                         the master registry.json on GCS, then re-mint
+#                         bancr::banc_lm_links via the bancr data-raw helper.
+#                         Implies --upload.
+#     --data-root P   --  override the local data root. Defaults to
+#                         ~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat
+#                         (or $NEURONBRIDGER_DATA_ROOT if set).
+#
+# Local layout expected under <data-root>:
+#   kondo_et_al_2020/nrrd/    G-Node IS2-aligned NRRDs (sources)
+#   templates/                JRC2018F.nrrd etc.
+#   kondo_to_banc/            outputs (this script writes <DATASET>/ here)
 #
 # The script is resumable: any `<gene>_<sample>.ng/` directory that
-# already exists under OUT_ROOT/<dataset>/ is silently skipped.
+# already exists is silently skipped.
 #
 # == Data source ==========================================================
 #
@@ -93,21 +103,30 @@ suppressMessages({
 
 # --- knobs ------------------------------------------------------------
 
-# Local mirror of the G-Node IS2-aligned NRRD distribution.
-DROP_DIR  <- "/Users/asbates/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat/kondo_et_al_2020/nrrd"
-OUT_ROOT  <- "~/kondo_to_banc"
-DATASET   <- "kondo_et_al_2020"
-GS_BASE   <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level"
+# All local sources + outputs live under a single DATA_ROOT.
+DEFAULT_DATA_ROOT <- "~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat"
+DATASET    <- "kondo_et_al_2020"
+GS_BASE    <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level"
 BANCR_REPO <- "~/Projects/flyconnectome/bancr"
 
 # --- args -----------------------------------------------------------
-.args   <- commandArgs(trailingOnly = TRUE)
-mode    <- {
-  m <- setdiff(.args, c("--upload", "--register"))
-  if (!length(m)) "test" else m[1]
-}
+.args  <- commandArgs(trailingOnly = TRUE)
+dr_idx <- which(.args == "--data-root")
+data_root <- if (length(dr_idx) && dr_idx < length(.args)) .args[dr_idx + 1L] else Sys.getenv("NEURONBRIDGER_DATA_ROOT", unset = DEFAULT_DATA_ROOT)
+DATA_ROOT <- path.expand(data_root)
+if (length(dr_idx)) .args <- .args[-c(dr_idx, dr_idx + 1L)]
+
+force    <- "--force" %in% .args
 upload   <- "--upload"   %in% .args || "--register" %in% .args
 register <- "--register" %in% .args
+mode <- {
+  m <- setdiff(.args, c("--force", "--upload", "--register"))
+  if (!length(m)) "test" else m[1]
+}
+
+DROP_DIR <- file.path(DATA_ROOT, "kondo_et_al_2020", "nrrd")
+OUT_ROOT <- file.path(DATA_ROOT, "kondo_to_banc")
+cat("DATA_ROOT: ", DATA_ROOT, "\n", sep = "")
 
 # --- gene cohorts (Kondo 2020 inventory, by neurotransmitter family) --
 
@@ -271,8 +290,8 @@ for (gs in target_set) {
     next
   }
   pc_dir <- file.path(out_dir, paste0(name, ".ng"))
-  if (dir.exists(pc_dir) && length(list.files(pc_dir))) {
-    message(sprintf("SKIP  %s --- precomputed dir already exists", name))
+  if (dir.exists(pc_dir) && length(list.files(pc_dir)) && !force) {
+    message(sprintf("SKIP  %s (precomputed dir exists; pass --force to recompute)", name))
     next
   }
   message(sprintf("\n--- %s ---", name))

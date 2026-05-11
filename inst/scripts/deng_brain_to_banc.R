@@ -18,15 +18,24 @@
 # data-raw/make_banc_lm_links.R helper.
 #
 # Usage:
-#   Rscript inst/scripts/deng_brain_to_banc.R [test|all] [--upload] [--register]
+#   Rscript inst/scripts/deng_brain_to_banc.R \
+#     [test|all] [--upload] [--register] [--data-root <path>]
 #
-#     test       --  4 CapaR test samples (BRAIN-{F,M} + VNC-{F,M};
-#                    VNC samples are silently skipped here).
-#     all        --  every *BRAIN*.lsm in the local mirror.
-#     --upload   --  on completion, gsutil cp -Z the .ng dirs to
-#                    gs://lee-lab.../light_level/<DATASET>/.
-#     --register --  on completion, merge registry_entries.json into the
-#                    master registry.json on GCS. Implies --upload.
+#     test            --  4 CapaR test samples (BRAIN-{F,M} + VNC-{F,M};
+#                         VNC samples are silently skipped here).
+#     all             --  every *BRAIN*.lsm in the local mirror.
+#     --upload        --  on completion, gsutil cp -Z the .ng dirs to
+#                         gs://lee-lab.../light_level/<DATASET>/.
+#     --register      --  on completion, merge registry_entries.json into
+#                         the master registry.json on GCS. Implies --upload.
+#     --data-root P   --  override the local data root. Defaults to
+#                         ~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat
+#                         (or $NEURONBRIDGER_DATA_ROOT if set).
+#
+# Local layout expected under <data-root>:
+#   imaging-CCT-Bowen/   raw LSMs (sources)
+#   templates/           JRC2018_UNISEX_20x_HR.nrrd, ...
+#   deng_to_banc/        outputs (this script writes <DATASET>/ here)
 #
 # Re-runs are resumable: any sample whose .ng dir already exists locally
 # is skipped.
@@ -50,17 +59,34 @@ suppressMessages({
 })
 
 # --- knobs ---------------------------------------------------------
-LSM_DIR  <- "/Users/asbates/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat/imaging-CCT-Bowen"
-OUT_ROOT <- "~/deng_to_banc"
-DATASET  <- "deng_et_al_2019"
-GS_BASE  <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level"
+# All local sources + outputs live under a single DATA_ROOT. The default
+# is Alex's Dropbox layout; override via NEURONBRIDGER_DATA_ROOT or the
+# --data-root CLI flag (handled below).
+DEFAULT_DATA_ROOT <- "~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat"
+DATASET    <- "deng_et_al_2019"
+GS_BASE    <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level"
 BANCR_REPO <- "~/Projects/flyconnectome/bancr"
 
 # --- args ----------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-mode <- if (length(args) && args[1] %in% c("test", "all")) args[1] else "test"
+# pull --data-root <path> out of args if present
+dr_idx <- which(args == "--data-root")
+data_root <- if (length(dr_idx) && dr_idx < length(args)) args[dr_idx + 1L] else Sys.getenv("NEURONBRIDGER_DATA_ROOT", unset = DEFAULT_DATA_ROOT)
+DATA_ROOT <- path.expand(data_root)
+if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
+
+force    <- "--force" %in% args
 upload   <- "--upload"   %in% args || "--register" %in% args
 register <- "--register" %in% args
+args     <- setdiff(args, c("--force", "--upload", "--register"))
+mode     <- if (length(args) && args[1] %in% c("test", "all")) args[1] else "test"
+
+LSM_DIR <- file.path(DATA_ROOT, "imaging-CCT-Bowen")
+OUT_DIR <- file.path(DATA_ROOT, "deng_to_banc", DATASET)
+TPL_DIR <- file.path(DATA_ROOT, "templates")
+options(neuronbridger.jrc2018u_template =
+          file.path(TPL_DIR, "JRC2018_UNISEX_20x_HR.nrrd"))
+cat("DATA_ROOT: ", DATA_ROOT, "\n", sep = "")
 
 # --- file-name parser ----------------------------------------------
 parse_lsm <- function(fname) {
@@ -88,8 +114,7 @@ list_lsms <- function(mode) {
 
 # --- main loop -----------------------------------------------------
 if (!dir.exists(LSM_DIR)) stop("LSM dir not found: ", LSM_DIR)
-out_root <- normalizePath(path.expand(OUT_ROOT), mustWork = FALSE)
-out_dir  <- file.path(out_root, DATASET)
+out_dir <- normalizePath(OUT_DIR, mustWork = FALSE)
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 targets <- list_lsms(mode)
@@ -104,8 +129,8 @@ for (src in targets) {
   if (is.null(meta) || meta$region != "BRAIN") next
   name   <- paste(meta$gene, meta$sample, sep = "_")
   pc_dir <- file.path(out_dir, paste0(name, ".ng"))
-  if (dir.exists(pc_dir) && length(list.files(pc_dir))) {
-    message("SKIP  ", name, " --- precomputed dir already exists"); next
+  if (dir.exists(pc_dir) && length(list.files(pc_dir)) && !force) {
+    message("SKIP  ", name, " (precomputed dir exists; pass --force to recompute)"); next
   }
   message("\n--- ", name, " ---")
   res <- try(lsm_to_banc_layer(
