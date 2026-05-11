@@ -140,6 +140,11 @@ process_deng <- function(lsm) {
                           savefolder = file.path(OUT_ROOT, "_mip_tmp"))
   file.rename(png_path, out_png)
   unlink(file.path(OUT_ROOT, "_mip_tmp"), recursive = TRUE)
+  # Keep the warped GFP NRRD next to the PNG; the colormip search step
+  # needs it for LM dotprops + voxel-attribution.
+  warp_dst <- file.path(OUT_ROOT, paste0(name, ".nrrd"))
+  if (file.exists(reg$gfp_jrc2018u)) file.copy(reg$gfp_jrc2018u, warp_dst,
+                                                overwrite = TRUE)
   unlink(reg_dir, recursive = TRUE)
   message("  wrote ", out_png)
   out_png
@@ -174,7 +179,10 @@ process_kondo <- function(nrrd) {
                           savefolder = file.path(OUT_ROOT, "_mip_tmp"))
   file.rename(png_path, out_png)
   unlink(file.path(OUT_ROOT, "_mip_tmp"), recursive = TRUE)
-  for (f in c(fcwb_nrrd, jrcf_nrrd, jrcu_nrrd)) if (file.exists(f)) file.remove(f)
+  # Keep <name>.nrrd next to the PNG for downstream search NBLAST.
+  warp_dst <- file.path(OUT_ROOT, paste0(name, ".nrrd"))
+  if (file.exists(jrcu_nrrd)) file.rename(jrcu_nrrd, warp_dst)
+  for (f in c(fcwb_nrrd, jrcf_nrrd)) if (file.exists(f)) file.remove(f)
   message("  wrote ", out_png)
   out_png
 }
