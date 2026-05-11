@@ -120,7 +120,7 @@ force    <- "--force" %in% .args
 upload   <- "--upload"   %in% .args || "--register" %in% .args
 register <- "--register" %in% .args
 mode <- {
-  m <- setdiff(.args, c("--force", "--upload", "--register"))
+  m <- .args[!.args %in% c("--force", "--upload", "--register")]
   if (!length(m)) "test" else m[1]
 }
 

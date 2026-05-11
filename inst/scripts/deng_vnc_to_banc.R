@@ -66,7 +66,7 @@ if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
 force    <- "--force" %in% args
 upload   <- "--upload"   %in% args || "--register" %in% args
 register <- "--register" %in% args
-args     <- setdiff(args, c("--force", "--upload", "--register"))
+args     <- args[!args %in% c("--force", "--upload", "--register")]
 mode     <- if (length(args) && args[1] %in% c("test", "all")) args[1] else "test"
 
 LSM_DIR <- file.path(DATA_ROOT, "imaging-CCT-Bowen")

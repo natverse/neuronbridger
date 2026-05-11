@@ -61,7 +61,7 @@ DATA_ROOT <- path.expand(data_root)
 if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
 
 force <- "--force" %in% args
-args  <- setdiff(args, "--force")
+args  <- args[args != "--force"]
 
 if (length(args) < 2) {
   stop("usage: make_colormip_library.R DATASET REGION [test|all] [--force] [--data-root <path>]")

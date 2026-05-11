@@ -81,7 +81,7 @@ data_root <- if (length(dr_idx) && dr_idx < length(args)) args[dr_idx + 1L] else
 DATA_ROOT <- path.expand(data_root)
 if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
 force <- "--force" %in% args
-args  <- setdiff(args, "--force")
+args  <- args[args != "--force"]
 
 if (length(args) < 4) stop("usage: colormip_search_against_banc.R QUERY_DIR REGION WARPS_ROOT OUT_DIR [TOP_K] [--force] [--data-root <path>]")
 QUERY_DIR  <- path.expand(args[1])
