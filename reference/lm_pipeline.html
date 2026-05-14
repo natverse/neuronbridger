@@ -27,7 +27,21 @@ Stage C (transformix):     ~1 min
 Stage D (nrrd_to_precomputed): ~30 s
 total: ~5 min/volume
 
-"><meta property="og:image" content="/logo.svg"><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
+
+lsm_vnc_to_banc_layer() is the VNC analogue of
+lsm_to_banc_layer. It registers a VNC LSM directly to
+the JRC2018VNCF template (single-stage Stage A'), then warps the
+aligned GFP volume into BANC voxel space using
+bancr::banc_to_jrcvnc2018f_tpsreg via an inverse-warp +
+max-pool resample (no thresholding, every LM intensity preserved).
+The final BANC NRRD is written as a Neuroglancer precomputed layer
+at &amp;lt;output_dir&amp;gt;/&amp;lt;gene&amp;gt;_&amp;lt;sample&amp;gt;.ng/.
+VNC differs from the brain pipeline in two ways: (1) the bancr
+vnc_240721/ elastix bridge is incomplete (only inverts the
+fine bspline, missing the manual + elastix affines), so we skip it
+and use the tpsreg directly; (2) the source LSMs are typically a
+~90 µm Z slab vs the cord's ~130 µm depth, so Stage A' has some
+Z under-determination that no choice of bridge can fix."><meta property="og:image" content="/logo.svg"><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
 <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
 <![endif]--></head><body data-spy="scroll" data-target="#toc">
@@ -86,6 +100,9 @@ total: ~5 min/volume
     <li>
       <a href="../articles/publish_lm_layer.html">Publish an LM volume as a Neuroglancer layer on BANC</a>
     </li>
+    <li>
+      <a href="../articles/deng_colormip_search.html">Search BANC for matches to Deng 2019 LM stains via colour-MIP</a>
+    </li>
   </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"><li>
   <a href="https://github.com/natverse/neuronbridger/" class="external-link">
@@ -131,7 +148,21 @@ Apple-silicon Mac with 8 threads:</p>
 <li><p>Stage C (transformix):     ~1 min</p></li>
 <li><p>Stage D (nrrd_to_precomputed): ~30 s</p></li>
 <li><p><strong>total</strong>: ~5 min/volume</p></li>
-</ul></div>
+</ul><p><code>lsm_vnc_to_banc_layer()</code> is the VNC analogue of
+<code><a href="lsm_to_banc_layer.html">lsm_to_banc_layer</a></code>. It registers a VNC LSM directly to
+the JRC2018VNCF template (single-stage Stage A'), then warps the
+aligned GFP volume into BANC voxel space using
+<code><a href="https://flyconnectome.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">bancr::banc_to_jrcvnc2018f_tpsreg</a></code> via an inverse-warp +
+max-pool resample (no thresholding, every LM intensity preserved).
+The final BANC NRRD is written as a Neuroglancer precomputed layer
+at <code>&lt;output_dir&gt;/&lt;gene&gt;_&lt;sample&gt;.ng/</code>.</p>
+<p>VNC differs from the brain pipeline in two ways: (1) the bancr
+<code>vnc_240721/</code> elastix bridge is incomplete (only inverts the
+fine bspline, missing the manual + elastix affines), so we skip it
+and use the tpsreg directly; (2) the source LSMs are typically a
+~90 µm Z slab vs the cord's ~130 µm depth, so Stage A' has some
+Z under-determination that no choice of bridge can fix.</p>
+    </div>
 
     <div id="ref-usage">
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">is2_to_fcwb_cmtk</span><span class="op">(</span></span>
@@ -170,6 +201,22 @@ Apple-silicon Mac with 8 threads:</p>
 <span>  keep_intermediates <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  sample_space <span class="op">=</span> <span class="st">"IS2"</span>,</span>
 <span>  right_shift <span class="op">=</span> <span class="fl">4L</span>,</span>
+<span>  threads <span class="op">=</span> <span class="fl">8L</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">lsm_vnc_to_banc_layer</span><span class="op">(</span></span>
+<span>  <span class="va">input</span>,</span>
+<span>  <span class="va">gene</span>,</span>
+<span>  <span class="va">sample</span>,</span>
+<span>  channel <span class="op">=</span> <span class="st">"GFP"</span>,</span>
+<span>  dataset <span class="op">=</span> <span class="st">"deng_et_al_2019"</span>,</span>
+<span>  <span class="va">output_dir</span>,</span>
+<span>  source_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  ds_nm <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1600L</span>, <span class="fl">1600L</span>, <span class="fl">800L</span><span class="op">)</span>,</span>
+<span>  python <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  chunk_size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">64L</span>, <span class="fl">64L</span>, <span class="fl">32L</span><span class="op">)</span>,</span>
+<span>  keep_intermediates <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  threads <span class="op">=</span> <span class="fl">8L</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -265,6 +312,18 @@ atlas.</p></dd>
 <dt id="arg-keep-intermediates">keep_intermediates<a class="anchor" aria-label="anchor" href="#arg-keep-intermediates"></a></dt>
 <dd><p>logical; keep the FCWB / JRC2018F / BANC
 intermediate NRRDs for inspection (default <code>FALSE</code>).</p></dd>
+
+
+<dt id="arg-ds-nm">ds_nm<a class="anchor" aria-label="anchor" href="#arg-ds-nm"></a></dt>
+<dd><p>length-3 integer; output BANC voxel size in nm.
+Default <code>c(1600, 1600, 800)</code> (4× xy / 2× z downsample of the
+400 nm BANC grid).</p></dd>
+
+
+<dt id="arg-python">python<a class="anchor" aria-label="anchor" href="#arg-python"></a></dt>
+<dd><p>path to a Python interpreter that has
+<code>SimpleITK</code> + <code>numpy</code> on its module path. Defaults to
+the conda-managed Python the rest of the package uses.</p></dd>
 
 </dl></div>
     <div id="value">

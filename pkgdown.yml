@@ -2,6 +2,7 @@ pandoc: 3.8.3
 pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
+  deng_colormip_search: deng_colormip_search.html
   design_split_gal4: design_split_gal4.html
   find_peripheral_targets: find_peripheral_targets.html
   match_em_to_line: match_em_to_line.html
@@ -9,4 +10,4 @@ articles:
   mip_from_lm: mip_from_lm.html
   publish_lm_layer: publish_lm_layer.html
   search_banc_with_lm: search_banc_with_lm.html
-last_built: 2026-05-09T02:06Z
+last_built: 2026-05-14T03:31Z
