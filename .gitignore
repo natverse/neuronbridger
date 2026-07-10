@@ -34,3 +34,4 @@ vignettes/figure/
 # vignette are kept under inst/images/ (not ignored).
 inst/extdata/asta_sez/
 .DS_Store
+/.tmp_misplaced_hits
