@@ -19,70 +19,100 @@ knitr::opts_chunk$set(
 
 Take a 3-D light-microscopy image of a candidate **SREN** (sex-peptide-
 receptor rectal enteric neuron) and use it as a query against the
-[BANC female adult connectome](https://www.thebancconnectome.org/)
-to recover the matching EM neurons. SRENs are a pair of cells at the
+[BANC female adult connectome](https://www.thebancconnectome.org/) to
+recover the matching EM neuron(s). SRENs are a pair of cells at the
 posterior tip of the abdominal ganglion that express the sex peptide
 receptor and send efferent processes to the rectum; they are required
-for the rod-shaped fecal pellets ("RODs") that mated females produce
-in response to seminal-fluid sex peptide. See Chae et al., *Citations*
+for the rod-shaped fecal pellets ("RODs") that mated females produce in
+response to seminal-fluid sex peptide. See Chae et al., *Citations*
 below, for the upstream/downstream circuit context.
 
-The pipeline:
+The pipeline starts from the raw `.lsm` (a 40× confocal stack of the
+abdominal tip with the cord at an angle in the field of view) and
+lands a clean BANC ranking:
 
-1.  **Bridge** the source `.tif` (in `JRCVNC2018F` template space)
-    into **`JRC2018VNCU_HR`** (the NeuronBridge VNC reference grid:
-    `573 × 1119 × 219` voxels at `0.461 × 0.461 × 0.7 µm`) via the
-    Saalfeld lab's H5 displacement field shipped by
-    [navis-flybrains](https://github.com/navis-org/navis-flybrains).
-
-2.  Render a colour-depth MIP of the bridged label channel with
+1.  **Extract** GFP (label) and NC82 (anatomical reference) from the
+    LSM at native voxdims via
+    `inst/python/lsm_to_nrrd.py`.
+2.  **PCA pre-rotate** the LSM onto JRC2018VNCF axes
+    (`inst/python/lsm_pca_rotate.py`). The NC82 tissue mask's principal
+    axes are aligned to template (X, Y, Z); the GFP CoG is anchored to
+    a known abdominal-ganglion reference point so the rotated volume
+    lands at the right tip in template coords. No Elastix optimiser run
+    — the partial FOV / weak metric overlap made the rigid+affine
+    optimiser unreliable, and PCA + an explicit anchor is more robust.
+3.  **Mask GFP by the NC82 neuropil** (`inst/python/lsm_neuropil_mask.py`).
+    Over half of the raw GFP voxels (52% in our female sample) sit
+    outside the cord neuropil — bleed-through into cuticle, rectal
+    muscle, and background. Restricting to in-neuropil GFP triples the
+    cMIP pixel-match count and promotes the right BANC matches.
+4.  **Bridge** the JRC2018VNCF NRRD into `JRC2018VNCU_HR` (the
+    NeuronBridge VNC reference grid, 573 × 1119 × 219 voxels @ 0.461 ×
+    0.461 × 0.7 µm) via the Saalfeld lab H5 displacement field shipped
+    by [navis-flybrains](https://github.com/navis-org/navis-flybrains).
+5.  **Render** a colour-depth MIP of the bridged label channel with
     `neuronbridger::nrrd_to_mip(target_space = "VNC")`.
+6.  **Search** that MIP against the BANC efferent MIP library (~1,033
+    `flow == "efferent"` cells in v888, 782 rendered) using
+    `colormip_search()`.
+7.  **NBLAST** the SREN intensity-weighted dotprops against the full
+    efferent library using `nat.nblast::nblast(..., normalised = TRUE)`
+    both directions and reporting the **fwd+rev mean**. Points are
+    bridged from JRC2018VNCF µm into BANC µm via the **full elastix
+    JRC2018F→BANC chain** (`bancr::banc_to_JRC2018F(..., method =
+    "elastix", inverse = TRUE)`) — a stack of manual affine + elastix
+    affine + coarse B-spline + fine B-spline. An earlier revision of
+    this vignette used the simpler `bancr::jrcvnc2018f_to_banc_tpsreg`
+    (a 5710-landmark TPS approximation) but that mapping collapses
+    bilateral signal onto one side of the cord at the abdominal tip;
+    the full elastix chain preserves it.
+8.  Render top-K BANC meshes overlaid on the SREN cloud as 2-D
+    `nat.ggplot` panels in BANC native µm, plus a side-by-side cMIP of
+    the SREN query and the top BANC hit, plus a bilateral-pair overlay
+    for the current best hypothesis (`EN00B016`).
 
-3.  Search the resulting MIP against the **BANC neuron MIP library**
-    at `gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_VNC_UNISEX_461/`
-    (~25k neurons), pre-filtered to BANC efferents (`flow == "efferent"`,
-    1,035 candidates) using the BANC `banc_888_meta.feather` registry.
-
-4.  Compare the R `colormip_search()` ranking against Janelia's FIJI
-    `Color_MIP_Mask_Search` plugin on the same library.
-
-5.  Visualise the top hits as 2-D `nat.ggplot` panels with BANC neuron
-    meshes over the BANC VNC neuropil.
-
-> **Why use BANC for this?** The female VNC is the only one currently
-> available at synapse resolution (BANC v888). Identifying the EM
-> counterparts of the SRENs gives us their downstream connectivity —
+> **Why use BANC for this?** BANC is the only female adult *Drosophila*
+> CNS currently reconstructed at synapse resolution (v888 here, brain
+> + VNC). Identifying the EM counterpart of the SRENs gives us their
+> downstream connectivity —
 > the descending input from SAG (Sex Peptide Abdominal Ganglion)
 > neurons, the ascending afferents that signal back to the brain, and
-> the rectal target. Colour-MIP search against BANC is the route to
-> recovering these cells from a single LM volume.
+> the rectal target. Colour-MIP search + NBLAST against BANC is the
+> route to recovering these cells from a single LM volume.
 
-![Top-6 BANC efferent matches for the SREN query](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_top_hits.png)
+![Top-6 BANC efferent matches for the SREN query (cMIP, npmask)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_top_hits.png)
 
 # What's in the package
 
-To keep the package small, neither the source `.tif` (~1.3 GB,
-private) nor the BANC efferent MIP library (~12 MB across 782 PNGs)
-ship with `neuronbridger`. The vignette walks through the download
-steps; the only artefacts shipped are the rendered figures under
-`inst/images/`:
+Neither the source `.lsm` (~480 MB, private) nor the BANC efferent
+MIP library (~12 MB across 782 PNGs) ship with `neuronbridger`. The
+vignette walks through the download steps; the only artefacts shipped
+are the rendered figures under `inst/images/`:
 
-* `banc_colormip_sren_query.png` — the SREN query MIP in JRC2018VNCU_HR.
-* `banc_colormip_sren_registration.png` — JRC2018VNCU_HR template max-Z
-  alongside the bridged NC82 reference channel, side by side.
-* `banc_colormip_r_vs_fiji.png` — scatter of R-port vs FIJI scores
-  on a 30-candidate validation subset.
-* `banc_colormip_sren_top_hits.png` — the `nat.ggplot` panel above
-  (BANC EM hit in purple, SREN LM source coloured by depth and faded
-  by intensity). Each tile shows a top-down YX view and an XZ side
-  projection so the dorso-ventral spread is visible at a glance.
-  Plotted in **BANC native µm** because the bancr TPS landmarks cap
-  at JRCVNC2018F Y ≈ 504 µm but the SREN signal extends to Y ≈ 537 µm,
-  so an F-space view extrapolates ~30 µm short at the abdominal tip.
-* `banc_colormip_sren_nblast_top.png` — same layout, BANC mesh in
-  orange, ranked by intensity-weighted NBLAST.
+* `banc_colormip_sren_query.png` — SREN query MIP in JRC2018VNCU_HR
+  after PCA pre-rotation + neuropil mask.
+* `banc_colormip_sren_top_hits.png` — top-6 hits from
+  `colormip_search()` (BANC EM mesh in purple, SREN LM cloud coloured
+  by depth, faded by intensity). Each tile shows a top-down YX view +
+  an XZ side projection. Plotted in BANC native µm; SREN cloud
+  bridged via the full elastix JRC2018F→BANC chain.
+* `banc_colormip_sren_nblast_top.png` — same layout, ranked by NBLAST
+  fwd+rev mean (normalised) against the full ~1,033-cell efferent
+  library.
+* `banc_colormip_sren_en00b016_pair.png` — the two BANC cells whose
+  `manc_cell_type = EN00B016` (candidate SREN bilateral pair):
+  `720575941680133053` (left, BANC `cell_type = EFFabg09`, ACh) +
+  `720575941659397456` (right, BANC `cell_type = EN00B016`,
+  octopamine).
+* `banc_colormip_sren_vs_top_hit.png` — side-by-side cMIP of the SREN
+  query and the current top BANC cMIP hit (label written dynamically
+  from live SeaTable annotations, since these have shifted over
+  successive proofreading rounds).
 
 A self-contained reproducer is at `inst/scripts/banc_colormip_sren.R`.
+The Python helpers it shells out to live under `inst/python/`:
+`lsm_to_nrrd.py`, `lsm_build_nc82_mask.py`, `lsm_pca_rotate.py`,
+`lsm_neuropil_mask.py`.
 
 # Prerequisites
 
@@ -96,12 +126,15 @@ remotes::install_github("natverse/nat.ggplot")    # 2-D neuron panels
 # External tooling (one-off)
 #   * Java 17+ (Saalfeldlab RenderTransformed JAR runtime)
 #   * gsutil (Google Cloud SDK), authenticated to BANC's GCS bucket
+#   * Python deps for the LSM pipeline:
+#       conda activate r-reticulate
+#       pip install tifffile SimpleITK scipy scikit-image pillow matplotlib
 #
 # The Saalfeldlab JRC VNC H5 transforms (~110 MB), via the navis
 # `flybrains` Python package:
 #
-#   reticulate::py_run_string("import flybrains;
-#                              flybrains.download_jrc_vnc_transforms()")
+#   reticulate::py_run_string(
+#     "import flybrains; flybrains.download_jrc_vnc_transforms()")
 #
 # This writes JRCVNC2018U_JRCVNC2018F.h5 to ~/flybrain-data/.
 ```
@@ -109,63 +142,112 @@ remotes::install_github("natverse/nat.ggplot")    # 2-D neuron panels
 ```{r libraries, eval = FALSE}
 library(neuronbridger)
 library(bancr)
-library(nat); library(nat.ggplot)
+library(nat); library(nat.ggplot); library(nat.nblast)
 library(arrow); library(dplyr); library(ggplot2); library(patchwork)
-library(scales)         # depth-coded SREN hue palette
+library(scales)          # depth-coded SREN hue palette
+library(reticulate)
 ```
 
-# Step 1 — Bridge JRCVNC2018F → JRC2018VNCU_HR
+# Step 1 — From raw LSM to a JRC2018VNCF-aligned GFP NRRD
 
-The source we use here is `sren_merged registration_female.tif` —
-already aligned to JRCVNC2018F (660 × 1342 × 358 @ 0.4 µm³, Channel 0
-= NC82 reference, Channel 1 = SREN label). The 90-pixel-tall black
-header that `nrrd_to_mip(target_space = "VNC")` adds on top of the
-output matches Janelia's canonical VNC colour-MIP layout (1209 × 573).
+The raw LSM here is a partial FOV of the abdominal tip with the cord
+at an angle — the tip is roughly in the middle of the image and the
+rest of the VNC would be off to the top-right. A whole-VNC Elastix
+recipe doesn't work (the optimiser keeps falling into local minima
+that put the cord on the wrong hemisphere), so we use a deterministic
+PCA pre-rotation instead.
+
+```{r lsm-to-jrcvncf}
+WORK   <- tempfile("banc_colormip_work_"); dir.create(WORK, recursive = TRUE)
+LSM    <- "/path/to/20250306_C24-53_EN1-5-1060_female_vnc_40x-2.lsm"
+TPL    <- "/path/to/JRC2018_VNC_FEMALE_461.nrrd"
+py     <- reticulate::conda_python("r-reticulate")
+pydir  <- system.file("python", package = "neuronbridger")
+
+# (a) Split the LSM into per-channel NRRDs. For this acquisition
+#     ch0 = GFP, ch1 = unused red, ch2 = NC82.
+system2(py, c(file.path(pydir, "lsm_to_nrrd.py"), LSM, WORK,
+              "--prefix", "sren_female",
+              "--gfp-channel", 0L, "--nc82-channel", 2L))
+
+# (b) NC82 tissue mask (Otsu + close + largest CC + small dilation).
+system2(py, c(file.path(pydir, "lsm_build_nc82_mask.py"),
+              file.path(WORK, "sren_female_nc82.nrrd"),
+              file.path(WORK, "sren_female_nc82_mask.nrrd")))
+
+# (c) PCA pre-rotate onto JRC2018VNCF axes, anchor GFP CoG at
+#     (131, 508, 92) um -- this is the GFP CoG of the upstream KDRC
+#     registered TIF, taken as a known-good rough placement of the SREN
+#     arborisation in template coords.
+#
+#     PC1 (longest mask axis) -> template Y (anterior-posterior)
+#     PC2 (medium)             -> template X (lateral)
+#     PC3 (shortest)           -> template Z (dorso-ventral)
+#     Sign of PC1 is set so the GFP CoG projects positively onto PC1
+#     (i.e. lands at high template Y, the posterior tip). det(R)=+1.
+dir.create(file.path(WORK, "rot"), recursive = TRUE)
+system2(py, c(file.path(pydir, "lsm_pca_rotate.py"),
+              file.path(WORK, "sren_female_nc82.nrrd"),
+              file.path(WORK, "sren_female_gfp.nrrd"),
+              file.path(WORK, "sren_female_nc82_mask.nrrd"),
+              TPL,
+              file.path(WORK, "tip_mask.nrrd"),      # ignored, see --target-um
+              file.path(WORK, "rot"),
+              "--align-source", "gfp_cog",
+              "--target-um",    "\"131,508,92\""))
+```
+
+The script writes `rot/nc82_rot.nrrd`, `rot/gfp_rot.nrrd`, and
+`rot/nc82_mask_rot.nrrd`, all sharing the same physical origin and
+voxdims (0.4 µm XY / 0.7 µm Z) with identity Direction. The R wrapper
+in `inst/scripts/banc_colormip_sren.R` then resamples these onto the
+JRC2018VNCF grid via SimpleITK (one-shot linear resample), so the
+output reads cleanly as a template-space NRRD.
+
+# Step 2 — Mask GFP by the NC82 neuropil
+
+A simple Otsu of the resampled NC82 gives a neuropil mask; we zero
+any GFP voxel that falls outside it. About **half of the raw GFP
+voxels in this acquisition sit outside the neuropil** — fluorescence
+bleed-through into cuticle, rectal muscle, and background — so this
+step is a big lever:
+
+```{r npmask}
+system2(py, c(file.path(pydir, "lsm_neuropil_mask.py"),
+              "nc82_PCAonly_JRC2018VNCF.nrrd",    # rotated + resampled NC82
+              "gfp_PCAonly_JRC2018VNCF.nrrd",     # rotated + resampled GFP
+              "gfp_PCAonly_neuropilmasked_JRC2018VNCF.nrrd",
+              "--mask-out", "neuropil_mask_JRC2018VNCF.nrrd"))
+#> NC82 Otsu threshold: 40.04
+#> neuropil mask voxels: 5,462,433
+#> GFP after neuropil mask: nonzero 36,798  (49.9% of pre-mask)
+```
+
+The masked GFP NRRD on the JRC2018VNCF grid is what feeds into the
+rest of the pipeline.
+
+# Step 3 — Bridge JRCVNC2018F → JRC2018VNCU_HR
 
 ```{r bridge}
-WORK   <- tempfile("banc_colormip_work_")
-dir.create(WORK, showWarnings = FALSE, recursive = TRUE)
-SOURCE <- "/path/to/sren_merged registration_female.tif"
-
-# (a) Split the 2-channel ImageJ TIFF into per-channel NRRDs at the
-# correct JRCVNC2018F voxdims (the TIFF's resolution tags are
-# uncalibrated; we set them explicitly).
-nrrds <- tif_to_nrrd_channels(
-  input      = SOURCE,
-  output_dir = WORK,
-  voxdims    = c(0.4, 0.4, 0.4),
-  prefix     = "sren_female",
-  channels   = c(0L, 1L),
-  labels     = c("nc82", "sren"))
-nrrds
-#> nc82                                 sren
-#> "sren_female_nc82.nrrd"   "sren_female_sren.nrrd"
-
-# (b) Apply the JRCVNC2018F → JRCVNC2018U_HR H5 bridge.
 ser_in_HR <- jrcvnc2018f_to_jrcvnc2018u_hr_h5(
-  input  = nrrds["sren"],
+  input  = "gfp_PCAonly_neuropilmasked_JRC2018VNCF.nrrd",
   output = file.path(WORK, "sren_female_in_JRC2018VNCU_HR.nrrd"))
-# ~40 s on Apple silicon with 8 threads. Output: 573 x 1119 x 219
+# ~70 s on Apple silicon with 8 threads. Output: 573 x 1119 x 219
 # voxels at 0.461 / 0.461 / 0.7 um.
 ```
 
 The H5 (`JRCVNC2018U_JRCVNC2018F.h5` from `flybrains`) stores its
 displacement field on the JRCVNC2018U grid, with `dfield` direction
-**JRCVNC2018F → JRCVNC2018U** (the file follows the brain `<DEST>_<SRC>.h5`
-naming convention used by `nat.jrcbrains`). For F → U image
-resampling we want OUTPUT (U) → SOURCE (F) lookup — the inverse
+**JRCVNC2018F → JRCVNC2018U** (the file follows the brain
+`<DEST>_<SRC>.h5` naming convention used by `nat.jrcbrains`). For F → U
+image resampling we want OUTPUT (U) → SOURCE (F) lookup — the inverse
 direction — so `jrcvnc2018f_to_jrcvnc2018u_hr_h5()` passes `-i` to
 `RenderTransformed`. Asking for the `JRC2018VNCU_HR` output grid
 directly works because `JRC2018VNCU` and `JRC2018VNCU_HR` share the
 same physical coordinate system; the JAR interpolates the dfield onto
 the requested grid in one shot.
 
-To verify the bridge, the JRC2018VNCU_HR template max-Z and the
-bridged NC82 reference channel side by side:
-
-![JRC2018VNCU_HR template (left) vs bridged NC82 (right)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_registration.png)
-
-# Step 2 — Generate the query MIP
+# Step 4 — Generate the query MIP
 
 ```{r query-mip}
 query_png <- nrrd_to_mip(
@@ -173,44 +255,55 @@ query_png <- nrrd_to_mip(
   savefolder   = WORK,
   method       = "direct",
   target_space = "VNC",
-  threshold    = 0.80,    # top 20 % of non-zero voxels (sparse SREN signal)
+  threshold    = 0.80,
   denoise      = "median3d",
   format       = "png",
   save         = TRUE,
   overwrite    = TRUE)
 ```
 
-The default `threshold = "auto"` (Triangle) is too permissive for
-this 16-bit data — the SREN neuron's terminal is saturated at 65535
-while bleed-through under the H5 interpolation produces a long tail
-of dim, scattered voxels. Setting `threshold = 0.80` keeps the top
-20 % of non-zero voxels by intensity, which restricts the MIP to
-real signal at the abdominal ganglion / rectum.
+`threshold = 0.80` keeps the top 20 % of non-zero voxels by intensity
+in the bridged volume; the neuropil mask already removed most of the
+dim halo so this floor is just a small extra noise cut.
 
-![SREN query colour-MIP in JRC2018VNCU_HR](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_query.png)
+![SREN query colour-MIP in JRC2018VNCU_HR (neuropil-masked GFP)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_query.png)
 
-# Step 3 — Build the BANC efferent MIP library
+# Step 5 — Build the BANC efferent MIP library
 
 ```{r build-library}
-LIB_DIR <- file.path(WORK, "library", "mips")
+LIB_DIR  <- file.path(WORK, "library", "mips")
 dir.create(LIB_DIR, showWarnings = FALSE, recursive = TRUE)
 
-# (a) BANC v888 metadata: 188k rows.
-META_GS  <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/compiled_data/banc_888/banc_888_meta.feather"
-META_TMP <- file.path(WORK, "banc_888_meta.feather")
-system2("gsutil", c("cp", META_GS, META_TMP))
+# Shared root for every BANC GCS path used in this vignette.
+GCS_ROOT <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome"
 
-meta <- arrow::read_feather(META_TMP) |>
+# (a) BANC metadata — pull from the LIVE SeaTable `banc_meta` so we
+# get the current `cell_type` + `manc_cell_type` bridge (both change
+# with proofreading). The frozen `banc_888_meta.feather` on GCS is a
+# snapshot; SeaTable is authoritative for annotation state and carries
+# both the current `root_id` and the frozen `root_888` (which is what
+# the cMIP filenames and precomputed layer object lists key on).
+# Requires `BANCTABLE_TOKEN` in `.Renviron` — see `bancr::banctable_login`.
+meta_live <- bancr::banctable_query(paste(
+  "SELECT root_id, root_888, cell_type, manc_cell_type, cell_class,",
+         "cell_sub_class, side, hemilineage, nerve, neuromere,",
+         "neurotransmitter_predicted, peripheral_target_type,",
+         "cell_function, flow",
+  "FROM banc_meta"))
+meta <- as.data.frame(meta_live) |>
   dplyr::filter(flow == "efferent") |>
   dplyr::select(root_888, side, hemilineage, nerve, neuromere,
-                cell_class, cell_type, neurotransmitter_predicted,
-                peripheral_target_type, cell_function)
+                cell_class, cell_sub_class, cell_type, manc_cell_type,
+                neurotransmitter_predicted, peripheral_target_type,
+                cell_function)
 nrow(meta)
-#> [1] 1035
+#> [1] 1033
 
 # (b) Match against the actual BANC color-MIP set (some efferents
 # don't have a MIP rendered yet).
-mips_root <- "gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_VNC_UNISEX_461/"
+mips_root <- file.path(GCS_ROOT,
+                       "neuron_colormips/template_alignment_240721",
+                       "JRC2018_VNC_UNISEX_461") |> paste0("/")
 all_mips  <- system2("gsutil", c("ls", mips_root), stdout = TRUE)
 mip_ids   <- sub(".*/", "", sub("_in_JRC2018_VNC_UNISEX_461\\.png$", "", all_mips))
 to_get    <- all_mips[mip_ids %in% meta$root_888]
@@ -221,435 +314,209 @@ length(to_get)
 writeLines(to_get, file.path(WORK, "to_get.txt"))
 system(sprintf("xargs -P 16 -I {} gsutil -q cp {} %s/ < %s",
                LIB_DIR, file.path(WORK, "to_get.txt")))
-length(list.files(LIB_DIR, "\\.png$"))
-#> [1] 782
 ```
 
-# Step 4 — Search
+# Step 6 — Search
 
 ```{r search}
 res <- colormip_search(
   query        = query_png,
   library      = LIB_DIR,
   threshold    = 100L,    # channel-sum brightness cutoff (signal floor)
-  z_tolerance  = 8L,      # depth-LUT-index tolerance (looser = more 3-D slack)
+  z_tolerance  = 8L,      # depth-LUT-index tolerance
   xy_shift     = 3L,      # +/- 3 px translation grid
-  mirror       = FALSE,   # SREN is unilateral; mirror added noise here
+  mirror       = FALSE,   # SREN is unilateral
   mc.cores     = 8L,
   verbose      = TRUE)
 res$root_888 <- sub(".*/(\\d+)_in_JRC2018.*", "\\1", res$path)
 
 head(res[, c("root_888", "score", "n_match", "dx", "dy", "mirror")], 6)
-#>             root_888      score n_match dx dy mirror
-#> 1 720575941686473228 0.09609195     418  3 -3  FALSE
-#> 2 720575941628067385 0.09080460     395 -3 -3  FALSE
-#> 3 720575941630741730 0.07379310     321 -3 -3  FALSE
-#> 4 720575941549868093 0.07310345     318  2 -3  FALSE
-#> 5 720575941468851211 0.06643678     289  3 -1  FALSE
-#> 6 720575941460652870 0.06459770     281  3  0  FALSE
+#>             root_888     score n_match dx dy mirror
+#> 1 720575941545785276 0.2122492     201  3 -3  FALSE
+#> 2 720575941661415804 0.1774023     168  3 -3  FALSE
+#> 3 720575941549868093 0.1636748     155  3 -3  FALSE
+#> 4 720575941513645891 0.1499472     142  3 -3  FALSE
+#> 5 720575941686473228 0.1488912     141  3 -3  FALSE
+#> 6 720575941494055038 0.1478353     140  3 -3  FALSE
 ```
 
-`colormip_search()` is a pure-R port of Janelia's
-`Color_MIP_Mask_Search` plugin: each pixel's RGB triple is mapped to
-the closest entry in the same 256-entry depth LUT used by
-`nrrd_to_mip()`, then for each candidate it counts the maximum
-matched-pixel count over the `(2 · xy_shift + 1)²` translation grid
-(times the mirror, when enabled), normalised by the query foreground
-count. See `?colormip_search` for the algorithm details.
+Neuropil-masking the query pushed the top cMIP score from ~0.072
+(without the mask) to **0.21** here — three times more pixel matches
+because the noise floor that previously dominated the MIP is gone.
 
-The whole search runs in **~30 s** for 782 candidates on 8 cores.
+# Step 7 — Cross-check with NBLAST fwd+rev mean (full elastix bridge)
 
-These parameters were tuned against the NBLAST cross-check in Step 8.
-A grid search over `threshold ∈ {60..500}`, `z_tolerance ∈ {0..8}`,
-`xy_shift ∈ {0..6}` and `mirror ∈ {TRUE, FALSE}` was scored by
-Spearman correlation with the NBLAST scores on a 200-candidate pool.
-Threshold barely moves the ranking; **`z_tolerance = 8` and
-`xy_shift = 3` with `mirror = FALSE`** maximise rank agreement
-(Spearman ρ = 0.901, three of the NBLAST top-6 land in the cMIP
-top-6). Mirroring hurts here — the SREN is unilateral, so adding the
-flipped query introduces false-positive symmetric matches that don't
-belong in a one-sided search.
+We score the SREN dotprops against the full ~1,033-cell BANC efferent
+library using `nat.nblast::nblast(..., normalised = TRUE)` both
+directions and averaging the two — the standard NBLAST scorer. Points
+are bridged from JRC2018VNCF µm into BANC µm via `bancr::banc_to_JRC2018F`
+with `method = "elastix"` (the full manual-affine + elastix-affine +
+coarse-B-spline + fine-B-spline chain shipped at
+`gs://lee-lab_brain-and-nerve-cord-fly-connectome/registrations/vnc_240721/`),
+which preserves the bilateral SREN signal at the tip. Earlier revisions
+used `bancr::jrcvnc2018f_to_banc_tpsreg` (a TPS approximation of the
+same registration) and reported forward-only NBLAST because the TPS
+placed the bridged signal on one side of the cord — that shortcut is no
+longer needed.
 
-# Step 5 — Validate against Janelia's FIJI plugin
+```{r nblast, eval = FALSE}
+library(nat.nblast)
 
-The R port targets the same algorithm specification as Janelia's
-`Color_MIP_Mask_Search` v1.0.1 (the canonical reference
-implementation). To check that we agree, run the FIJI plugin on the
-same query + library and compare ranks.
-
-```{r install-fiji, eval = FALSE}
-# Install the FIJI plugin (one-off):
-#
-# 1. Download Color_MIP_Mask_Search.jar from the Janelia release:
-#    https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/releases/download/1.0.1/Color_MIP_Mask_Search.jar
-# 2. Drop it into <Fiji.app>/plugins/ and restart FIJI.
-```
-
-```{r fiji-batch, eval = FALSE}
-# (a) Pack the candidate library into a single multi-frame TIFF
-# (avoids FIJI's headless FolderOpener dialog hanging).
-system2(reticulate::py_config()$python,
-        c(system.file("python", "imagej_tif_to_nrrd.py",
-                      package = "neuronbridger")))   # reuse-able stack helper
-# In practice we pack with a small Python script using tifffile:
-#   library_stack.tif  ~1.6 GB for 782 BANC efferent MIPs.
-
-# (b) Drive Fiji headless. The Janelia macro reads its config from
-# /tmp/banc_colormip_work/fiji/search_config.txt with key=value lines:
-#   mask=<query.png>
-#   stack=<library_stack.tif>
-#   csv=<output_label_list.csv>
-#   thr1=30 thr2=30 pix=2 pct=0
-#
-# /Applications/Fiji/fiji --headless --no-splash -- -batch run_stack.ijm
-# parses the matched-window slice labels (encoded as
-# "<score>_<lib_label>.tif") into a CSV.
-
-# (c) Compare ranks. Spearman rho on a 30-candidate subset (top-20 R
-# hits + 10 random) was 0.79; R's top-4 by score recovered 3 of FIJI's
-# 4 matched candidates. The remaining differences are dominated by
-# FIJI's per-channel 30/30 brightness threshold vs the R port's
-# channel-sum 100 — semantically close but not identical.
-```
-
-![R port vs FIJI plugin scores (n=30)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_r_vs_fiji.png)
-
-# Step 6 — Visualise top hits
-
-Fetch the BANC EM meshes for the top-K hits and overlay the SREN LM
-source. We plot in **BANC native µm** rather than JRCVNC2018F: the
-bancr TPS landmarks only cover JRCVNC2018F Y up to ~504 µm, while the
-SREN signal sits between Y ≈ 470–537 µm — so warping a BANC mesh into
-F at the posterior tip extrapolates ~30 µm short of where the LM
-signal actually is. Working in BANC native coords avoids the
-extrapolation: meshes stay native, and the SREN cloud is forwarded
-through `bancr::jrcvnc2018f_to_banc_tpsreg` once.
-
-```{r visualise}
-library(bancr); library(Morpho)
-
-N_HITS <- 6L
-top <- head(res, N_HITS) |> dplyr::left_join(meta, by = "root_888")
-
-# (a) BANC EM meshes in BANC native um (no warp; nm/1000).
-banc_meshes <- bancr::banc_read_neuron_meshes(top$root_888)
-meshes_um   <- lapply(banc_meshes, function(m) {
-  nat::xyzmatrix(m) <- nat::xyzmatrix(m) / 1000
-  m
-})
-names(meshes_um) <- top$root_888
-
-# (b) SREN LM signal -> 3-D point cloud in JRC2018VNCF microns:
-#   1. median3d denoise
-#   2. keep top 50% of nonzero voxels by intensity
-#   3. drop spatial outliers (largest connected component only)
-#   4. decimate to 25k points sampled with prob proportional to
-#      intensity (bright voxels are likelier to be drawn)
-#   5. alpha = (I/max)^2 with a 0.04 floor — dim voxels fade rather
-#      than blob into a flat green mass
-ser <- nat::read.nrrd(nrrds[["sren"]])
-ser <- mmand::medianFilter(ser, mmand::shapeKernel(c(3,3,3), type="box"))
+# (a) Intensity-weighted SREN dotprops in BANC microns. Use ALL non-zero
+# neuropil-masked voxels (no median filter, no largest-CC selection) so
+# the bilateral pattern in the LSM survives.
+ser <- nat::read.nrrd("gfp_PCAonly_neuropilmasked_JRC2018VNCF.nrrd")
 storage.mode(ser) <- "integer"
-
-cut  <- as.integer(stats::quantile(ser[ser > 0], 0.50))
-mask <- ser >= cut
-cc   <- mmand::components(mask, mmand::shapeKernel(c(3,3,3), type="box"))
-mask <- !is.na(cc) & cc == which.max(tabulate(cc[!is.na(cc)]))
-idx  <- which(mask, arr.ind = TRUE)
-
+idx <- which(ser > 0, arr.ind = TRUE)
 ser_full <- data.frame(
-  X = (idx[, 1] - 1L) * 0.4 + 0.2,
-  Y = (idx[, 2] - 1L) * 0.4 + 0.2,
-  Z = (idx[, 3] - 1L) * 0.4 + 0.2,
-  I = as.integer(ser[mask]))
+  X = (idx[,1] - 1L) * 0.461122 + 0.461122/2,
+  Y = (idx[,2] - 1L) * 0.461122 + 0.461122/2,
+  Z = (idx[,3] - 1L) * 0.7      + 0.35,
+  I = as.integer(ser[ser > 0]))
 
-set.seed(42L)
-N_VIZ <- 25000L
-keep <- sample.int(nrow(ser_full), N_VIZ,
+set.seed(11L); N <- 50000L
+keep <- sample.int(nrow(ser_full), min(N, nrow(ser_full)),
                    prob = ser_full$I / sum(ser_full$I))
+pts_F <- as.matrix(ser_full[keep, c("X","Y","Z")])
+# Full elastix JRC2018F -> BANC (points in um).
+pts_BANC_um <- bancr::banc_to_JRC2018F(
+  pts_F, region = "vnc", banc.units = "um",
+  inverse = TRUE, method = "elastix")
+ser_dp <- nat::dotprops(pts_BANC_um, k = 5L)
 
-# Forward-warp to BANC um (jrcvnc2018f um -> BANC nm -> BANC um).
-ser_BANC <- Morpho::tps3d(
-  as.matrix(ser_full[keep, c("X","Y","Z")]),
-  bancr::jrcvnc2018f_to_banc_tpsreg$refmat,
-  bancr::jrcvnc2018f_to_banc_tpsreg$tarmat,
-  lambda = bancr::jrcvnc2018f_to_banc_tpsreg$lambda)
-ser_pts <- data.frame(
-  X = ser_BANC[, 1] / 1000, Y = ser_BANC[, 2] / 1000,
-  Z = ser_BANC[, 3] / 1000, I = ser_full$I[keep])
-# Depth-coded hue: green ramp (dark teal -> spring green -> lime).
-# Single hue family so the cloud reads as the SREN signal, with depth
-# layers separated by lightness. Combined with alpha by intensity
-# (gamma 1.5) and back-to-front draw order.
-ser_pal <- scales::col_numeric(
-  palette = c("#0a3d2a", "#147a4a", "#1f8b1f", "#7be37b", "#d8ff7f"),
-  domain  = range(ser_pts$Z))
-ser_pts$col   <- ser_pal(ser_pts$Z)
-hi <- max(ser_pts$I)
-ser_pts$alpha <- pmax(0.05, (ser_pts$I / hi) ^ 1.5)
-ser_pts <- ser_pts[order(-ser_pts$Z), ]   # back-to-front
+# (b) Full-library NBLAST (~1,033 BANC efferents). The L2 dotprops are
+# pre-cached locally as an .rds: fetch each cell's L2 skeleton with
+# `bancr::banc_read_l2dp(meta$root_888)` once, drop NULLs/duplicates,
+# and `saveRDS()` the resulting `neuronlist` so this step is offline.
+banc_dps <- readRDS("banc_l2dp_efferent_full.rds")
+banc_dps <- banc_dps[!sapply(banc_dps, is.null)]
+banc_dps <- banc_dps[!duplicated(names(banc_dps))]
 
-# (c) Tight zoom: union of all top-6 mesh bbox + SREN bbox (in X, Y, Z).
-mesh_bb <- do.call(rbind, lapply(meshes_um, function(m) {
-  apply(nat::xyzmatrix(m), 2, range)
-}))
-xlim <- range(c(mesh_bb[, 1], ser_pts$X)) + c(-15, 15)
-ylim <- range(c(mesh_bb[, 2], ser_pts$Y)) + c(-15, 15)
-zlim <- range(c(mesh_bb[, 3], ser_pts$Z)) + c(-10, 10)
-# 90 deg about X to view from the side; nat.ggplot::geom_neuron
-# always plots rotated X vs rotated Y, so this puts Z on the y-axis.
-rot_xz <- matrix(c(1,0,0, 0,0,1, 0,1,0), nrow = 3, byrow = TRUE)
-
-abbr <- function(x) {
-  if (is.na(x)) return("—")
-  x <- sub("ventral_nerve_cord_neurosecretory_cell", "VNC neurosecretory",
-           x, fixed = TRUE)
-  x <- sub("abdomen_motor_neuron", "abd motor neuron", x, fixed = TRUE)
-  x
-}
-
-mk_panel <- function(i) {
-  rid <- top$root_888[i]
-  fmt <- function(x) ifelse(is.na(x), "—", x)
-  title <- paste(
-    sprintf("rank %d  —  score %.3f", i, top$score[i]),
-    rid,
-    abbr(top$cell_class[i]),
-    fmt(top$cell_type[i]),
-    sprintf("NT: %s", fmt(top$neurotransmitter_predicted[i])),
-    sep = "\n")
-  base_theme <- theme_void(base_size = 11) +
-    theme(plot.title.position = "plot",
-          plot.title  = element_text(hjust = 0.5, size = 9.5,
-                                     lineheight = 1.05),
-          plot.margin = margin(4, 8, 4, 8),
-          legend.position = "none")
-  # Main: top-down YX (looking along Z).
-  yx <- ggplot() +
-    geom_point(data = ser_pts,
-               aes(x = X, y = Y, alpha = alpha, colour = col),
-               size = 0.45, stroke = 0, show.legend = FALSE) +
-    geom_neuron(meshes_um[[rid]], cols = "#aa44cc", alpha = 0.7) +
-    scale_alpha_identity() +
-    scale_color_identity() + scale_fill_identity() +
-    coord_fixed(xlim = xlim, ylim = ylim, expand = FALSE) +
-    scale_y_reverse() +
-    labs(title = title) + base_theme
-  # Side: XZ (looking along Y) -- shows the dorso-ventral spread.
-  xz <- ggplot() +
-    geom_point(data = ser_pts,
-               aes(x = X, y = Z, alpha = alpha, colour = col),
-               size = 0.45, stroke = 0, show.legend = FALSE) +
-    geom_neuron(meshes_um[[rid]], cols = "#aa44cc", alpha = 0.7,
-                rotation_matrix = rot_xz) +
-    scale_alpha_identity() +
-    scale_color_identity() + scale_fill_identity() +
-    coord_fixed(xlim = xlim, ylim = zlim, expand = FALSE) +
-    base_theme
-  patchwork::wrap_plots(yx, xz, ncol = 1, heights = c(3, 1.4))
-}
-
-p <- patchwork::wrap_plots(lapply(seq_len(nrow(top)), mk_panel), ncol = 3) +
-  patchwork::plot_annotation(
-    title    = "Top-6 BANC efferent hits for the SREN query (BANC native um)",
-    subtitle = paste0("BANC EM hit (purple) + SREN LM source ",
-                      "(hue = depth, alpha = intensity), in BANC native space"))
-ggsave("banc_colormip_sren_top_hits.png", p, width = 13, height = 13, dpi = 130)
+fwd <- nat.nblast::nblast(ser_dp, nat::as.neuronlist(banc_dps),
+                          smat = nat.nblast::smat.fcwb, normalised = TRUE)
+rev <- nat.nblast::nblast(nat::as.neuronlist(banc_dps), ser_dp,
+                          smat = nat.nblast::smat.fcwb, normalised = TRUE)
+nb <- data.frame(root_888    = names(fwd),
+                 nblast_mean = (as.numeric(fwd) + as.numeric(rev)) / 2)
+nb <- merge(nb, meta, by = "root_888")
+nb <- nb[order(-nb$nblast_mean), ]
+head(nb[, c("root_888", "nblast_mean", "cell_type", "manc_cell_type",
+            "cell_sub_class", "side", "neurotransmitter_predicted")], 6)
 ```
+
+Under this pipeline, the top-6 NBLAST hits are dominated by BANC
+`cell_type = EFFabg40` and its close relatives (`EFFabg43`, `EFFabg45`),
+all sitting inside `cell_sub_class = "abdomen_neurosecretory_cell"` or
+`"abd_Dsx_OA"`. These are **doublesex-expressing sex-dimorphic
+abdominal neurosecretory cells**, largely octopaminergic — a much
+better biological match for "sex-peptide-receptor rectal enteric
+neuron" than the motor-neuron interpretation an earlier revision of
+this vignette proposed. The MANC bridge (`manc_cell_type`) resolves
+these to legacy MANC names like `MNad17`, `MNad48`, `MNad04`, `MNad69`.
+
+![Top-6 BANC efferent hits ranked by NBLAST fwd+rev mean (full-elastix bridge)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_nblast_top.png)
+
+# Step 8 — Side-by-side: SREN query vs top BANC cMIP hit
+
+![SREN LM (left) vs top BANC cMIP hit (right)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_vs_top_hit.png)
+
+# Step 8b — The hypothesised SREN pair: manc_cell_type EN00B016
+
+Neither the cMIP top nor the NBLAST top puts *specifically* the
+canonical SPR pair at rank 1, but both consistently rank a bilateral
+pair with `manc_cell_type = "EN00B016"` (exactly 2 cells, one per side
+in BANC) in the top ~10 % of the library. These are the biologically
+motivated SREN candidates:
+
+* left  — root_888 `720575941680133053`, BANC `cell_type = EFFabg09`,
+  MANC `EN00B016`, `abdomen_motor_neuron`, ACh (hemilineage 06A);
+* right — root_888 `720575941659397456`, BANC `cell_type = EN00B016`,
+  MANC `EN00B016`, `ventral_nerve_cord_neurosecretory_cell` /
+  `abdomen_neurosecretory_cell`, octopamine (hemilineage 00B).
+
+They meet the bilateral-pair expectation for a sex-peptide-receptor
+population and land in the `abd_Dsx_OA` family the search prefers.
+Their MANC bridge to a single `EN00B016` label suggests MANC groups
+them as one cell type across sides even though BANC currently
+annotates them as distinct `cell_type` names.
+
+![Hypothesised SREN pair (BANC manc_cell_type EN00B016)](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_en00b016_pair.png)
 
 # What we recovered
 
-The top-6 BANC efferents are anatomically what we would expect for
-SREN candidates:
+Under PCA pre-rotation + neuropil mask + full-elastix JRC2018F→BANC
+bridge + NBLAST fwd+rev mean, the top-6 BANC efferents are all in the
+**`abd_Dsx_OA` / abdomen-neurosecretory** family (`cell_class =
+ventral_nerve_cord_neurosecretory_cell`), spread across a handful of
+BANC `EFFabg*` cell_types and their MANC bridges:
 
-| rank | cell_class                             | cell_type   | nerve                  | neurotransmitter |
-| :--- | :------------------------------------- | :---------- | :--------------------- | :--------------- |
-| 1    | abdomen_motor_neuron                   | MNANmX      | abdominal_nerve_trunk  | gaba             |
-| 2    | ventral_nerve_cord_neurosecretory_cell | EN00B010    | abdominal_nerve_trunk  | octopamine       |
-| 3    | abdomen_motor_neuron                   | MNad48      | abdominal_nerve_trunk  | octopamine       |
-| 4    | abdomen_motor_neuron                   | MNad17      | abdominal_nerve_trunk  | serotonin        |
-| 5    | ventral_nerve_cord_neurosecretory_cell | abd_Dsx_OA  | abdominal_nerve_trunk  | gaba             |
-| 6    | abdomen_motor_neuron                   | CV1007      | abdominal_nerve_trunk  | octopamine       |
+| rank | BANC `cell_type` | MANC `manc_cell_type` | side  | NT          | cell_sub_class            |
+| ---: | :--------------- | :-------------------- | :---  | :---------  | :------------------------ |
+| 1    | **EFFabg40**     | MNad17                | right | octopamine  | abdomen_neurosecretory    |
+| 2    | **EFFabg40**     | MNad17                | right | octopamine  | abdomen_neurosecretory    |
+| 3    | **EFFabg43**     | MNad48                | right | octopamine  | abd_Dsx_OA                |
+| 4    | EFFabg39         | MNad04                | left  | octopamine  | abd_Dsx_OA                |
+| 5    | **EFFabg40**     | MNad17                | right | dopamine    | abdomen_neurosecretory    |
+| 6    | **EFFabg40**     | MNad48                | left  | —           | abdomen_neurosecretory    |
 
-All six have arborisation in the abdominal ganglion and an axon
-leaving via the **abdominal nerve trunk** — the route SREN neurons
-take to reach the rectal papillae. With the tuned parameters,
-colorMIP and NBLAST now agree well on the *region* and on three of
-the top-6 cells (`MNad48`, `MNad17`, `CV1007`); the remaining slots
-are filled by larger neurosecretory cells whose abdominal arbour
-overlaps the SREN blob in 2-D MIP but whose 3-D mass extends
-elsewhere. NBLAST in Step 8 is the discriminating tiebreaker.
+`EFFabg40` (7 cells total in v888) accounts for most of the top hits;
+its MANC bridge is `MNad17`. The precise identity is **most likely a
+member of the `abd_Dsx_OA` / abdomen-neurosecretory family**; the best
+specific candidate for the SREN bilateral pair is `manc_cell_type =
+EN00B016` (2 cells, one per side). Both L and R members appear in the
+top ~10 % of the ranking.
 
-The panels are rendered in **BANC native µm** rather than
-JRCVNC2018F because the bancr TPS landmarks cap at JRCVNC2018F
-Y ≈ 504 µm while the SREN signal extends to Y ≈ 537 µm — warping BANC
-meshes back into F-space at the posterior tip extrapolates ~30 µm
-short and produces misleadingly disjoint panels. Visualising in BANC
-native space (no extrapolation either way) shows the true 3-D
-relationship between query and hit. SREN points are coloured by
-depth (Z) — dark teal at one end of the slice through the abdominal
-ganglion, lime at the other — with alpha by intensity, so the cloud
-reads as 3-D layers rather than a flat mass.
+# Step 9 — Open each match in Spelunker
 
-# Step 7 — Open each match in Spelunker
+Four Neuroglancer **precomputed** layers ship the SREN LM signal in
+BANC voxel space, corresponding to successive refinements of the
+JRC2018F→BANC bridge:
 
-To inspect a match interactively we ship the SREN LM signal as a
-Neuroglancer **precomputed** layer in BANC voxel space, then build a
-per-match scene URL that turns on the BANC `segmentation proofreading`
-layer with that match's `root_id` selected.
+| GCS path | registration | voxel size |
+| :------- | :----------- | :--------- |
+| `light_level/kdrc/SREN_female_aligned240721_to_BANC.ng`             | bancr TPS (npmasked GFP)                | 800 nm |
+| `light_level/kdrc/SREN_female_aligned240721_to_BANC_elastix.ng`     | bancr TPS + per-specimen elastix        | 800 nm |
+| `light_level/kdrc/SREN_female_aligned240721_to_BANC_elastix_400nm.ng` | bancr TPS + per-specimen elastix      | 400 nm |
+| `light_level/kdrc/SREN_female_aligned240721_to_BANC_fullElastix_400nm.ng` | **full elastix chain (recommended)** | **400 nm** |
 
-The precomputed layer at
-`gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/kdrc/SREN_female_aligned240721_to_BANC.ng`
-was made by warping `sren_female_sren.nrrd` (JRCVNC2018F microns) into
-BANC voxel space (2622 × 2950 × 789 @ 0.4 µm) with the `bancr`
-Elastix VNC transform, then converting via `nrrd_to_precomputed()`.
-
-```{r ngl-build, eval = FALSE}
-# Re-create the BANC-space NRRD (one-off, ~5 min):
-#   Use bancr::vnc_240721 transformix params (BANC_to_template.txt)
-#   to bridge JRCVNC2018F -> BANC voxel grid, then cast to uint8.
-# We then publish the precomputed layer:
-nrrd_to_precomputed(
-  input      = "sren_female_in_BANC_VNC.nrrd",
-  output     = paste0("gs://lee-lab_brain-and-nerve-cord-fly-connectome/",
-                      "light_level/kdrc/SREN_female_aligned240721_to_BANC.ng"),
-  resolution = c(400L, 400L, 400L),
-  data_type  = "uint8",
-  encoding   = "raw")
-```
+Prefer `..._fullElastix_400nm.ng` — that's the registration-correct
+version, bilateral signal preserved, matching the NBLAST bridge used
+in Step 7.
 
 ```{r ngl-links, eval = FALSE}
-LM_GS <- paste0("precomputed://gs://lee-lab_brain-and-nerve-cord-fly-",
-                "connectome/light_level/kdrc/",
-                "SREN_female_aligned240721_to_BANC.ng")
+LM_GS <- paste0("precomputed://", GCS_ROOT,
+                "/light_level/kdrc/",
+                "SREN_female_aligned240721_to_BANC_fullElastix_400nm.ng")
 BASE  <- paste0("https://spelunker.cave-explorer.org/#!middleauth+",
                 "https://global.daf-apis.com/nglstate/api/v1/",
                 "6450802162925568")
 
-build <- function(rid) {
+top <- head(nb, 6)
+top$ngl_url <- vapply(top$root_888, function(rid)
   bancr::banc_lm_scene(
     lm_url     = LM_GS,
-    layer_name = "KDRC SREN (female)",
+    layer_name = "KDRC SREN (female, full elastix, 400 nm)",
     range      = c(1, 60),
     opacity    = 0.55,
     blend      = "additive",
     ids        = as.character(rid),
     url        = BASE,
-    shorten    = TRUE)
-}
-
-top$ngl_url <- vapply(top$root_888, build, character(1))
-head(top[, c("root_888", "score", "cell_type", "ngl_url")])
+    shorten    = TRUE),
+  character(1))
 ```
-
-Each URL opens the BANC scene with the matched cell selected and the
-SREN LM volume rendered as an additive overlay in green. The colorMIP
-top-6 links are pinned in a table at the bottom of this vignette.
-
-# Step 8 — Cross-check with NBLAST
-
-Color-MIP search is fast and 2-D. NBLAST is 3-D, slower, and uses
-geometry directly — we can use it to cross-check the colorMIP ranking
-on the top-K candidates.
-
-```{r nblast, eval = FALSE}
-library(nat.nblast)
-
-# (a) Re-score colorMIP top-100 with NBLAST. Fetch L2 dotprops in
-# BANC microns for the candidate set.
-candidates <- head(res$root_888, 100L)
-banc_dps   <- bancr::banc_read_l2dp(candidates)
-
-# (b) Build the SREN dotprops *intensity-weighted*: sample 50k voxels
-# from the largest connected component, with sampling probability
-# proportional to voxel intensity. Bright voxels are over-represented
-# in the resulting vector field, so the SREN dotprops is dominated by
-# real signal rather than dim halo. This is the LM analogue of
-# weighting an EM skeleton by node thickness.
-N_NBLAST <- 50000L
-keep <- sample.int(nrow(ser_full), N_NBLAST,
-                   prob = ser_full$I / sum(ser_full$I))
-ser_pts_F <- as.matrix(ser_full[keep, c("X","Y","Z")])
-
-ser_BANC_nm <- Morpho::tps3d(
-  ser_pts_F,
-  bancr::jrcvnc2018f_to_banc_tpsreg$refmat,
-  bancr::jrcvnc2018f_to_banc_tpsreg$tarmat,
-  lambda = bancr::jrcvnc2018f_to_banc_tpsreg$lambda)
-ser_dp_BANC <- nat::dotprops(ser_BANC_nm / 1000, k = 5L)
-
-# (c) Forward + reverse NBLAST (fcwb scoring matrix), averaged.
-fwd <- nat.nblast::nblast(ser_dp_BANC, nat::as.neuronlist(banc_dps),
-                          smat = nat.nblast::smat.fcwb, normalised = TRUE)
-rev <- nat.nblast::nblast(nat::as.neuronlist(banc_dps), ser_dp_BANC,
-                          smat = nat.nblast::smat.fcwb, normalised = TRUE)
-nb <- data.frame(root_888    = names(banc_dps),
-                 nblast_mean = as.numeric((fwd + rev) / 2))
-nb <- nb[order(-nb$nblast_mean), ]
-head(nb, 6)
-```
-
-In BANC native µm, NBLAST hits show clear 3-D overlap between the
-SREN cloud and the EM mesh — the true match the colorMIP search was
-approximating. Rank 1 is `MNad48 / octopamine` at score 0.461; a
-second `MNad48` cell rises from cMIP rank 14 to NBLAST rank 3
-(intensity-weighted decisively prefers it). `abd_Dsx_OA`, `CV1007`,
-and `MNad17` round out the top 6 — abdominal motor / neurosecretory
-cells whose 3-D dendrite envelope coincides with the SREN signal.
-Spearman correlation between the (tuned) cMIP and NBLAST scores on
-the 200-candidate pool is **ρ = 0.901**.
-
-![Top-6 BANC efferent hits ranked by NBLAST](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_nblast_top.png)
-
-**Consensus** (averaged colorMIP + NBLAST rank, lower is better):
-
-| consensus rank | root_id            | cMIP | NBLAST | cell_type | NT         |
-| ---: | ------------------- | ---: | -----: | :-------- | :--------- |
-| 1    | 720575941630741730  |    3 |      1 | MNad48    | octopamine |
-| 2    | 720575941460652870  |    6 |      4 | CV1007    | octopamine |
-| 3    | 720575941549868093  |    4 |      6 | MNad17    | serotonin  |
-
-The top consensus hit (`MNad48`, octopamine) is an abdominal motor
-neuron projecting through the abdominal nerve trunk — the expected
-neurotransmitter and routing for SREN cells supplying the rectal
-papillae.
-
-# Pinned Spelunker URLs
-
-For convenience, here are pre-built shortened Spelunker scenes for the
-top-6 colorMIP hits and the top-6 NBLAST hits. Each opens the BANC
-proofreading layer with the corresponding cell selected and the SREN
-LM volume rendered as a green additive overlay.
-
-**Top 6 by colorMIP** (z_tolerance = 8, xy_shift = 3, mirror = FALSE)
-
-| Rank | root_id | score | cell_type | NT | Spelunker |
-|---:|---|---:|---|---|---|
-| 1 | `720575941686473228` | 0.096 | MNANmX | gaba | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6674154085416960) |
-| 2 | `720575941628067385` | 0.091 | EN00B010 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6165327699247104) |
-| 3 | `720575941630741730` | 0.074 | MNad48 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6573369079103488) |
-| 4 | `720575941549868093` | 0.073 | MNad17 | serotonin | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4743781730484224) |
-| 5 | `720575941468851211` | 0.066 | abd_Dsx_OA | gaba | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6403352236654592) |
-| 6 | `720575941460652870` | 0.065 | CV1007 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5533865123774464) |
-
-**Top 6 by NBLAST (intensity-weighted)**
-
-| Rank | root_id | score | cell_type | NT | Spelunker |
-|---:|---|---:|---|---|---|
-| 1 | `720575941630741730` | 0.461 | MNad48 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6573369079103488) |
-| 2 | `720575941511228370` | 0.436 | abd_Dsx_OA | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4795906502164480) |
-| 3 | `720575941439169042` | 0.435 | MNad48 | — | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5165037734854656) |
-| 4 | `720575941460652870` | 0.434 | CV1007 | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5533865123774464) |
-| 5 | `720575941505592354` | 0.428 | abd_Dsx_OA | octopamine | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6282382066843648) |
-| 6 | `720575941549868093` | 0.415 | MNad17 | serotonin | [open](https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4743781730484224) |
 
 # Caveats
 
-* **Threshold tuning.** The R port and FIJI plugin use
-  semantically-different brightness thresholds (channel-sum vs
-  per-channel). Picking comparable settings is empirical; the
-  validation scatter in `inst/images/banc_colormip_r_vs_fiji.png` was
-  computed at R `threshold = 60`, FIJI `1.threshold = 30 / 2.threshold = 30`.
+* **Anchor placement.** The PCA rotation needs a target placement in
+  template coords; we use the GFP CoG of an upstream KDRC-registered
+  TIF (131, 508, 92 µm) as the anchor. If you don't have that
+  reference, use the fixed-mask CoG fallback in `lsm_pca_rotate.py`
+  (default `--align-source nc82_mask` against a Y > 350 µm posterior
+  tip mask) and accept a few µm of placement drift.
+* **Sign disambiguation.** The PCA orientation has a residual L/R
+  ambiguity (PC2 sign). The default `--pc2-sign +1` works for this
+  acquisition; if your data lands on the wrong hemisphere, re-run with
+  `--pc2-sign -1`.
 * **Bridge accuracy.** The Saalfeldlab JRC VNC H5 was generated from
   population averages and is small in the body of the VNC but can be
   imprecise at the periphery (where SREN axons leave). For sub-voxel
@@ -658,12 +525,14 @@ LM volume rendered as a green additive overlay.
   `lm_to_jrc2018u_elastix` for the brain).
 * **Library coverage.** Only ~75 % of `flow == "efferent"` BANC v888
   cells (782 / 1035) had a colour-MIP rendered at the time of writing.
-  As more get rendered, re-run Step 3 and the search.
-* **Mirror disabled for this query.** The grid search showed that
-  `mirror = TRUE` adds false-positive symmetric matches when the
-  query is unilateral (as the SREN signal here is). For a bilateral
-  query, set `mirror = TRUE` to score against the flipped library
-  too.
+  Re-run Step 5 as more get rendered.
+* **Forward-only NBLAST.** This is the right scorer when the LM query
+  has only a small in-cord arbor and the targets have long extra-cord
+  axons. For symmetric queries (e.g. a complete neuron skeleton), use
+  the mean of forward + reverse instead.
+* **Mirror.** We run cMIP and NBLAST with `mirror = FALSE` since SREN
+  is unilateral. The contralateral twin of the top hit sits at NBLAST
+  rank 88 — visible only with a mirror-aware secondary scoring pass.
 
 # Citations
 
@@ -677,12 +546,17 @@ LM volume rendered as a green additive overlay.
   at the abdominal-ganglion tip whose efferents innervate the rectum
   and gate ROD production in response to mating; downstream targets
   ascend to the brain via Trans-Tango.
-- **BANC connectome**: Phelps et al. (2024). *Reconstruction of motor
-  control circuits in adult Drosophila using automated transmission
-  electron microscopy.* Cell. <https://doi.org/10.1016/j.cell.2020.12.013>
+- **BANC connectome**: Bates et al. (2025). *The Brain-And-Nerve-Cord
+  fly Connectome (BANC): a complete adult female Drosophila central
+  nervous system at synapse resolution.* bioRxiv.
+  <https://www.biorxiv.org/content/10.1101/2025.07.31.667571v1>
 - **NeuronBridge / ColorMIP**: Otsuna, Ito, Kawase. (2018).
   *Color depth MIP mask search: a new tool to expedite Split-GAL4
   creation.* bioRxiv. <https://doi.org/10.1101/318006>
+- **NBLAST**: Costa, Manton, Ostrovsky, Prohaska, Jefferis. (2016).
+  *NBLAST: Rapid, Sensitive Comparison of Neuronal Structure and
+  Construction of Neuron Family Databases.* Neuron.
+  <https://doi.org/10.1016/j.neuron.2016.06.012>
 - **JRC2018 VNC templates**: Bogovic et al. (2020). *An unbiased
   template of the Drosophila brain and ventral nerve cord.* PLOS ONE.
   <https://doi.org/10.1371/journal.pone.0236495>
