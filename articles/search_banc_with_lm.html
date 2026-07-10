@@ -126,83 +126,123 @@
 <p>Take a 3-D light-microscopy image of a candidate
 <strong>SREN</strong> (sex-peptide- receptor rectal enteric neuron) and
 use it as a query against the <a href="https://www.thebancconnectome.org/" class="external-link">BANC female adult
-connectome</a> to recover the matching EM neurons. SRENs are a pair of
+connectome</a> to recover the matching EM neuron(s). SRENs are a pair of
 cells at the posterior tip of the abdominal ganglion that express the
 sex peptide receptor and send efferent processes to the rectum; they are
 required for the rod-shaped fecal pellets (“RODs”) that mated females
 produce in response to seminal-fluid sex peptide. See Chae et al.,
 <em>Citations</em> below, for the upstream/downstream circuit
 context.</p>
-<p>The pipeline:</p>
+<p>The pipeline starts from the raw <code>.lsm</code> (a 40× confocal
+stack of the abdominal tip with the cord at an angle in the field of
+view) and lands a clean BANC ranking:</p>
 <ol style="list-style-type: decimal">
-<li><p><strong>Bridge</strong> the source <code>.tif</code> (in
-<code>JRCVNC2018F</code> template space) into
-<strong><code>JRC2018VNCU_HR</code></strong> (the NeuronBridge VNC
-reference grid: <code>573 × 1119 × 219</code> voxels at
-<code>0.461 × 0.461 × 0.7 µm</code>) via the Saalfeld lab’s H5
-displacement field shipped by <a href="https://github.com/navis-org/navis-flybrains" class="external-link">navis-flybrains</a>.</p></li>
-<li><p>Render a colour-depth MIP of the bridged label channel with
-<code>neuronbridger::nrrd_to_mip(target_space = "VNC")</code>.</p></li>
-<li><p>Search the resulting MIP against the <strong>BANC neuron MIP
-library</strong> at
-<code>gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_VNC_UNISEX_461/</code>
-(~25k neurons), pre-filtered to BANC efferents
-(<code>flow == "efferent"</code>, 1,035 candidates) using the BANC
-<code>banc_888_meta.feather</code> registry.</p></li>
-<li><p>Compare the R <code><a href="../reference/colormip_search.html">colormip_search()</a></code> ranking against
-Janelia’s FIJI <code>Color_MIP_Mask_Search</code> plugin on the same
-library.</p></li>
-<li><p>Visualise the top hits as 2-D <code>nat.ggplot</code> panels with
-BANC neuron meshes over the BANC VNC neuropil.</p></li>
+<li>
+<strong>Extract</strong> GFP (label) and NC82 (anatomical reference)
+from the LSM at native voxdims via
+<code>inst/python/lsm_to_nrrd.py</code>.</li>
+<li>
+<strong>PCA pre-rotate</strong> the LSM onto JRC2018VNCF axes
+(<code>inst/python/lsm_pca_rotate.py</code>). The NC82 tissue mask’s
+principal axes are aligned to template (X, Y, Z); the GFP CoG is
+anchored to a known abdominal-ganglion reference point so the rotated
+volume lands at the right tip in template coords. No Elastix optimiser
+run — the partial FOV / weak metric overlap made the rigid+affine
+optimiser unreliable, and PCA + an explicit anchor is more robust.</li>
+<li>
+<strong>Mask GFP by the NC82 neuropil</strong>
+(<code>inst/python/lsm_neuropil_mask.py</code>). Over half of the raw
+GFP voxels (52% in our female sample) sit outside the cord neuropil —
+bleed-through into cuticle, rectal muscle, and background. Restricting
+to in-neuropil GFP triples the cMIP pixel-match count and promotes the
+right BANC matches.</li>
+<li>
+<strong>Bridge</strong> the JRC2018VNCF NRRD into
+<code>JRC2018VNCU_HR</code> (the NeuronBridge VNC reference grid, 573 ×
+1119 × 219 voxels @ 0.461 × 0.461 × 0.7 µm) via the Saalfeld lab H5
+displacement field shipped by <a href="https://github.com/navis-org/navis-flybrains" class="external-link">navis-flybrains</a>.</li>
+<li>
+<strong>Render</strong> a colour-depth MIP of the bridged label
+channel with
+<code>neuronbridger::nrrd_to_mip(target_space = "VNC")</code>.</li>
+<li>
+<strong>Search</strong> that MIP against the BANC efferent MIP
+library (~1,033 <code>flow == "efferent"</code> cells in v888, 782
+rendered) using <code><a href="../reference/colormip_search.html">colormip_search()</a></code>.</li>
+<li>
+<strong>NBLAST</strong> the SREN intensity-weighted dotprops against
+the full efferent library using
+<code>nat.nblast::nblast(..., normalised = TRUE)</code> both directions
+and reporting the <strong>fwd+rev mean</strong>. Points are bridged from
+JRC2018VNCF µm into BANC µm via the <strong>full elastix JRC2018F→BANC
+chain</strong>
+(<code>bancr::banc_to_JRC2018F(..., method = "elastix", inverse = TRUE)</code>)
+— a stack of manual affine + elastix affine + coarse B-spline + fine
+B-spline. An earlier revision of this vignette used the simpler
+<code><a href="https://natverse.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">bancr::jrcvnc2018f_to_banc_tpsreg</a></code> (a 5710-landmark TPS
+approximation) but that mapping collapses bilateral signal onto one side
+of the cord at the abdominal tip; the full elastix chain preserves
+it.</li>
+<li>Render top-K BANC meshes overlaid on the SREN cloud as 2-D
+<code>nat.ggplot</code> panels in BANC native µm, plus a side-by-side
+cMIP of the SREN query and the top BANC hit, plus a bilateral-pair
+overlay for the current best hypothesis (<code>EN00B016</code>).</li>
 </ol>
 <blockquote>
-<p><strong>Why use BANC for this?</strong> The female VNC is the only
-one currently available at synapse resolution (BANC v888). Identifying
-the EM counterparts of the SRENs gives us their downstream connectivity
-— the descending input from SAG (Sex Peptide Abdominal Ganglion)
-neurons, the ascending afferents that signal back to the brain, and the
-rectal target. Colour-MIP search against BANC is the route to recovering
-these cells from a single LM volume.</p>
+<p><strong>Why use BANC for this?</strong> BANC is the only female adult
+<em>Drosophila</em> CNS currently reconstructed at synapse resolution
+(v888 here, brain + VNC). Identifying the EM counterpart of the SRENs
+gives us their downstream connectivity — the descending input from SAG
+(Sex Peptide Abdominal Ganglion) neurons, the ascending afferents that
+signal back to the brain, and the rectal target. Colour-MIP search +
+NBLAST against BANC is the route to recovering these cells from a single
+LM volume.</p>
 </blockquote>
 <div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_top_hits.png" alt="Top-6 BANC efferent matches for the SREN query"><div class="figcaption">Top-6 BANC efferent matches for the SREN
-query</div>
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_top_hits.png" alt="Top-6 BANC efferent matches for the SREN query (cMIP, npmask)"><div class="figcaption">Top-6 BANC efferent matches for the SREN query
+(cMIP, npmask)</div>
 </div>
 </div>
 <div class="section level2">
 <h2 id="whats-in-the-package">What’s in the package<a class="anchor" aria-label="anchor" href="#whats-in-the-package"></a>
 </h2>
-<p>To keep the package small, neither the source <code>.tif</code> (~1.3
-GB, private) nor the BANC efferent MIP library (~12 MB across 782 PNGs)
-ship with <code>neuronbridger</code>. The vignette walks through the
-download steps; the only artefacts shipped are the rendered figures
-under <code>inst/images/</code>:</p>
+<p>Neither the source <code>.lsm</code> (~480 MB, private) nor the BANC
+efferent MIP library (~12 MB across 782 PNGs) ship with
+<code>neuronbridger</code>. The vignette walks through the download
+steps; the only artefacts shipped are the rendered figures under
+<code>inst/images/</code>:</p>
 <ul>
 <li>
-<code>banc_colormip_sren_query.png</code> — the SREN query MIP in
-JRC2018VNCU_HR.</li>
+<code>banc_colormip_sren_query.png</code> — SREN query MIP in
+JRC2018VNCU_HR after PCA pre-rotation + neuropil mask.</li>
 <li>
-<code>banc_colormip_sren_registration.png</code> — JRC2018VNCU_HR
-template max-Z alongside the bridged NC82 reference channel, side by
-side.</li>
+<code>banc_colormip_sren_top_hits.png</code> — top-6 hits from
+<code><a href="../reference/colormip_search.html">colormip_search()</a></code> (BANC EM mesh in purple, SREN LM cloud
+coloured by depth, faded by intensity). Each tile shows a top-down YX
+view + an XZ side projection. Plotted in BANC native µm; SREN cloud
+bridged via the full elastix JRC2018F→BANC chain.</li>
 <li>
-<code>banc_colormip_r_vs_fiji.png</code> — scatter of R-port vs FIJI
-scores on a 30-candidate validation subset.</li>
+<code>banc_colormip_sren_nblast_top.png</code> — same layout, ranked
+by NBLAST fwd+rev mean (normalised) against the full ~1,033-cell
+efferent library.</li>
 <li>
-<code>banc_colormip_sren_top_hits.png</code> — the
-<code>nat.ggplot</code> panel above (BANC EM hit in purple, SREN LM
-source coloured by depth and faded by intensity). Each tile shows a
-top-down YX view and an XZ side projection so the dorso-ventral spread
-is visible at a glance. Plotted in <strong>BANC native µm</strong>
-because the bancr TPS landmarks cap at JRCVNC2018F Y ≈ 504 µm but the
-SREN signal extends to Y ≈ 537 µm, so an F-space view extrapolates ~30
-µm short at the abdominal tip.</li>
+<code>banc_colormip_sren_en00b016_pair.png</code> — the two BANC
+cells whose <code>manc_cell_type = EN00B016</code> (candidate SREN
+bilateral pair): <code>720575941680133053</code> (left, BANC
+<code>cell_type = EFFabg09</code>, ACh) +
+<code>720575941659397456</code> (right, BANC
+<code>cell_type = EN00B016</code>, octopamine).</li>
 <li>
-<code>banc_colormip_sren_nblast_top.png</code> — same layout, BANC
-mesh in orange, ranked by intensity-weighted NBLAST.</li>
+<code>banc_colormip_sren_vs_top_hit.png</code> — side-by-side cMIP
+of the SREN query and the current top BANC cMIP hit (label written
+dynamically from live SeaTable annotations, since these have shifted
+over successive proofreading rounds).</li>
 </ul>
 <p>A self-contained reproducer is at
-<code>inst/scripts/banc_colormip_sren.R</code>.</p>
+<code>inst/scripts/banc_colormip_sren.R</code>. The Python helpers it
+shells out to live under <code>inst/python/</code>:
+<code>lsm_to_nrrd.py</code>, <code>lsm_build_nc82_mask.py</code>,
+<code>lsm_pca_rotate.py</code>, <code>lsm_neuropil_mask.py</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="prerequisites">Prerequisites<a class="anchor" aria-label="anchor" href="#prerequisites"></a>
@@ -217,54 +257,108 @@ mesh in orange, ranked by intensity-weighted NBLAST.</li>
 <span><span class="co"># External tooling (one-off)</span></span>
 <span><span class="co">#   * Java 17+ (Saalfeldlab RenderTransformed JAR runtime)</span></span>
 <span><span class="co">#   * gsutil (Google Cloud SDK), authenticated to BANC's GCS bucket</span></span>
+<span><span class="co">#   * Python deps for the LSM pipeline:</span></span>
+<span><span class="co">#       conda activate r-reticulate</span></span>
+<span><span class="co">#       pip install tifffile SimpleITK scipy scikit-image pillow matplotlib</span></span>
 <span><span class="co">#</span></span>
 <span><span class="co"># The Saalfeldlab JRC VNC H5 transforms (~110 MB), via the navis</span></span>
 <span><span class="co"># `flybrains` Python package:</span></span>
 <span><span class="co">#</span></span>
-<span><span class="co">#   reticulate::py_run_string("import flybrains;</span></span>
-<span><span class="co">#                              flybrains.download_jrc_vnc_transforms()")</span></span>
+<span><span class="co">#   reticulate::py_run_string(</span></span>
+<span><span class="co">#     "import flybrains; flybrains.download_jrc_vnc_transforms()")</span></span>
 <span><span class="co">#</span></span>
 <span><span class="co"># This writes JRCVNC2018U_JRCVNC2018F.h5 to ~/flybrain-data/.</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/neuronbridger" class="external-link">neuronbridger</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/flyconnectome/bancr" class="external-link">bancr</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat" class="external-link">nat</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://natverse.org/nat.ggplot/" class="external-link">nat.ggplot</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/bancr" class="external-link">bancr</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat" class="external-link">nat</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://natverse.org/nat.ggplot/" class="external-link">nat.ggplot</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://natverse.org/nat.nblast/" class="external-link">nat.nblast</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/apache/arrow/" class="external-link">arrow</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://patchwork.data-imaginist.com" class="external-link">patchwork</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://scales.r-lib.org" class="external-link">scales</a></span><span class="op">)</span>         <span class="co"># depth-coded SREN hue palette</span></span></code></pre></div>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://scales.r-lib.org" class="external-link">scales</a></span><span class="op">)</span>          <span class="co"># depth-coded SREN hue palette</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rstudio.github.io/reticulate/" class="external-link">reticulate</a></span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="step-1-bridge-jrcvnc2018f-jrc2018vncu_hr">Step 1 — Bridge JRCVNC2018F → JRC2018VNCU_HR<a class="anchor" aria-label="anchor" href="#step-1-bridge-jrcvnc2018f-jrc2018vncu_hr"></a>
+<h2 id="step-1-from-raw-lsm-to-a-jrc2018vncf-aligned-gfp-nrrd">Step 1 — From raw LSM to a JRC2018VNCF-aligned GFP NRRD<a class="anchor" aria-label="anchor" href="#step-1-from-raw-lsm-to-a-jrc2018vncf-aligned-gfp-nrrd"></a>
 </h2>
-<p>The source we use here is
-<code>sren_merged registration_female.tif</code> — already aligned to
-JRCVNC2018F (660 × 1342 × 358 @ 0.4 µm³, Channel 0 = NC82 reference,
-Channel 1 = SREN label). The 90-pixel-tall black header that
-<code>nrrd_to_mip(target_space = "VNC")</code> adds on top of the output
-matches Janelia’s canonical VNC colour-MIP layout (1209 × 573).</p>
+<p>The raw LSM here is a partial FOV of the abdominal tip with the cord
+at an angle — the tip is roughly in the middle of the image and the rest
+of the VNC would be off to the top-right. A whole-VNC Elastix recipe
+doesn’t work (the optimiser keeps falling into local minima that put the
+cord on the wrong hemisphere), so we use a deterministic PCA
+pre-rotation instead.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">WORK</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span><span class="st">"banc_colormip_work_"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/files2.html" class="external-link">dir.create</a></span><span class="op">(</span><span class="va">WORK</span>, showWarnings <span class="op">=</span> <span class="cn">FALSE</span>, recursive <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span><span class="va">SOURCE</span> <span class="op">&lt;-</span> <span class="st">"/path/to/sren_merged registration_female.tif"</span></span>
+<code class="sourceCode R"><span><span class="va">WORK</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span><span class="st">"banc_colormip_work_"</span><span class="op">)</span>; <span class="fu"><a href="https://rdrr.io/r/base/files2.html" class="external-link">dir.create</a></span><span class="op">(</span><span class="va">WORK</span>, recursive <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">LSM</span>    <span class="op">&lt;-</span> <span class="st">"/path/to/20250306_C24-53_EN1-5-1060_female_vnc_40x-2.lsm"</span></span>
+<span><span class="va">TPL</span>    <span class="op">&lt;-</span> <span class="st">"/path/to/JRC2018_VNC_FEMALE_461.nrrd"</span></span>
+<span><span class="va">py</span>     <span class="op">&lt;-</span> <span class="fu">reticulate</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/reticulate/reference/conda-tools.html" class="external-link">conda_python</a></span><span class="op">(</span><span class="st">"r-reticulate"</span><span class="op">)</span></span>
+<span><span class="va">pydir</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"python"</span>, package <span class="op">=</span> <span class="st">"neuronbridger"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># (a) Split the 2-channel ImageJ TIFF into per-channel NRRDs at the</span></span>
-<span><span class="co"># correct JRCVNC2018F voxdims (the TIFF's resolution tags are</span></span>
-<span><span class="co"># uncalibrated; we set them explicitly).</span></span>
-<span><span class="va">nrrds</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tif_to_nrrd_channels.html">tif_to_nrrd_channels</a></span><span class="op">(</span></span>
-<span>  input      <span class="op">=</span> <span class="va">SOURCE</span>,</span>
-<span>  output_dir <span class="op">=</span> <span class="va">WORK</span>,</span>
-<span>  voxdims    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.4</span>, <span class="fl">0.4</span>, <span class="fl">0.4</span><span class="op">)</span>,</span>
-<span>  prefix     <span class="op">=</span> <span class="st">"sren_female"</span>,</span>
-<span>  channels   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0L</span>, <span class="fl">1L</span><span class="op">)</span>,</span>
-<span>  labels     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nc82"</span>, <span class="st">"sren"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">nrrds</span></span>
-<span><span class="co">#&gt; nc82                                 sren</span></span>
-<span><span class="co">#&gt; "sren_female_nc82.nrrd"   "sren_female_sren.nrrd"</span></span>
+<span><span class="co"># (a) Split the LSM into per-channel NRRDs. For this acquisition</span></span>
+<span><span class="co">#     ch0 = GFP, ch1 = unused red, ch2 = NC82.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/system2.html" class="external-link">system2</a></span><span class="op">(</span><span class="va">py</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">pydir</span>, <span class="st">"lsm_to_nrrd.py"</span><span class="op">)</span>, <span class="va">LSM</span>, <span class="va">WORK</span>,</span>
+<span>              <span class="st">"--prefix"</span>, <span class="st">"sren_female"</span>,</span>
+<span>              <span class="st">"--gfp-channel"</span>, <span class="fl">0L</span>, <span class="st">"--nc82-channel"</span>, <span class="fl">2L</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># (b) Apply the JRCVNC2018F → JRCVNC2018U_HR H5 bridge.</span></span>
-<span><span class="va">ser_in_HR</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/jrcvnc2018f_to_jrcvnc2018u_hr_h5.html">jrcvnc2018f_to_jrcvnc2018u_hr_h5</a></span><span class="op">(</span></span>
-<span>  input  <span class="op">=</span> <span class="va">nrrds</span><span class="op">[</span><span class="st">"sren"</span><span class="op">]</span>,</span>
+<span><span class="co"># (b) NC82 tissue mask (Otsu + close + largest CC + small dilation).</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/system2.html" class="external-link">system2</a></span><span class="op">(</span><span class="va">py</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">pydir</span>, <span class="st">"lsm_build_nc82_mask.py"</span><span class="op">)</span>,</span>
+<span>              <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"sren_female_nc82.nrrd"</span><span class="op">)</span>,</span>
+<span>              <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"sren_female_nc82_mask.nrrd"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># (c) PCA pre-rotate onto JRC2018VNCF axes, anchor GFP CoG at</span></span>
+<span><span class="co">#     (131, 508, 92) um -- this is the GFP CoG of the upstream KDRC</span></span>
+<span><span class="co">#     registered TIF, taken as a known-good rough placement of the SREN</span></span>
+<span><span class="co">#     arborisation in template coords.</span></span>
+<span><span class="co">#</span></span>
+<span><span class="co">#     PC1 (longest mask axis) -&gt; template Y (anterior-posterior)</span></span>
+<span><span class="co">#     PC2 (medium)             -&gt; template X (lateral)</span></span>
+<span><span class="co">#     PC3 (shortest)           -&gt; template Z (dorso-ventral)</span></span>
+<span><span class="co">#     Sign of PC1 is set so the GFP CoG projects positively onto PC1</span></span>
+<span><span class="co">#     (i.e. lands at high template Y, the posterior tip). det(R)=+1.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/files2.html" class="external-link">dir.create</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"rot"</span><span class="op">)</span>, recursive <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/system2.html" class="external-link">system2</a></span><span class="op">(</span><span class="va">py</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">pydir</span>, <span class="st">"lsm_pca_rotate.py"</span><span class="op">)</span>,</span>
+<span>              <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"sren_female_nc82.nrrd"</span><span class="op">)</span>,</span>
+<span>              <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"sren_female_gfp.nrrd"</span><span class="op">)</span>,</span>
+<span>              <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"sren_female_nc82_mask.nrrd"</span><span class="op">)</span>,</span>
+<span>              <span class="va">TPL</span>,</span>
+<span>              <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"tip_mask.nrrd"</span><span class="op">)</span>,      <span class="co"># ignored, see --target-um</span></span>
+<span>              <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"rot"</span><span class="op">)</span>,</span>
+<span>              <span class="st">"--align-source"</span>, <span class="st">"gfp_cog"</span>,</span>
+<span>              <span class="st">"--target-um"</span>,    <span class="st">"\"131,508,92\""</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>The script writes <code>rot/nc82_rot.nrrd</code>,
+<code>rot/gfp_rot.nrrd</code>, and <code>rot/nc82_mask_rot.nrrd</code>,
+all sharing the same physical origin and voxdims (0.4 µm XY / 0.7 µm Z)
+with identity Direction. The R wrapper in
+<code>inst/scripts/banc_colormip_sren.R</code> then resamples these onto
+the JRC2018VNCF grid via SimpleITK (one-shot linear resample), so the
+output reads cleanly as a template-space NRRD.</p>
+</div>
+<div class="section level2">
+<h2 id="step-2-mask-gfp-by-the-nc82-neuropil">Step 2 — Mask GFP by the NC82 neuropil<a class="anchor" aria-label="anchor" href="#step-2-mask-gfp-by-the-nc82-neuropil"></a>
+</h2>
+<p>A simple Otsu of the resampled NC82 gives a neuropil mask; we zero
+any GFP voxel that falls outside it. About <strong>half of the raw GFP
+voxels in this acquisition sit outside the neuropil</strong> —
+fluorescence bleed-through into cuticle, rectal muscle, and background —
+so this step is a big lever:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system2.html" class="external-link">system2</a></span><span class="op">(</span><span class="va">py</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">pydir</span>, <span class="st">"lsm_neuropil_mask.py"</span><span class="op">)</span>,</span>
+<span>              <span class="st">"nc82_PCAonly_JRC2018VNCF.nrrd"</span>,    <span class="co"># rotated + resampled NC82</span></span>
+<span>              <span class="st">"gfp_PCAonly_JRC2018VNCF.nrrd"</span>,     <span class="co"># rotated + resampled GFP</span></span>
+<span>              <span class="st">"gfp_PCAonly_neuropilmasked_JRC2018VNCF.nrrd"</span>,</span>
+<span>              <span class="st">"--mask-out"</span>, <span class="st">"neuropil_mask_JRC2018VNCF.nrrd"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; NC82 Otsu threshold: 40.04</span></span>
+<span><span class="co">#&gt; neuropil mask voxels: 5,462,433</span></span>
+<span><span class="co">#&gt; GFP after neuropil mask: nonzero 36,798  (49.9% of pre-mask)</span></span></code></pre></div>
+<p>The masked GFP NRRD on the JRC2018VNCF grid is what feeds into the
+rest of the pipeline.</p>
+</div>
+<div class="section level2">
+<h2 id="step-3-bridge-jrcvnc2018f-jrc2018vncu_hr">Step 3 — Bridge JRCVNC2018F → JRC2018VNCU_HR<a class="anchor" aria-label="anchor" href="#step-3-bridge-jrcvnc2018f-jrc2018vncu_hr"></a>
+</h2>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ser_in_HR</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/jrcvnc2018f_to_jrcvnc2018u_hr_h5.html">jrcvnc2018f_to_jrcvnc2018u_hr_h5</a></span><span class="op">(</span></span>
+<span>  input  <span class="op">=</span> <span class="st">"gfp_PCAonly_neuropilmasked_JRC2018VNCF.nrrd"</span>,</span>
 <span>  output <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"sren_female_in_JRC2018VNCU_HR.nrrd"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co"># ~40 s on Apple silicon with 8 threads. Output: 573 x 1119 x 219</span></span>
+<span><span class="co"># ~70 s on Apple silicon with 8 threads. Output: 573 x 1119 x 219</span></span>
 <span><span class="co"># voxels at 0.461 / 0.461 / 0.7 um.</span></span></code></pre></div>
 <p>The H5 (<code>JRCVNC2018U_JRCVNC2018F.h5</code> from
 <code>flybrains</code>) stores its displacement field on the JRCVNC2018U
@@ -279,61 +373,66 @@ to <code>RenderTransformed</code>. Asking for the
 <code>JRC2018VNCU</code> and <code>JRC2018VNCU_HR</code> share the same
 physical coordinate system; the JAR interpolates the dfield onto the
 requested grid in one shot.</p>
-<p>To verify the bridge, the JRC2018VNCU_HR template max-Z and the
-bridged NC82 reference channel side by side:</p>
-<div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_registration.png" alt="JRC2018VNCU_HR template (left) vs bridged NC82 (right)"><div class="figcaption">JRC2018VNCU_HR template (left) vs bridged NC82
-(right)</div>
-</div>
 </div>
 <div class="section level2">
-<h2 id="step-2-generate-the-query-mip">Step 2 — Generate the query MIP<a class="anchor" aria-label="anchor" href="#step-2-generate-the-query-mip"></a>
+<h2 id="step-4-generate-the-query-mip">Step 4 — Generate the query MIP<a class="anchor" aria-label="anchor" href="#step-4-generate-the-query-mip"></a>
 </h2>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">query_png</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/nrrd_to_mip.html">nrrd_to_mip</a></span><span class="op">(</span></span>
 <span>  input        <span class="op">=</span> <span class="va">ser_in_HR</span>,</span>
 <span>  savefolder   <span class="op">=</span> <span class="va">WORK</span>,</span>
 <span>  method       <span class="op">=</span> <span class="st">"direct"</span>,</span>
 <span>  target_space <span class="op">=</span> <span class="st">"VNC"</span>,</span>
-<span>  threshold    <span class="op">=</span> <span class="fl">0.80</span>,    <span class="co"># top 20 % of non-zero voxels (sparse SREN signal)</span></span>
+<span>  threshold    <span class="op">=</span> <span class="fl">0.80</span>,</span>
 <span>  denoise      <span class="op">=</span> <span class="st">"median3d"</span>,</span>
 <span>  format       <span class="op">=</span> <span class="st">"png"</span>,</span>
 <span>  save         <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  overwrite    <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p>The default <code>threshold = "auto"</code> (Triangle) is too
-permissive for this 16-bit data — the SREN neuron’s terminal is
-saturated at 65535 while bleed-through under the H5 interpolation
-produces a long tail of dim, scattered voxels. Setting
-<code>threshold = 0.80</code> keeps the top 20 % of non-zero voxels by
-intensity, which restricts the MIP to real signal at the abdominal
-ganglion / rectum.</p>
+<p><code>threshold = 0.80</code> keeps the top 20 % of non-zero voxels
+by intensity in the bridged volume; the neuropil mask already removed
+most of the dim halo so this floor is just a small extra noise cut.</p>
 <div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_query.png" alt="SREN query colour-MIP in JRC2018VNCU_HR"><div class="figcaption">SREN query colour-MIP in JRC2018VNCU_HR</div>
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_query.png" alt="SREN query colour-MIP in JRC2018VNCU_HR (neuropil-masked GFP)"><div class="figcaption">SREN query colour-MIP in JRC2018VNCU_HR
+(neuropil-masked GFP)</div>
 </div>
 </div>
 <div class="section level2">
-<h2 id="step-3-build-the-banc-efferent-mip-library">Step 3 — Build the BANC efferent MIP library<a class="anchor" aria-label="anchor" href="#step-3-build-the-banc-efferent-mip-library"></a>
+<h2 id="step-5-build-the-banc-efferent-mip-library">Step 5 — Build the BANC efferent MIP library<a class="anchor" aria-label="anchor" href="#step-5-build-the-banc-efferent-mip-library"></a>
 </h2>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">LIB_DIR</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"library"</span>, <span class="st">"mips"</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">LIB_DIR</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"library"</span>, <span class="st">"mips"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/files2.html" class="external-link">dir.create</a></span><span class="op">(</span><span class="va">LIB_DIR</span>, showWarnings <span class="op">=</span> <span class="cn">FALSE</span>, recursive <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># (a) BANC v888 metadata: 188k rows.</span></span>
-<span><span class="va">META_GS</span>  <span class="op">&lt;-</span> <span class="st">"gs://lee-lab_brain-and-nerve-cord-fly-connectome/compiled_data/banc_888/banc_888_meta.feather"</span></span>
-<span><span class="va">META_TMP</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"banc_888_meta.feather"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/system2.html" class="external-link">system2</a></span><span class="op">(</span><span class="st">"gsutil"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cp"</span>, <span class="va">META_GS</span>, <span class="va">META_TMP</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># Shared root for every BANC GCS path used in this vignette.</span></span>
+<span><span class="va">GCS_ROOT</span> <span class="op">&lt;-</span> <span class="st">"gs://lee-lab_brain-and-nerve-cord-fly-connectome"</span></span>
 <span></span>
-<span><span class="va">meta</span> <span class="op">&lt;-</span> <span class="fu">arrow</span><span class="fu">::</span><span class="fu"><a href="https://arrow.apache.org/docs/r/reference/read_feather.html" class="external-link">read_feather</a></span><span class="op">(</span><span class="va">META_TMP</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span><span class="co"># (a) BANC metadata — pull from the LIVE SeaTable `banc_meta` so we</span></span>
+<span><span class="co"># get the current `cell_type` + `manc_cell_type` bridge (both change</span></span>
+<span><span class="co"># with proofreading). The frozen `banc_888_meta.feather` on GCS is a</span></span>
+<span><span class="co"># snapshot; SeaTable is authoritative for annotation state and carries</span></span>
+<span><span class="co"># both the current `root_id` and the frozen `root_888` (which is what</span></span>
+<span><span class="co"># the cMIP filenames and precomputed layer object lists key on).</span></span>
+<span><span class="co"># Requires `BANCTABLE_TOKEN` in `.Renviron` — see `bancr::banctable_login`.</span></span>
+<span><span class="va">meta_live</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banctable_query.html" class="external-link">banctable_query</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span></span>
+<span>  <span class="st">"SELECT root_id, root_888, cell_type, manc_cell_type, cell_class,"</span>,</span>
+<span>         <span class="st">"cell_sub_class, side, hemilineage, nerve, neuromere,"</span>,</span>
+<span>         <span class="st">"neurotransmitter_predicted, peripheral_target_type,"</span>,</span>
+<span>         <span class="st">"cell_function, flow"</span>,</span>
+<span>  <span class="st">"FROM banc_meta"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">meta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">meta_live</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">flow</span> <span class="op">==</span> <span class="st">"efferent"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">root_888</span>, <span class="va">side</span>, <span class="va">hemilineage</span>, <span class="va">nerve</span>, <span class="va">neuromere</span>,</span>
-<span>                <span class="va">cell_class</span>, <span class="va">cell_type</span>, <span class="va">neurotransmitter_predicted</span>,</span>
-<span>                <span class="va">peripheral_target_type</span>, <span class="va">cell_function</span><span class="op">)</span></span>
+<span>                <span class="va">cell_class</span>, <span class="va">cell_sub_class</span>, <span class="va">cell_type</span>, <span class="va">manc_cell_type</span>,</span>
+<span>                <span class="va">neurotransmitter_predicted</span>, <span class="va">peripheral_target_type</span>,</span>
+<span>                <span class="va">cell_function</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">meta</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 1035</span></span>
+<span><span class="co">#&gt; [1] 1033</span></span>
 <span></span>
 <span><span class="co"># (b) Match against the actual BANC color-MIP set (some efferents</span></span>
 <span><span class="co"># don't have a MIP rendered yet).</span></span>
-<span><span class="va">mips_root</span> <span class="op">&lt;-</span> <span class="st">"gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_VNC_UNISEX_461/"</span></span>
+<span><span class="va">mips_root</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">GCS_ROOT</span>,</span>
+<span>                       <span class="st">"neuron_colormips/template_alignment_240721"</span>,</span>
+<span>                       <span class="st">"JRC2018_VNC_UNISEX_461"</span><span class="op">)</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"/"</span><span class="op">)</span></span>
 <span><span class="va">all_mips</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/system2.html" class="external-link">system2</a></span><span class="op">(</span><span class="st">"gsutil"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ls"</span>, <span class="va">mips_root</span><span class="op">)</span>, stdout <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="va">mip_ids</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">".*/"</span>, <span class="st">""</span>, <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">"_in_JRC2018_VNC_UNISEX_461\\.png$"</span>, <span class="st">""</span>, <span class="va">all_mips</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">to_get</span>    <span class="op">&lt;-</span> <span class="va">all_mips</span><span class="op">[</span><span class="va">mip_ids</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">meta</span><span class="op">$</span><span class="va">root_888</span><span class="op">]</span></span>
@@ -343,639 +442,318 @@ ganglion / rectum.</p>
 <span><span class="co"># (c) Parallel download (~2 MB total, takes &lt;1 minute).</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="va">to_get</span>, <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"to_get.txt"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.html" class="external-link">system</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"xargs -P 16 -I {} gsutil -q cp {} %s/ &lt; %s"</span>,</span>
-<span>               <span class="va">LIB_DIR</span>, <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"to_get.txt"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.files</a></span><span class="op">(</span><span class="va">LIB_DIR</span>, <span class="st">"\\.png$"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 782</span></span></code></pre></div>
+<span>               <span class="va">LIB_DIR</span>, <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">WORK</span>, <span class="st">"to_get.txt"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="step-4-search">Step 4 — Search<a class="anchor" aria-label="anchor" href="#step-4-search"></a>
+<h2 id="step-6-search">Step 6 — Search<a class="anchor" aria-label="anchor" href="#step-6-search"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/colormip_search.html">colormip_search</a></span><span class="op">(</span></span>
 <span>  query        <span class="op">=</span> <span class="va">query_png</span>,</span>
 <span>  library      <span class="op">=</span> <span class="va">LIB_DIR</span>,</span>
 <span>  threshold    <span class="op">=</span> <span class="fl">100L</span>,    <span class="co"># channel-sum brightness cutoff (signal floor)</span></span>
-<span>  z_tolerance  <span class="op">=</span> <span class="fl">8L</span>,      <span class="co"># depth-LUT-index tolerance (looser = more 3-D slack)</span></span>
+<span>  z_tolerance  <span class="op">=</span> <span class="fl">8L</span>,      <span class="co"># depth-LUT-index tolerance</span></span>
 <span>  xy_shift     <span class="op">=</span> <span class="fl">3L</span>,      <span class="co"># +/- 3 px translation grid</span></span>
-<span>  mirror       <span class="op">=</span> <span class="cn">FALSE</span>,   <span class="co"># SREN is unilateral; mirror added noise here</span></span>
+<span>  mirror       <span class="op">=</span> <span class="cn">FALSE</span>,   <span class="co"># SREN is unilateral</span></span>
 <span>  mc.cores     <span class="op">=</span> <span class="fl">8L</span>,</span>
 <span>  verbose      <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="va">res</span><span class="op">$</span><span class="va">root_888</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">".*/(\\d+)_in_JRC2018.*"</span>, <span class="st">"\\1"</span>, <span class="va">res</span><span class="op">$</span><span class="va">path</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">res</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"root_888"</span>, <span class="st">"score"</span>, <span class="st">"n_match"</span>, <span class="st">"dx"</span>, <span class="st">"dy"</span>, <span class="st">"mirror"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">6</span><span class="op">)</span></span>
-<span><span class="co">#&gt;             root_888      score n_match dx dy mirror</span></span>
-<span><span class="co">#&gt; 1 720575941686473228 0.09609195     418  3 -3  FALSE</span></span>
-<span><span class="co">#&gt; 2 720575941628067385 0.09080460     395 -3 -3  FALSE</span></span>
-<span><span class="co">#&gt; 3 720575941630741730 0.07379310     321 -3 -3  FALSE</span></span>
-<span><span class="co">#&gt; 4 720575941549868093 0.07310345     318  2 -3  FALSE</span></span>
-<span><span class="co">#&gt; 5 720575941468851211 0.06643678     289  3 -1  FALSE</span></span>
-<span><span class="co">#&gt; 6 720575941460652870 0.06459770     281  3  0  FALSE</span></span></code></pre></div>
-<p><code><a href="../reference/colormip_search.html">colormip_search()</a></code> is a pure-R port of Janelia’s
-<code>Color_MIP_Mask_Search</code> plugin: each pixel’s RGB triple is
-mapped to the closest entry in the same 256-entry depth LUT used by
-<code><a href="../reference/nrrd_to_mip.html">nrrd_to_mip()</a></code>, then for each candidate it counts the
-maximum matched-pixel count over the <code>(2 · xy_shift + 1)²</code>
-translation grid (times the mirror, when enabled), normalised by the
-query foreground count. See <code><a href="../reference/colormip_search.html">?colormip_search</a></code> for the
-algorithm details.</p>
-<p>The whole search runs in <strong>~30 s</strong> for 782 candidates on
-8 cores.</p>
-<p>These parameters were tuned against the NBLAST cross-check in Step 8.
-A grid search over <code>threshold ∈ {60..500}</code>,
-<code>z_tolerance ∈ {0..8}</code>, <code>xy_shift ∈ {0..6}</code> and
-<code>mirror ∈ {TRUE, FALSE}</code> was scored by Spearman correlation
-with the NBLAST scores on a 200-candidate pool. Threshold barely moves
-the ranking; <strong><code>z_tolerance = 8</code> and
-<code>xy_shift = 3</code> with <code>mirror = FALSE</code></strong>
-maximise rank agreement (Spearman ρ = 0.901, three of the NBLAST top-6
-land in the cMIP top-6). Mirroring hurts here — the SREN is unilateral,
-so adding the flipped query introduces false-positive symmetric matches
-that don’t belong in a one-sided search.</p>
+<span><span class="co">#&gt;             root_888     score n_match dx dy mirror</span></span>
+<span><span class="co">#&gt; 1 720575941545785276 0.2122492     201  3 -3  FALSE</span></span>
+<span><span class="co">#&gt; 2 720575941661415804 0.1774023     168  3 -3  FALSE</span></span>
+<span><span class="co">#&gt; 3 720575941549868093 0.1636748     155  3 -3  FALSE</span></span>
+<span><span class="co">#&gt; 4 720575941513645891 0.1499472     142  3 -3  FALSE</span></span>
+<span><span class="co">#&gt; 5 720575941686473228 0.1488912     141  3 -3  FALSE</span></span>
+<span><span class="co">#&gt; 6 720575941494055038 0.1478353     140  3 -3  FALSE</span></span></code></pre></div>
+<p>Neuropil-masking the query pushed the top cMIP score from ~0.072
+(without the mask) to <strong>0.21</strong> here — three times more
+pixel matches because the noise floor that previously dominated the MIP
+is gone.</p>
 </div>
 <div class="section level2">
-<h2 id="step-5-validate-against-janelias-fiji-plugin">Step 5 — Validate against Janelia’s FIJI plugin<a class="anchor" aria-label="anchor" href="#step-5-validate-against-janelias-fiji-plugin"></a>
+<h2 id="step-7-cross-check-with-nblast-fwdrev-mean-full-elastix-bridge">Step 7 — Cross-check with NBLAST fwd+rev mean (full elastix
+bridge)<a class="anchor" aria-label="anchor" href="#step-7-cross-check-with-nblast-fwdrev-mean-full-elastix-bridge"></a>
 </h2>
-<p>The R port targets the same algorithm specification as Janelia’s
-<code>Color_MIP_Mask_Search</code> v1.0.1 (the canonical reference
-implementation). To check that we agree, run the FIJI plugin on the same
-query + library and compare ranks.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Install the FIJI plugin (one-off):</span></span>
-<span><span class="co">#</span></span>
-<span><span class="co"># 1. Download Color_MIP_Mask_Search.jar from the Janelia release:</span></span>
-<span><span class="co">#    https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/releases/download/1.0.1/Color_MIP_Mask_Search.jar</span></span>
-<span><span class="co"># 2. Drop it into &lt;Fiji.app&gt;/plugins/ and restart FIJI.</span></span></code></pre></div>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># (a) Pack the candidate library into a single multi-frame TIFF</span></span>
-<span><span class="co"># (avoids FIJI's headless FolderOpener dialog hanging).</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/system2.html" class="external-link">system2</a></span><span class="op">(</span><span class="fu">reticulate</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/reticulate/reference/py_config.html" class="external-link">py_config</a></span><span class="op">(</span><span class="op">)</span><span class="op">$</span><span class="va">python</span>,</span>
-<span>        <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"python"</span>, <span class="st">"imagej_tif_to_nrrd.py"</span>,</span>
-<span>                      package <span class="op">=</span> <span class="st">"neuronbridger"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>   <span class="co"># reuse-able stack helper</span></span>
-<span><span class="co"># In practice we pack with a small Python script using tifffile:</span></span>
-<span><span class="co">#   library_stack.tif  ~1.6 GB for 782 BANC efferent MIPs.</span></span>
-<span></span>
-<span><span class="co"># (b) Drive Fiji headless. The Janelia macro reads its config from</span></span>
-<span><span class="co"># /tmp/banc_colormip_work/fiji/search_config.txt with key=value lines:</span></span>
-<span><span class="co">#   mask=&lt;query.png&gt;</span></span>
-<span><span class="co">#   stack=&lt;library_stack.tif&gt;</span></span>
-<span><span class="co">#   csv=&lt;output_label_list.csv&gt;</span></span>
-<span><span class="co">#   thr1=30 thr2=30 pix=2 pct=0</span></span>
-<span><span class="co">#</span></span>
-<span><span class="co"># /Applications/Fiji/fiji --headless --no-splash -- -batch run_stack.ijm</span></span>
-<span><span class="co"># parses the matched-window slice labels (encoded as</span></span>
-<span><span class="co"># "&lt;score&gt;_&lt;lib_label&gt;.tif") into a CSV.</span></span>
-<span></span>
-<span><span class="co"># (c) Compare ranks. Spearman rho on a 30-candidate subset (top-20 R</span></span>
-<span><span class="co"># hits + 10 random) was 0.79; R's top-4 by score recovered 3 of FIJI's</span></span>
-<span><span class="co"># 4 matched candidates. The remaining differences are dominated by</span></span>
-<span><span class="co"># FIJI's per-channel 30/30 brightness threshold vs the R port's</span></span>
-<span><span class="co"># channel-sum 100 — semantically close but not identical.</span></span></code></pre></div>
-<div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_r_vs_fiji.png" alt="R port vs FIJI plugin scores (n=30)"><div class="figcaption">R port vs FIJI plugin scores (n=30)</div>
-</div>
-</div>
-<div class="section level2">
-<h2 id="step-6-visualise-top-hits">Step 6 — Visualise top hits<a class="anchor" aria-label="anchor" href="#step-6-visualise-top-hits"></a>
-</h2>
-<p>Fetch the BANC EM meshes for the top-K hits and overlay the SREN LM
-source. We plot in <strong>BANC native µm</strong> rather than
-JRCVNC2018F: the bancr TPS landmarks only cover JRCVNC2018F Y up to ~504
-µm, while the SREN signal sits between Y ≈ 470–537 µm — so warping a
-BANC mesh into F at the posterior tip extrapolates ~30 µm short of where
-the LM signal actually is. Working in BANC native coords avoids the
-extrapolation: meshes stay native, and the SREN cloud is forwarded
-through <code><a href="https://flyconnectome.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">bancr::jrcvnc2018f_to_banc_tpsreg</a></code> once.</p>
+<p>We score the SREN dotprops against the full ~1,033-cell BANC efferent
+library using <code>nat.nblast::nblast(..., normalised = TRUE)</code>
+both directions and averaging the two — the standard NBLAST scorer.
+Points are bridged from JRC2018VNCF µm into BANC µm via
+<code><a href="https://natverse.github.io/bancr/reference/banc_to_JRC2018F.html" class="external-link">bancr::banc_to_JRC2018F</a></code> with
+<code>method = "elastix"</code> (the full manual-affine + elastix-affine
++ coarse-B-spline + fine-B-spline chain shipped at
+<code>gs://lee-lab_brain-and-nerve-cord-fly-connectome/registrations/vnc_240721/</code>),
+which preserves the bilateral SREN signal at the tip. Earlier revisions
+used <code><a href="https://natverse.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">bancr::jrcvnc2018f_to_banc_tpsreg</a></code> (a TPS approximation
+of the same registration) and reported forward-only NBLAST because the
+TPS placed the bridged signal on one side of the cord — that shortcut is
+no longer needed.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/flyconnectome/bancr" class="external-link">bancr</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/zarquon42b/Morpho" class="external-link">Morpho</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://natverse.org/nat.nblast/" class="external-link">nat.nblast</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">N_HITS</span> <span class="op">&lt;-</span> <span class="fl">6L</span></span>
-<span><span class="va">top</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">res</span>, <span class="va">N_HITS</span><span class="op">)</span> <span class="op">|&gt;</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate-joins.html" class="external-link">left_join</a></span><span class="op">(</span><span class="va">meta</span>, by <span class="op">=</span> <span class="st">"root_888"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># (a) BANC EM meshes in BANC native um (no warp; nm/1000).</span></span>
-<span><span class="va">banc_meshes</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_read_neuron_meshes.html" class="external-link">banc_read_neuron_meshes</a></span><span class="op">(</span><span class="va">top</span><span class="op">$</span><span class="va">root_888</span><span class="op">)</span></span>
-<span><span class="va">meshes_um</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">banc_meshes</span>, <span class="kw">function</span><span class="op">(</span><span class="va">m</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/xyzmatrix.html" class="external-link">xyzmatrix</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/xyzmatrix.html" class="external-link">xyzmatrix</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span> <span class="op">/</span> <span class="fl">1000</span></span>
-<span>  <span class="va">m</span></span>
-<span><span class="op">}</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">meshes_um</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">top</span><span class="op">$</span><span class="va">root_888</span></span>
-<span></span>
-<span><span class="co"># (b) SREN LM signal -&gt; 3-D point cloud in JRC2018VNCF microns:</span></span>
-<span><span class="co">#   1. median3d denoise</span></span>
-<span><span class="co">#   2. keep top 50% of nonzero voxels by intensity</span></span>
-<span><span class="co">#   3. drop spatial outliers (largest connected component only)</span></span>
-<span><span class="co">#   4. decimate to 25k points sampled with prob proportional to</span></span>
-<span><span class="co">#      intensity (bright voxels are likelier to be drawn)</span></span>
-<span><span class="co">#   5. alpha = (I/max)^2 with a 0.04 floor — dim voxels fade rather</span></span>
-<span><span class="co">#      than blob into a flat green mass</span></span>
-<span><span class="va">ser</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/read.nrrd.html" class="external-link">read.nrrd</a></span><span class="op">(</span><span class="va">nrrds</span><span class="op">[[</span><span class="st">"sren"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="va">ser</span> <span class="op">&lt;-</span> <span class="fu">mmand</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/mmand/man/filters.html" class="external-link">medianFilter</a></span><span class="op">(</span><span class="va">ser</span>, <span class="fu">mmand</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/mmand/man/kernels.html" class="external-link">shapeKernel</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>,<span class="fl">3</span>,<span class="fl">3</span><span class="op">)</span>, type<span class="op">=</span><span class="st">"box"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># (a) Intensity-weighted SREN dotprops in BANC microns. Use ALL non-zero</span></span>
+<span><span class="co"># neuropil-masked voxels (no median filter, no largest-CC selection) so</span></span>
+<span><span class="co"># the bilateral pattern in the LSM survives.</span></span>
+<span><span class="va">ser</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/read.nrrd.html" class="external-link">read.nrrd</a></span><span class="op">(</span><span class="st">"gfp_PCAonly_neuropilmasked_JRC2018VNCF.nrrd"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/mode.html" class="external-link">storage.mode</a></span><span class="op">(</span><span class="va">ser</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="st">"integer"</span></span>
-<span></span>
-<span><span class="va">cut</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile</a></span><span class="op">(</span><span class="va">ser</span><span class="op">[</span><span class="va">ser</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">]</span>, <span class="fl">0.50</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">mask</span> <span class="op">&lt;-</span> <span class="va">ser</span> <span class="op">&gt;=</span> <span class="va">cut</span></span>
-<span><span class="va">cc</span>   <span class="op">&lt;-</span> <span class="fu">mmand</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/mmand/man/components.html" class="external-link">components</a></span><span class="op">(</span><span class="va">mask</span>, <span class="fu">mmand</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/mmand/man/kernels.html" class="external-link">shapeKernel</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>,<span class="fl">3</span>,<span class="fl">3</span><span class="op">)</span>, type<span class="op">=</span><span class="st">"box"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">mask</span> <span class="op">&lt;-</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">cc</span><span class="op">)</span> <span class="op">&amp;</span> <span class="va">cc</span> <span class="op">==</span> <span class="fu"><a href="https://rdrr.io/r/base/which.min.html" class="external-link">which.max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tabulate.html" class="external-link">tabulate</a></span><span class="op">(</span><span class="va">cc</span><span class="op">[</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">cc</span><span class="op">)</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">idx</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">mask</span>, arr.ind <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span></span>
+<span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">ser</span> <span class="op">&gt;</span> <span class="fl">0</span>, arr.ind <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="va">ser_full</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  X <span class="op">=</span> <span class="op">(</span><span class="va">idx</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="fl">0.2</span>,</span>
-<span>  Y <span class="op">=</span> <span class="op">(</span><span class="va">idx</span><span class="op">[</span>, <span class="fl">2</span><span class="op">]</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="fl">0.2</span>,</span>
-<span>  Z <span class="op">=</span> <span class="op">(</span><span class="va">idx</span><span class="op">[</span>, <span class="fl">3</span><span class="op">]</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.4</span> <span class="op">+</span> <span class="fl">0.2</span>,</span>
-<span>  I <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">ser</span><span class="op">[</span><span class="va">mask</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span>  X <span class="op">=</span> <span class="op">(</span><span class="va">idx</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.461122</span> <span class="op">+</span> <span class="fl">0.461122</span><span class="op">/</span><span class="fl">2</span>,</span>
+<span>  Y <span class="op">=</span> <span class="op">(</span><span class="va">idx</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.461122</span> <span class="op">+</span> <span class="fl">0.461122</span><span class="op">/</span><span class="fl">2</span>,</span>
+<span>  Z <span class="op">=</span> <span class="op">(</span><span class="va">idx</span><span class="op">[</span>,<span class="fl">3</span><span class="op">]</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.7</span>      <span class="op">+</span> <span class="fl">0.35</span>,</span>
+<span>  I <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">ser</span><span class="op">[</span><span class="va">ser</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42L</span><span class="op">)</span></span>
-<span><span class="va">N_VIZ</span> <span class="op">&lt;-</span> <span class="fl">25000L</span></span>
-<span><span class="va">keep</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample.int</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">)</span>, <span class="va">N_VIZ</span>,</span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">11L</span><span class="op">)</span>; <span class="va">N</span> <span class="op">&lt;-</span> <span class="fl">50000L</span></span>
+<span><span class="va">keep</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample.int</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">N</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>                   prob <span class="op">=</span> <span class="va">ser_full</span><span class="op">$</span><span class="va">I</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">$</span><span class="va">I</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">pts_F</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">[</span><span class="va">keep</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"X"</span>,<span class="st">"Y"</span>,<span class="st">"Z"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co"># Full elastix JRC2018F -&gt; BANC (points in um).</span></span>
+<span><span class="va">pts_BANC_um</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_to_JRC2018F.html" class="external-link">banc_to_JRC2018F</a></span><span class="op">(</span></span>
+<span>  <span class="va">pts_F</span>, region <span class="op">=</span> <span class="st">"vnc"</span>, banc.units <span class="op">=</span> <span class="st">"um"</span>,</span>
+<span>  inverse <span class="op">=</span> <span class="cn">TRUE</span>, method <span class="op">=</span> <span class="st">"elastix"</span><span class="op">)</span></span>
+<span><span class="va">ser_dp</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/dotprops.html" class="external-link">dotprops</a></span><span class="op">(</span><span class="va">pts_BANC_um</span>, k <span class="op">=</span> <span class="fl">5L</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Forward-warp to BANC um (jrcvnc2018f um -&gt; BANC nm -&gt; BANC um).</span></span>
-<span><span class="va">ser_BANC</span> <span class="op">&lt;-</span> <span class="fu">Morpho</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Morpho/man/tps3d.html" class="external-link">tps3d</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">[</span><span class="va">keep</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"X"</span>,<span class="st">"Y"</span>,<span class="st">"Z"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span>,</span>
-<span>  <span class="fu">bancr</span><span class="fu">::</span><span class="va"><a href="https://flyconnectome.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">jrcvnc2018f_to_banc_tpsreg</a></span><span class="op">$</span><span class="va">refmat</span>,</span>
-<span>  <span class="fu">bancr</span><span class="fu">::</span><span class="va"><a href="https://flyconnectome.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">jrcvnc2018f_to_banc_tpsreg</a></span><span class="op">$</span><span class="va">tarmat</span>,</span>
-<span>  lambda <span class="op">=</span> <span class="fu">bancr</span><span class="fu">::</span><span class="va"><a href="https://flyconnectome.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">jrcvnc2018f_to_banc_tpsreg</a></span><span class="op">$</span><span class="va">lambda</span><span class="op">)</span></span>
-<span><span class="va">ser_pts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  X <span class="op">=</span> <span class="va">ser_BANC</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">/</span> <span class="fl">1000</span>, Y <span class="op">=</span> <span class="va">ser_BANC</span><span class="op">[</span>, <span class="fl">2</span><span class="op">]</span> <span class="op">/</span> <span class="fl">1000</span>,</span>
-<span>  Z <span class="op">=</span> <span class="va">ser_BANC</span><span class="op">[</span>, <span class="fl">3</span><span class="op">]</span> <span class="op">/</span> <span class="fl">1000</span>, I <span class="op">=</span> <span class="va">ser_full</span><span class="op">$</span><span class="va">I</span><span class="op">[</span><span class="va">keep</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co"># Depth-coded hue: green ramp (dark teal -&gt; spring green -&gt; lime).</span></span>
-<span><span class="co"># Single hue family so the cloud reads as the SREN signal, with depth</span></span>
-<span><span class="co"># layers separated by lightness. Combined with alpha by intensity</span></span>
-<span><span class="co"># (gamma 1.5) and back-to-front draw order.</span></span>
-<span><span class="va">ser_pal</span> <span class="op">&lt;-</span> <span class="fu">scales</span><span class="fu">::</span><span class="fu"><a href="https://scales.r-lib.org/reference/col_numeric.html" class="external-link">col_numeric</a></span><span class="op">(</span></span>
-<span>  palette <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"#0a3d2a"</span>, <span class="st">"#147a4a"</span>, <span class="st">"#1f8b1f"</span>, <span class="st">"#7be37b"</span>, <span class="st">"#d8ff7f"</span><span class="op">)</span>,</span>
-<span>  domain  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">ser_pts</span><span class="op">$</span><span class="va">Z</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">ser_pts</span><span class="op">$</span><span class="va">col</span>   <span class="op">&lt;-</span> <span class="fu">ser_pal</span><span class="op">(</span><span class="va">ser_pts</span><span class="op">$</span><span class="va">Z</span><span class="op">)</span></span>
-<span><span class="va">hi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">ser_pts</span><span class="op">$</span><span class="va">I</span><span class="op">)</span></span>
-<span><span class="va">ser_pts</span><span class="op">$</span><span class="va">alpha</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmax</a></span><span class="op">(</span><span class="fl">0.05</span>, <span class="op">(</span><span class="va">ser_pts</span><span class="op">$</span><span class="va">I</span> <span class="op">/</span> <span class="va">hi</span><span class="op">)</span> <span class="op">^</span> <span class="fl">1.5</span><span class="op">)</span></span>
-<span><span class="va">ser_pts</span> <span class="op">&lt;-</span> <span class="va">ser_pts</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="op">-</span><span class="va">ser_pts</span><span class="op">$</span><span class="va">Z</span><span class="op">)</span>, <span class="op">]</span>   <span class="co"># back-to-front</span></span>
+<span><span class="co"># (b) Full-library NBLAST (~1,033 BANC efferents). The L2 dotprops are</span></span>
+<span><span class="co"># pre-cached locally as an .rds: fetch each cell's L2 skeleton with</span></span>
+<span><span class="co"># `bancr::banc_read_l2dp(meta$root_888)` once, drop NULLs/duplicates,</span></span>
+<span><span class="co"># and `saveRDS()` the resulting `neuronlist` so this step is offline.</span></span>
+<span><span class="va">banc_dps</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="st">"banc_l2dp_efferent_full.rds"</span><span class="op">)</span></span>
+<span><span class="va">banc_dps</span> <span class="op">&lt;-</span> <span class="va">banc_dps</span><span class="op">[</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="va">banc_dps</span>, <span class="va">is.null</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="va">banc_dps</span> <span class="op">&lt;-</span> <span class="va">banc_dps</span><span class="op">[</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">banc_dps</span><span class="op">)</span><span class="op">)</span><span class="op">]</span></span>
 <span></span>
-<span><span class="co"># (c) Tight zoom: union of all top-6 mesh bbox + SREN bbox (in X, Y, Z).</span></span>
-<span><span class="va">mesh_bb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">meshes_um</span>, <span class="kw">function</span><span class="op">(</span><span class="va">m</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/xyzmatrix.html" class="external-link">xyzmatrix</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span>, <span class="fl">2</span>, <span class="va">range</span><span class="op">)</span></span>
-<span><span class="op">}</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">xlim</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">mesh_bb</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span>, <span class="va">ser_pts</span><span class="op">$</span><span class="va">X</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">15</span>, <span class="fl">15</span><span class="op">)</span></span>
-<span><span class="va">ylim</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">mesh_bb</span><span class="op">[</span>, <span class="fl">2</span><span class="op">]</span>, <span class="va">ser_pts</span><span class="op">$</span><span class="va">Y</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">15</span>, <span class="fl">15</span><span class="op">)</span></span>
-<span><span class="va">zlim</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">mesh_bb</span><span class="op">[</span>, <span class="fl">3</span><span class="op">]</span>, <span class="va">ser_pts</span><span class="op">$</span><span class="va">Z</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">10</span>, <span class="fl">10</span><span class="op">)</span></span>
-<span><span class="co"># 90 deg about X to view from the side; nat.ggplot::geom_neuron</span></span>
-<span><span class="co"># always plots rotated X vs rotated Y, so this puts Z on the y-axis.</span></span>
-<span><span class="va">rot_xz</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>,<span class="fl">0</span>,<span class="fl">0</span>, <span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">1</span>, <span class="fl">0</span>,<span class="fl">1</span>,<span class="fl">0</span><span class="op">)</span>, nrow <span class="op">=</span> <span class="fl">3</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">abbr</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span><span class="op">)</span> <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="st">"—"</span><span class="op">)</span></span>
-<span>  <span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">"ventral_nerve_cord_neurosecretory_cell"</span>, <span class="st">"VNC neurosecretory"</span>,</span>
-<span>           <span class="va">x</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span>  <span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">"abdomen_motor_neuron"</span>, <span class="st">"abd motor neuron"</span>, <span class="va">x</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span>  <span class="va">x</span></span>
-<span><span class="op">}</span></span>
-<span></span>
-<span><span class="va">mk_panel</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">i</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">rid</span> <span class="op">&lt;-</span> <span class="va">top</span><span class="op">$</span><span class="va">root_888</span><span class="op">[</span><span class="va">i</span><span class="op">]</span></span>
-<span>  <span class="va">fmt</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span>, <span class="st">"—"</span>, <span class="va">x</span><span class="op">)</span></span>
-<span>  <span class="va">title</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"rank %d  —  score %.3f"</span>, <span class="va">i</span>, <span class="va">top</span><span class="op">$</span><span class="va">score</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>,</span>
-<span>    <span class="va">rid</span>,</span>
-<span>    <span class="fu">abbr</span><span class="op">(</span><span class="va">top</span><span class="op">$</span><span class="va">cell_class</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>,</span>
-<span>    <span class="fu">fmt</span><span class="op">(</span><span class="va">top</span><span class="op">$</span><span class="va">cell_type</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"NT: %s"</span>, <span class="fu">fmt</span><span class="op">(</span><span class="va">top</span><span class="op">$</span><span class="va">neurotransmitter_predicted</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>    sep <span class="op">=</span> <span class="st">"\n"</span><span class="op">)</span></span>
-<span>  <span class="va">base_theme</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_void</a></span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">11</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>plot.title.position <span class="op">=</span> <span class="st">"plot"</span>,</span>
-<span>          plot.title  <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>hjust <span class="op">=</span> <span class="fl">0.5</span>, size <span class="op">=</span> <span class="fl">9.5</span>,</span>
-<span>                                     lineheight <span class="op">=</span> <span class="fl">1.05</span><span class="op">)</span>,</span>
-<span>          plot.margin <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">8</span>, <span class="fl">4</span>, <span class="fl">8</span><span class="op">)</span>,</span>
-<span>          legend.position <span class="op">=</span> <span class="st">"none"</span><span class="op">)</span></span>
-<span>  <span class="co"># Main: top-down YX (looking along Z).</span></span>
-<span>  <span class="va">yx</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">ser_pts</span>,</span>
-<span>               <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">X</span>, y <span class="op">=</span> <span class="va">Y</span>, alpha <span class="op">=</span> <span class="va">alpha</span>, colour <span class="op">=</span> <span class="va">col</span><span class="op">)</span>,</span>
-<span>               size <span class="op">=</span> <span class="fl">0.45</span>, stroke <span class="op">=</span> <span class="fl">0</span>, show.legend <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://natverse.github.io/nat.ggplot/reference/geom_neuron.html" class="external-link">geom_neuron</a></span><span class="op">(</span><span class="va">meshes_um</span><span class="op">[[</span><span class="va">rid</span><span class="op">]</span><span class="op">]</span>, cols <span class="op">=</span> <span class="st">"#aa44cc"</span>, alpha <span class="op">=</span> <span class="fl">0.7</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_identity.html" class="external-link">scale_alpha_identity</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_identity.html" class="external-link">scale_color_identity</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_identity.html" class="external-link">scale_fill_identity</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_fixed</a></span><span class="op">(</span>xlim <span class="op">=</span> <span class="va">xlim</span>, ylim <span class="op">=</span> <span class="va">ylim</span>, expand <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_y_reverse</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>title <span class="op">=</span> <span class="va">title</span><span class="op">)</span> <span class="op">+</span> <span class="va">base_theme</span></span>
-<span>  <span class="co"># Side: XZ (looking along Y) -- shows the dorso-ventral spread.</span></span>
-<span>  <span class="va">xz</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">ser_pts</span>,</span>
-<span>               <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">X</span>, y <span class="op">=</span> <span class="va">Z</span>, alpha <span class="op">=</span> <span class="va">alpha</span>, colour <span class="op">=</span> <span class="va">col</span><span class="op">)</span>,</span>
-<span>               size <span class="op">=</span> <span class="fl">0.45</span>, stroke <span class="op">=</span> <span class="fl">0</span>, show.legend <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://natverse.github.io/nat.ggplot/reference/geom_neuron.html" class="external-link">geom_neuron</a></span><span class="op">(</span><span class="va">meshes_um</span><span class="op">[[</span><span class="va">rid</span><span class="op">]</span><span class="op">]</span>, cols <span class="op">=</span> <span class="st">"#aa44cc"</span>, alpha <span class="op">=</span> <span class="fl">0.7</span>,</span>
-<span>                rotation_matrix <span class="op">=</span> <span class="va">rot_xz</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_identity.html" class="external-link">scale_alpha_identity</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_identity.html" class="external-link">scale_color_identity</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_identity.html" class="external-link">scale_fill_identity</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_fixed</a></span><span class="op">(</span>xlim <span class="op">=</span> <span class="va">xlim</span>, ylim <span class="op">=</span> <span class="va">zlim</span>, expand <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="va">base_theme</span></span>
-<span>  <span class="fu">patchwork</span><span class="fu">::</span><span class="fu">wrap_plots</span><span class="op">(</span><span class="va">yx</span>, <span class="va">xz</span>, ncol <span class="op">=</span> <span class="fl">1</span>, heights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">1.4</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">}</span></span>
-<span></span>
-<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu">patchwork</span><span class="fu">::</span><span class="fu">wrap_plots</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">top</span><span class="op">)</span><span class="op">)</span>, <span class="va">mk_panel</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">3</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">patchwork</span><span class="fu">::</span><span class="fu">plot_annotation</span><span class="op">(</span></span>
-<span>    title    <span class="op">=</span> <span class="st">"Top-6 BANC efferent hits for the SREN query (BANC native um)"</span>,</span>
-<span>    subtitle <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"BANC EM hit (purple) + SREN LM source "</span>,</span>
-<span>                      <span class="st">"(hue = depth, alpha = intensity), in BANC native space"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggsave.html" class="external-link">ggsave</a></span><span class="op">(</span><span class="st">"banc_colormip_sren_top_hits.png"</span>, <span class="va">p</span>, width <span class="op">=</span> <span class="fl">13</span>, height <span class="op">=</span> <span class="fl">13</span>, dpi <span class="op">=</span> <span class="fl">130</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">fwd</span> <span class="op">&lt;-</span> <span class="fu">nat.nblast</span><span class="fu">::</span><span class="fu"><a href="https://natverse.org/nat.nblast/reference/nblast.html" class="external-link">nblast</a></span><span class="op">(</span><span class="va">ser_dp</span>, <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/as.neuronlist.html" class="external-link">as.neuronlist</a></span><span class="op">(</span><span class="va">banc_dps</span><span class="op">)</span>,</span>
+<span>                          smat <span class="op">=</span> <span class="fu">nat.nblast</span><span class="fu">::</span><span class="va"><a href="https://natverse.org/nat.nblast/reference/smat.fcwb.html" class="external-link">smat.fcwb</a></span>, normalised <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">rev</span> <span class="op">&lt;-</span> <span class="fu">nat.nblast</span><span class="fu">::</span><span class="fu"><a href="https://natverse.org/nat.nblast/reference/nblast.html" class="external-link">nblast</a></span><span class="op">(</span><span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/as.neuronlist.html" class="external-link">as.neuronlist</a></span><span class="op">(</span><span class="va">banc_dps</span><span class="op">)</span>, <span class="va">ser_dp</span>,</span>
+<span>                          smat <span class="op">=</span> <span class="fu">nat.nblast</span><span class="fu">::</span><span class="va"><a href="https://natverse.org/nat.nblast/reference/smat.fcwb.html" class="external-link">smat.fcwb</a></span>, normalised <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">nb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>root_888    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">fwd</span><span class="op">)</span>,</span>
+<span>                 nblast_mean <span class="op">=</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">fwd</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">rev</span><span class="op">)</span><span class="op">)</span> <span class="op">/</span> <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="va">nb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/merge.html" class="external-link">merge</a></span><span class="op">(</span><span class="va">nb</span>, <span class="va">meta</span>, by <span class="op">=</span> <span class="st">"root_888"</span><span class="op">)</span></span>
+<span><span class="va">nb</span> <span class="op">&lt;-</span> <span class="va">nb</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="op">-</span><span class="va">nb</span><span class="op">$</span><span class="va">nblast_mean</span><span class="op">)</span>, <span class="op">]</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">nb</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"root_888"</span>, <span class="st">"nblast_mean"</span>, <span class="st">"cell_type"</span>, <span class="st">"manc_cell_type"</span>,</span>
+<span>            <span class="st">"cell_sub_class"</span>, <span class="st">"side"</span>, <span class="st">"neurotransmitter_predicted"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">6</span><span class="op">)</span></span></code></pre></div>
+<p>Under this pipeline, the top-6 NBLAST hits are dominated by BANC
+<code>cell_type = EFFabg40</code> and its close relatives
+(<code>EFFabg43</code>, <code>EFFabg45</code>), all sitting inside
+<code>cell_sub_class = "abdomen_neurosecretory_cell"</code> or
+<code>"abd_Dsx_OA"</code>. These are <strong>doublesex-expressing
+sex-dimorphic abdominal neurosecretory cells</strong>, largely
+octopaminergic — a much better biological match for
+“sex-peptide-receptor rectal enteric neuron” than the motor-neuron
+interpretation an earlier revision of this vignette proposed. The MANC
+bridge (<code>manc_cell_type</code>) resolves these to legacy MANC names
+like <code>MNad17</code>, <code>MNad48</code>, <code>MNad04</code>,
+<code>MNad69</code>.</p>
+<div class="float">
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_nblast_top.png" alt="Top-6 BANC efferent hits ranked by NBLAST fwd+rev mean (full-elastix bridge)"><div class="figcaption">Top-6 BANC efferent hits ranked by NBLAST
+fwd+rev mean (full-elastix bridge)</div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="step-8-side-by-side-sren-query-vs-top-banc-cmip-hit">Step 8 — Side-by-side: SREN query vs top BANC cMIP hit<a class="anchor" aria-label="anchor" href="#step-8-side-by-side-sren-query-vs-top-banc-cmip-hit"></a>
+</h2>
+<div class="float">
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_vs_top_hit.png" alt="SREN LM (left) vs top BANC cMIP hit (right)"><div class="figcaption">SREN LM (left) vs top BANC cMIP hit
+(right)</div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="step-8b-the-hypothesised-sren-pair-manc_cell_type-en00b016">Step 8b — The hypothesised SREN pair: manc_cell_type EN00B016<a class="anchor" aria-label="anchor" href="#step-8b-the-hypothesised-sren-pair-manc_cell_type-en00b016"></a>
+</h2>
+<p>Neither the cMIP top nor the NBLAST top puts <em>specifically</em>
+the canonical SPR pair at rank 1, but both consistently rank a bilateral
+pair with <code>manc_cell_type = "EN00B016"</code> (exactly 2 cells, one
+per side in BANC) in the top ~10 % of the library. These are the
+biologically motivated SREN candidates:</p>
+<ul>
+<li>left — root_888 <code>720575941680133053</code>, BANC
+<code>cell_type = EFFabg09</code>, MANC <code>EN00B016</code>,
+<code>abdomen_motor_neuron</code>, ACh (hemilineage 06A);</li>
+<li>right — root_888 <code>720575941659397456</code>, BANC
+<code>cell_type = EN00B016</code>, MANC <code>EN00B016</code>,
+<code>ventral_nerve_cord_neurosecretory_cell</code> /
+<code>abdomen_neurosecretory_cell</code>, octopamine (hemilineage
+00B).</li>
+</ul>
+<p>They meet the bilateral-pair expectation for a sex-peptide-receptor
+population and land in the <code>abd_Dsx_OA</code> family the search
+prefers. Their MANC bridge to a single <code>EN00B016</code> label
+suggests MANC groups them as one cell type across sides even though BANC
+currently annotates them as distinct <code>cell_type</code> names.</p>
+<div class="float">
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_en00b016_pair.png" alt="Hypothesised SREN pair (BANC manc_cell_type EN00B016)"><div class="figcaption">Hypothesised SREN pair (BANC manc_cell_type
+EN00B016)</div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="what-we-recovered">What we recovered<a class="anchor" aria-label="anchor" href="#what-we-recovered"></a>
 </h2>
-<p>The top-6 BANC efferents are anatomically what we would expect for
-SREN candidates:</p>
+<p>Under PCA pre-rotation + neuropil mask + full-elastix JRC2018F→BANC
+bridge + NBLAST fwd+rev mean, the top-6 BANC efferents are all in the
+<strong><code>abd_Dsx_OA</code> / abdomen-neurosecretory</strong> family
+(<code>cell_class = ventral_nerve_cord_neurosecretory_cell</code>),
+spread across a handful of BANC <code>EFFabg*</code> cell_types and
+their MANC bridges:</p>
 <table class="table">
 <colgroup>
-<col width="4%">
-<col width="41%">
+<col width="5%">
+<col width="20%">
+<col width="26%">
+<col width="5%">
 <col width="12%">
-<col width="24%">
-<col width="17%">
+<col width="31%">
 </colgroup>
 <thead><tr class="header">
-<th align="left">rank</th>
-<th align="left">cell_class</th>
-<th align="left">cell_type</th>
-<th align="left">nerve</th>
-<th align="left">neurotransmitter</th>
+<th align="right">rank</th>
+<th align="left">BANC <code>cell_type</code>
+</th>
+<th align="left">MANC <code>manc_cell_type</code>
+</th>
+<th align="left">side</th>
+<th align="left">NT</th>
+<th align="left">cell_sub_class</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td align="left">1</td>
-<td align="left">abdomen_motor_neuron</td>
-<td align="left">MNANmX</td>
-<td align="left">abdominal_nerve_trunk</td>
-<td align="left">gaba</td>
-</tr>
-<tr class="even">
-<td align="left">2</td>
-<td align="left">ventral_nerve_cord_neurosecretory_cell</td>
-<td align="left">EN00B010</td>
-<td align="left">abdominal_nerve_trunk</td>
-<td align="left">octopamine</td>
-</tr>
-<tr class="odd">
-<td align="left">3</td>
-<td align="left">abdomen_motor_neuron</td>
-<td align="left">MNad48</td>
-<td align="left">abdominal_nerve_trunk</td>
-<td align="left">octopamine</td>
-</tr>
-<tr class="even">
-<td align="left">4</td>
-<td align="left">abdomen_motor_neuron</td>
+<td align="right">1</td>
+<td align="left"><strong>EFFabg40</strong></td>
 <td align="left">MNad17</td>
-<td align="left">abdominal_nerve_trunk</td>
-<td align="left">serotonin</td>
-</tr>
-<tr class="odd">
-<td align="left">5</td>
-<td align="left">ventral_nerve_cord_neurosecretory_cell</td>
-<td align="left">abd_Dsx_OA</td>
-<td align="left">abdominal_nerve_trunk</td>
-<td align="left">gaba</td>
+<td align="left">right</td>
+<td align="left">octopamine</td>
+<td align="left">abdomen_neurosecretory</td>
 </tr>
 <tr class="even">
-<td align="left">6</td>
-<td align="left">abdomen_motor_neuron</td>
-<td align="left">CV1007</td>
-<td align="left">abdominal_nerve_trunk</td>
+<td align="right">2</td>
+<td align="left"><strong>EFFabg40</strong></td>
+<td align="left">MNad17</td>
+<td align="left">right</td>
 <td align="left">octopamine</td>
+<td align="left">abdomen_neurosecretory</td>
+</tr>
+<tr class="odd">
+<td align="right">3</td>
+<td align="left"><strong>EFFabg43</strong></td>
+<td align="left">MNad48</td>
+<td align="left">right</td>
+<td align="left">octopamine</td>
+<td align="left">abd_Dsx_OA</td>
+</tr>
+<tr class="even">
+<td align="right">4</td>
+<td align="left">EFFabg39</td>
+<td align="left">MNad04</td>
+<td align="left">left</td>
+<td align="left">octopamine</td>
+<td align="left">abd_Dsx_OA</td>
+</tr>
+<tr class="odd">
+<td align="right">5</td>
+<td align="left"><strong>EFFabg40</strong></td>
+<td align="left">MNad17</td>
+<td align="left">right</td>
+<td align="left">dopamine</td>
+<td align="left">abdomen_neurosecretory</td>
+</tr>
+<tr class="even">
+<td align="right">6</td>
+<td align="left"><strong>EFFabg40</strong></td>
+<td align="left">MNad48</td>
+<td align="left">left</td>
+<td align="left">—</td>
+<td align="left">abdomen_neurosecretory</td>
 </tr>
 </tbody>
 </table>
-<p>All six have arborisation in the abdominal ganglion and an axon
-leaving via the <strong>abdominal nerve trunk</strong> — the route SREN
-neurons take to reach the rectal papillae. With the tuned parameters,
-colorMIP and NBLAST now agree well on the <em>region</em> and on three
-of the top-6 cells (<code>MNad48</code>, <code>MNad17</code>,
-<code>CV1007</code>); the remaining slots are filled by larger
-neurosecretory cells whose abdominal arbour overlaps the SREN blob in
-2-D MIP but whose 3-D mass extends elsewhere. NBLAST in Step 8 is the
-discriminating tiebreaker.</p>
-<p>The panels are rendered in <strong>BANC native µm</strong> rather
-than JRCVNC2018F because the bancr TPS landmarks cap at JRCVNC2018F Y ≈
-504 µm while the SREN signal extends to Y ≈ 537 µm — warping BANC meshes
-back into F-space at the posterior tip extrapolates ~30 µm short and
-produces misleadingly disjoint panels. Visualising in BANC native space
-(no extrapolation either way) shows the true 3-D relationship between
-query and hit. SREN points are coloured by depth (Z) — dark teal at one
-end of the slice through the abdominal ganglion, lime at the other —
-with alpha by intensity, so the cloud reads as 3-D layers rather than a
-flat mass.</p>
+<p><code>EFFabg40</code> (7 cells total in v888) accounts for most of
+the top hits; its MANC bridge is <code>MNad17</code>. The precise
+identity is <strong>most likely a member of the <code>abd_Dsx_OA</code>
+/ abdomen-neurosecretory family</strong>; the best specific candidate
+for the SREN bilateral pair is <code>manc_cell_type = EN00B016</code> (2
+cells, one per side). Both L and R members appear in the top ~10 % of
+the ranking.</p>
 </div>
 <div class="section level2">
-<h2 id="step-7-open-each-match-in-spelunker">Step 7 — Open each match in Spelunker<a class="anchor" aria-label="anchor" href="#step-7-open-each-match-in-spelunker"></a>
+<h2 id="step-9-open-each-match-in-spelunker">Step 9 — Open each match in Spelunker<a class="anchor" aria-label="anchor" href="#step-9-open-each-match-in-spelunker"></a>
 </h2>
-<p>To inspect a match interactively we ship the SREN LM signal as a
-Neuroglancer <strong>precomputed</strong> layer in BANC voxel space,
-then build a per-match scene URL that turns on the BANC
-<code>segmentation proofreading</code> layer with that match’s
-<code>root_id</code> selected.</p>
-<p>The precomputed layer at
-<code>gs://lee-lab_brain-and-nerve-cord-fly-connectome/light_level/kdrc/SREN_female_aligned240721_to_BANC.ng</code>
-was made by warping <code>sren_female_sren.nrrd</code> (JRCVNC2018F
-microns) into BANC voxel space (2622 × 2950 × 789 @ 0.4 µm) with the
-<code>bancr</code> Elastix VNC transform, then converting via
-<code><a href="../reference/nrrd_to_precomputed.html">nrrd_to_precomputed()</a></code>.</p>
+<p>Four Neuroglancer <strong>precomputed</strong> layers ship the SREN
+LM signal in BANC voxel space, corresponding to successive refinements
+of the JRC2018F→BANC bridge:</p>
+<table class="table">
+<colgroup>
+<col width="26%">
+<col width="40%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">GCS path</th>
+<th align="left">registration</th>
+<th align="left">voxel size</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left"><code>light_level/kdrc/SREN_female_aligned240721_to_BANC.ng</code></td>
+<td align="left">bancr TPS (npmasked GFP)</td>
+<td align="left">800 nm</td>
+</tr>
+<tr class="even">
+<td align="left"><code>light_level/kdrc/SREN_female_aligned240721_to_BANC_elastix.ng</code></td>
+<td align="left">bancr TPS + per-specimen elastix</td>
+<td align="left">800 nm</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>light_level/kdrc/SREN_female_aligned240721_to_BANC_elastix_400nm.ng</code></td>
+<td align="left">bancr TPS + per-specimen elastix</td>
+<td align="left">400 nm</td>
+</tr>
+<tr class="even">
+<td align="left"><code>light_level/kdrc/SREN_female_aligned240721_to_BANC_fullElastix_400nm.ng</code></td>
+<td align="left"><strong>full elastix chain (recommended)</strong></td>
+<td align="left"><strong>400 nm</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Prefer <code>..._fullElastix_400nm.ng</code> — that’s the
+registration-correct version, bilateral signal preserved, matching the
+NBLAST bridge used in Step 7.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Re-create the BANC-space NRRD (one-off, ~5 min):</span></span>
-<span><span class="co">#   Use bancr::vnc_240721 transformix params (BANC_to_template.txt)</span></span>
-<span><span class="co">#   to bridge JRCVNC2018F -&gt; BANC voxel grid, then cast to uint8.</span></span>
-<span><span class="co"># We then publish the precomputed layer:</span></span>
-<span><span class="fu"><a href="../reference/nrrd_to_precomputed.html">nrrd_to_precomputed</a></span><span class="op">(</span></span>
-<span>  input      <span class="op">=</span> <span class="st">"sren_female_in_BANC_VNC.nrrd"</span>,</span>
-<span>  output     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"gs://lee-lab_brain-and-nerve-cord-fly-connectome/"</span>,</span>
-<span>                      <span class="st">"light_level/kdrc/SREN_female_aligned240721_to_BANC.ng"</span><span class="op">)</span>,</span>
-<span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">400L</span>, <span class="fl">400L</span>, <span class="fl">400L</span><span class="op">)</span>,</span>
-<span>  data_type  <span class="op">=</span> <span class="st">"uint8"</span>,</span>
-<span>  encoding   <span class="op">=</span> <span class="st">"raw"</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">LM_GS</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"precomputed://gs://lee-lab_brain-and-nerve-cord-fly-"</span>,</span>
-<span>                <span class="st">"connectome/light_level/kdrc/"</span>,</span>
-<span>                <span class="st">"SREN_female_aligned240721_to_BANC.ng"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">LM_GS</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"precomputed://"</span>, <span class="va">GCS_ROOT</span>,</span>
+<span>                <span class="st">"/light_level/kdrc/"</span>,</span>
+<span>                <span class="st">"SREN_female_aligned240721_to_BANC_fullElastix_400nm.ng"</span><span class="op">)</span></span>
 <span><span class="va">BASE</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"https://spelunker.cave-explorer.org/#!middleauth+"</span>,</span>
 <span>                <span class="st">"https://global.daf-apis.com/nglstate/api/v1/"</span>,</span>
 <span>                <span class="st">"6450802162925568"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">build</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">rid</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span></span>
+<span><span class="va">top</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">nb</span>, <span class="fl">6</span><span class="op">)</span></span>
+<span><span class="va">top</span><span class="op">$</span><span class="va">ngl_url</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">top</span><span class="op">$</span><span class="va">root_888</span>, <span class="kw">function</span><span class="op">(</span><span class="va">rid</span><span class="op">)</span></span>
+<span>  <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span></span>
 <span>    lm_url     <span class="op">=</span> <span class="va">LM_GS</span>,</span>
-<span>    layer_name <span class="op">=</span> <span class="st">"KDRC SREN (female)"</span>,</span>
+<span>    layer_name <span class="op">=</span> <span class="st">"KDRC SREN (female, full elastix, 400 nm)"</span>,</span>
 <span>    range      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">60</span><span class="op">)</span>,</span>
 <span>    opacity    <span class="op">=</span> <span class="fl">0.55</span>,</span>
 <span>    blend      <span class="op">=</span> <span class="st">"additive"</span>,</span>
 <span>    ids        <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">rid</span><span class="op">)</span>,</span>
 <span>    url        <span class="op">=</span> <span class="va">BASE</span>,</span>
-<span>    shorten    <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span><span class="op">}</span></span>
-<span></span>
-<span><span class="va">top</span><span class="op">$</span><span class="va">ngl_url</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">top</span><span class="op">$</span><span class="va">root_888</span>, <span class="va">build</span>, <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">top</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"root_888"</span>, <span class="st">"score"</span>, <span class="st">"cell_type"</span>, <span class="st">"ngl_url"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span></code></pre></div>
-<p>Each URL opens the BANC scene with the matched cell selected and the
-SREN LM volume rendered as an additive overlay in green. The colorMIP
-top-6 links are pinned in a table at the bottom of this vignette.</p>
-</div>
-<div class="section level2">
-<h2 id="step-8-cross-check-with-nblast">Step 8 — Cross-check with NBLAST<a class="anchor" aria-label="anchor" href="#step-8-cross-check-with-nblast"></a>
-</h2>
-<p>Color-MIP search is fast and 2-D. NBLAST is 3-D, slower, and uses
-geometry directly — we can use it to cross-check the colorMIP ranking on
-the top-K candidates.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://natverse.org/nat.nblast/" class="external-link">nat.nblast</a></span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># (a) Re-score colorMIP top-100 with NBLAST. Fetch L2 dotprops in</span></span>
-<span><span class="co"># BANC microns for the candidate set.</span></span>
-<span><span class="va">candidates</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">res</span><span class="op">$</span><span class="va">root_888</span>, <span class="fl">100L</span><span class="op">)</span></span>
-<span><span class="va">banc_dps</span>   <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_read_l2dp.html" class="external-link">banc_read_l2dp</a></span><span class="op">(</span><span class="va">candidates</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># (b) Build the SREN dotprops *intensity-weighted*: sample 50k voxels</span></span>
-<span><span class="co"># from the largest connected component, with sampling probability</span></span>
-<span><span class="co"># proportional to voxel intensity. Bright voxels are over-represented</span></span>
-<span><span class="co"># in the resulting vector field, so the SREN dotprops is dominated by</span></span>
-<span><span class="co"># real signal rather than dim halo. This is the LM analogue of</span></span>
-<span><span class="co"># weighting an EM skeleton by node thickness.</span></span>
-<span><span class="va">N_NBLAST</span> <span class="op">&lt;-</span> <span class="fl">50000L</span></span>
-<span><span class="va">keep</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample.int</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">)</span>, <span class="va">N_NBLAST</span>,</span>
-<span>                   prob <span class="op">=</span> <span class="va">ser_full</span><span class="op">$</span><span class="va">I</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">$</span><span class="va">I</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">ser_pts_F</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">ser_full</span><span class="op">[</span><span class="va">keep</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"X"</span>,<span class="st">"Y"</span>,<span class="st">"Z"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">ser_BANC_nm</span> <span class="op">&lt;-</span> <span class="fu">Morpho</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Morpho/man/tps3d.html" class="external-link">tps3d</a></span><span class="op">(</span></span>
-<span>  <span class="va">ser_pts_F</span>,</span>
-<span>  <span class="fu">bancr</span><span class="fu">::</span><span class="va"><a href="https://flyconnectome.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">jrcvnc2018f_to_banc_tpsreg</a></span><span class="op">$</span><span class="va">refmat</span>,</span>
-<span>  <span class="fu">bancr</span><span class="fu">::</span><span class="va"><a href="https://flyconnectome.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">jrcvnc2018f_to_banc_tpsreg</a></span><span class="op">$</span><span class="va">tarmat</span>,</span>
-<span>  lambda <span class="op">=</span> <span class="fu">bancr</span><span class="fu">::</span><span class="va"><a href="https://flyconnectome.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">jrcvnc2018f_to_banc_tpsreg</a></span><span class="op">$</span><span class="va">lambda</span><span class="op">)</span></span>
-<span><span class="va">ser_dp_BANC</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/dotprops.html" class="external-link">dotprops</a></span><span class="op">(</span><span class="va">ser_BANC_nm</span> <span class="op">/</span> <span class="fl">1000</span>, k <span class="op">=</span> <span class="fl">5L</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># (c) Forward + reverse NBLAST (fcwb scoring matrix), averaged.</span></span>
-<span><span class="va">fwd</span> <span class="op">&lt;-</span> <span class="fu">nat.nblast</span><span class="fu">::</span><span class="fu"><a href="https://natverse.org/nat.nblast/reference/nblast.html" class="external-link">nblast</a></span><span class="op">(</span><span class="va">ser_dp_BANC</span>, <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/as.neuronlist.html" class="external-link">as.neuronlist</a></span><span class="op">(</span><span class="va">banc_dps</span><span class="op">)</span>,</span>
-<span>                          smat <span class="op">=</span> <span class="fu">nat.nblast</span><span class="fu">::</span><span class="va"><a href="https://natverse.org/nat.nblast/reference/smat.fcwb.html" class="external-link">smat.fcwb</a></span>, normalised <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span><span class="va">rev</span> <span class="op">&lt;-</span> <span class="fu">nat.nblast</span><span class="fu">::</span><span class="fu"><a href="https://natverse.org/nat.nblast/reference/nblast.html" class="external-link">nblast</a></span><span class="op">(</span><span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/as.neuronlist.html" class="external-link">as.neuronlist</a></span><span class="op">(</span><span class="va">banc_dps</span><span class="op">)</span>, <span class="va">ser_dp_BANC</span>,</span>
-<span>                          smat <span class="op">=</span> <span class="fu">nat.nblast</span><span class="fu">::</span><span class="va"><a href="https://natverse.org/nat.nblast/reference/smat.fcwb.html" class="external-link">smat.fcwb</a></span>, normalised <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span><span class="va">nb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>root_888    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">banc_dps</span><span class="op">)</span>,</span>
-<span>                 nblast_mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="op">(</span><span class="va">fwd</span> <span class="op">+</span> <span class="va">rev</span><span class="op">)</span> <span class="op">/</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">nb</span> <span class="op">&lt;-</span> <span class="va">nb</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="op">-</span><span class="va">nb</span><span class="op">$</span><span class="va">nblast_mean</span><span class="op">)</span>, <span class="op">]</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">nb</span>, <span class="fl">6</span><span class="op">)</span></span></code></pre></div>
-<p>In BANC native µm, NBLAST hits show clear 3-D overlap between the
-SREN cloud and the EM mesh — the true match the colorMIP search was
-approximating. Rank 1 is <code>MNad48 / octopamine</code> at score
-0.461; a second <code>MNad48</code> cell rises from cMIP rank 14 to
-NBLAST rank 3 (intensity-weighted decisively prefers it).
-<code>abd_Dsx_OA</code>, <code>CV1007</code>, and <code>MNad17</code>
-round out the top 6 — abdominal motor / neurosecretory cells whose 3-D
-dendrite envelope coincides with the SREN signal. Spearman correlation
-between the (tuned) cMIP and NBLAST scores on the 200-candidate pool is
-<strong>ρ = 0.901</strong>.</p>
-<div class="float">
-<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/banc_colormip_sren_nblast_top.png" alt="Top-6 BANC efferent hits ranked by NBLAST"><div class="figcaption">Top-6 BANC efferent hits ranked by NBLAST</div>
-</div>
-<p><strong>Consensus</strong> (averaged colorMIP + NBLAST rank, lower is
-better):</p>
-<table class="table">
-<colgroup>
-<col width="7%">
-<col width="36%">
-<col width="7%">
-<col width="11%">
-<col width="17%">
-<col width="19%">
-</colgroup>
-<thead><tr class="header">
-<th align="right">consensus rank</th>
-<th>root_id</th>
-<th align="right">cMIP</th>
-<th align="right">NBLAST</th>
-<th align="left">cell_type</th>
-<th align="left">NT</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">1</td>
-<td>720575941630741730</td>
-<td align="right">3</td>
-<td align="right">1</td>
-<td align="left">MNad48</td>
-<td align="left">octopamine</td>
-</tr>
-<tr class="even">
-<td align="right">2</td>
-<td>720575941460652870</td>
-<td align="right">6</td>
-<td align="right">4</td>
-<td align="left">CV1007</td>
-<td align="left">octopamine</td>
-</tr>
-<tr class="odd">
-<td align="right">3</td>
-<td>720575941549868093</td>
-<td align="right">4</td>
-<td align="right">6</td>
-<td align="left">MNad17</td>
-<td align="left">serotonin</td>
-</tr>
-</tbody>
-</table>
-<p>The top consensus hit (<code>MNad48</code>, octopamine) is an
-abdominal motor neuron projecting through the abdominal nerve trunk —
-the expected neurotransmitter and routing for SREN cells supplying the
-rectal papillae.</p>
-</div>
-<div class="section level2">
-<h2 id="pinned-spelunker-urls">Pinned Spelunker URLs<a class="anchor" aria-label="anchor" href="#pinned-spelunker-urls"></a>
-</h2>
-<p>For convenience, here are pre-built shortened Spelunker scenes for
-the top-6 colorMIP hits and the top-6 NBLAST hits. Each opens the BANC
-proofreading layer with the corresponding cell selected and the SREN LM
-volume rendered as a green additive overlay.</p>
-<p><strong>Top 6 by colorMIP</strong> (z_tolerance = 8, xy_shift = 3,
-mirror = FALSE)</p>
-<table class="table">
-<colgroup>
-<col width="20%">
-<col width="15%">
-<col width="20%">
-<col width="15%">
-<col width="15%">
-<col width="15%">
-</colgroup>
-<thead><tr class="header">
-<th align="right">Rank</th>
-<th>root_id</th>
-<th align="right">score</th>
-<th>cell_type</th>
-<th>NT</th>
-<th>Spelunker</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">1</td>
-<td><code>720575941686473228</code></td>
-<td align="right">0.096</td>
-<td>MNANmX</td>
-<td>gaba</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6674154085416960" class="external-link">open</a></td>
-</tr>
-<tr class="even">
-<td align="right">2</td>
-<td><code>720575941628067385</code></td>
-<td align="right">0.091</td>
-<td>EN00B010</td>
-<td>octopamine</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6165327699247104" class="external-link">open</a></td>
-</tr>
-<tr class="odd">
-<td align="right">3</td>
-<td><code>720575941630741730</code></td>
-<td align="right">0.074</td>
-<td>MNad48</td>
-<td>octopamine</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6573369079103488" class="external-link">open</a></td>
-</tr>
-<tr class="even">
-<td align="right">4</td>
-<td><code>720575941549868093</code></td>
-<td align="right">0.073</td>
-<td>MNad17</td>
-<td>serotonin</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4743781730484224" class="external-link">open</a></td>
-</tr>
-<tr class="odd">
-<td align="right">5</td>
-<td><code>720575941468851211</code></td>
-<td align="right">0.066</td>
-<td>abd_Dsx_OA</td>
-<td>gaba</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6403352236654592" class="external-link">open</a></td>
-</tr>
-<tr class="even">
-<td align="right">6</td>
-<td><code>720575941460652870</code></td>
-<td align="right">0.065</td>
-<td>CV1007</td>
-<td>octopamine</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5533865123774464" class="external-link">open</a></td>
-</tr>
-</tbody>
-</table>
-<p><strong>Top 6 by NBLAST (intensity-weighted)</strong></p>
-<table class="table">
-<colgroup>
-<col width="20%">
-<col width="15%">
-<col width="20%">
-<col width="15%">
-<col width="15%">
-<col width="15%">
-</colgroup>
-<thead><tr class="header">
-<th align="right">Rank</th>
-<th>root_id</th>
-<th align="right">score</th>
-<th>cell_type</th>
-<th>NT</th>
-<th>Spelunker</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">1</td>
-<td><code>720575941630741730</code></td>
-<td align="right">0.461</td>
-<td>MNad48</td>
-<td>octopamine</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6573369079103488" class="external-link">open</a></td>
-</tr>
-<tr class="even">
-<td align="right">2</td>
-<td><code>720575941511228370</code></td>
-<td align="right">0.436</td>
-<td>abd_Dsx_OA</td>
-<td>octopamine</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4795906502164480" class="external-link">open</a></td>
-</tr>
-<tr class="odd">
-<td align="right">3</td>
-<td><code>720575941439169042</code></td>
-<td align="right">0.435</td>
-<td>MNad48</td>
-<td>—</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5165037734854656" class="external-link">open</a></td>
-</tr>
-<tr class="even">
-<td align="right">4</td>
-<td><code>720575941460652870</code></td>
-<td align="right">0.434</td>
-<td>CV1007</td>
-<td>octopamine</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/5533865123774464" class="external-link">open</a></td>
-</tr>
-<tr class="odd">
-<td align="right">5</td>
-<td><code>720575941505592354</code></td>
-<td align="right">0.428</td>
-<td>abd_Dsx_OA</td>
-<td>octopamine</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/6282382066843648" class="external-link">open</a></td>
-</tr>
-<tr class="even">
-<td align="right">6</td>
-<td><code>720575941549868093</code></td>
-<td align="right">0.415</td>
-<td>MNad17</td>
-<td>serotonin</td>
-<td><a href="https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4743781730484224" class="external-link">open</a></td>
-</tr>
-</tbody>
-</table>
+<span>    shorten    <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="caveats">Caveats<a class="anchor" aria-label="anchor" href="#caveats"></a>
 </h2>
 <ul>
 <li>
-<strong>Threshold tuning.</strong> The R port and FIJI plugin use
-semantically-different brightness thresholds (channel-sum vs
-per-channel). Picking comparable settings is empirical; the validation
-scatter in <code>inst/images/banc_colormip_r_vs_fiji.png</code> was
-computed at R <code>threshold = 60</code>, FIJI
-<code>1.threshold = 30 / 2.threshold = 30</code>.</li>
+<strong>Anchor placement.</strong> The PCA rotation needs a target
+placement in template coords; we use the GFP CoG of an upstream
+KDRC-registered TIF (131, 508, 92 µm) as the anchor. If you don’t have
+that reference, use the fixed-mask CoG fallback in
+<code>lsm_pca_rotate.py</code> (default
+<code>--align-source nc82_mask</code> against a Y &gt; 350 µm posterior
+tip mask) and accept a few µm of placement drift.</li>
+<li>
+<strong>Sign disambiguation.</strong> The PCA orientation has a
+residual L/R ambiguity (PC2 sign). The default
+<code>--pc2-sign +1</code> works for this acquisition; if your data
+lands on the wrong hemisphere, re-run with
+<code>--pc2-sign -1</code>.</li>
 <li>
 <strong>Bridge accuracy.</strong> The Saalfeldlab JRC VNC H5 was
 generated from population averages and is small in the body of the VNC
@@ -986,14 +764,18 @@ recipe as <code>lm_to_jrc2018u_elastix</code> for the brain).</li>
 <li>
 <strong>Library coverage.</strong> Only ~75 % of
 <code>flow == "efferent"</code> BANC v888 cells (782 / 1035) had a
-colour-MIP rendered at the time of writing. As more get rendered, re-run
-Step 3 and the search.</li>
+colour-MIP rendered at the time of writing. Re-run Step 5 as more get
+rendered.</li>
 <li>
-<strong>Mirror disabled for this query.</strong> The grid search
-showed that <code>mirror = TRUE</code> adds false-positive symmetric
-matches when the query is unilateral (as the SREN signal here is). For a
-bilateral query, set <code>mirror = TRUE</code> to score against the
-flipped library too.</li>
+<strong>Forward-only NBLAST.</strong> This is the right scorer when
+the LM query has only a small in-cord arbor and the targets have long
+extra-cord axons. For symmetric queries (e.g. a complete neuron
+skeleton), use the mean of forward + reverse instead.</li>
+<li>
+<strong>Mirror.</strong> We run cMIP and NBLAST with
+<code>mirror = FALSE</code> since SREN is unilateral. The contralateral
+twin of the top hit sits at NBLAST rank 88 — visible only with a
+mirror-aware secondary scoring pass.</li>
 </ul>
 </div>
 <div class="section level2">
@@ -1012,14 +794,20 @@ abdominal-ganglion tip whose efferents innervate the rectum and gate ROD
 production in response to mating; downstream targets ascend to the brain
 via Trans-Tango.</li>
 <li>
-<strong>BANC connectome</strong>: Phelps et al. (2024).
-<em>Reconstruction of motor control circuits in adult Drosophila using
-automated transmission electron microscopy.</em> Cell. <a href="https://doi.org/10.1016/j.cell.2020.12.013" class="external-link uri">https://doi.org/10.1016/j.cell.2020.12.013</a>
+<strong>BANC connectome</strong>: Bates et al. (2025). <em>The
+Brain-And-Nerve-Cord fly Connectome (BANC): a complete adult female
+Drosophila central nervous system at synapse resolution.</em> bioRxiv.
+<a href="https://www.biorxiv.org/content/10.1101/2025.07.31.667571v1" class="external-link uri">https://www.biorxiv.org/content/10.1101/2025.07.31.667571v1</a>
 </li>
 <li>
 <strong>NeuronBridge / ColorMIP</strong>: Otsuna, Ito, Kawase.
 (2018). <em>Color depth MIP mask search: a new tool to expedite
 Split-GAL4 creation.</em> bioRxiv. <a href="https://doi.org/10.1101/318006" class="external-link uri">https://doi.org/10.1101/318006</a>
+</li>
+<li>
+<strong>NBLAST</strong>: Costa, Manton, Ostrovsky, Prohaska,
+Jefferis. (2016). <em>NBLAST: Rapid, Sensitive Comparison of Neuronal
+Structure and Construction of Neuron Family Databases.</em> Neuron. <a href="https://doi.org/10.1016/j.neuron.2016.06.012" class="external-link uri">https://doi.org/10.1016/j.neuron.2016.06.012</a>
 </li>
 <li>
 <strong>JRC2018 VNC templates</strong>: Bogovic et al. (2020).
@@ -1049,7 +837,7 @@ navis-org/navis-flybrains.</li>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>

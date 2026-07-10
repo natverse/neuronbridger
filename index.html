@@ -367,7 +367,7 @@ BANC AstA1 — nrrd_to_mip three-way comparison
 <div class="section level1">
 <h1 id="serve-lm-image-data-alongside-banc-in-neuroglancer">Serve LM image data alongside BANC in Neuroglancer<a class="anchor" aria-label="anchor" href="#serve-lm-image-data-alongside-banc-in-neuroglancer"></a>
 </h1>
-<p><code><a href="reference/nrrd_to_precomputed.html">nrrd_to_precomputed()</a></code> writes any 3-D image volume (registered LM stacks, atlas templates, masks) as a Neuroglancer <a href="https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed" class="external-link">precomputed</a> image layer — the same on-disk format that BANC’s public EM, segmentation and <code>JRC2018F_aligned240721_to_BANC.ng</code> atlas layers ship in. The companion BANC-specific <code><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code> (lives in <a href="https://github.com/flyconnectome/bancr" class="external-link"><code>bancr</code></a>) then assembles a Spelunker state with the new layer (same short-URL form <code><a href="https://flyconnectome.github.io/bancr/reference/bancsee.html" class="external-link">bancr::bancsee()</a></code> produces) overlaid on the canonical public BANC scene.</p>
+<p><code><a href="reference/nrrd_to_precomputed.html">nrrd_to_precomputed()</a></code> writes any 3-D image volume (registered LM stacks, atlas templates, masks) as a Neuroglancer <a href="https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed" class="external-link">precomputed</a> image layer — the same on-disk format that BANC’s public EM, segmentation and <code>JRC2018F_aligned240721_to_BANC.ng</code> atlas layers ship in. The companion BANC-specific <code><a href="https://natverse.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code> (lives in <a href="https://github.com/flyconnectome/bancr" class="external-link"><code>bancr</code></a>) then assembles a Spelunker state with the new layer (same short-URL form <code><a href="https://natverse.github.io/bancr/reference/bancsee.html" class="external-link">bancr::bancsee()</a></code> produces) overlaid on the canonical public BANC scene.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 1) Convert your registered NRRD to precomputed (cloud-volume via reticulate)</span></span>
 <span><span class="fu"><a href="reference/nrrd_to_precomputed.html">nrrd_to_precomputed</a></span><span class="op">(</span></span>
@@ -380,7 +380,7 @@ BANC AstA1 — nrrd_to_mip three-way comparison
 <span><span class="co"># 2) Upload to a public-readable bucket *you control*, then build a</span></span>
 <span><span class="co">#    sharable BANC URL pointing at it:</span></span>
 <span><span class="co">#   gsutil -m cp -r /tmp/CapaR_pc gs://your-bucket/lm/CapaR/</span></span>
-<span><span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span></span>
+<span><span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span></span>
 <span>  <span class="st">"gs://your-bucket/lm/CapaR"</span>,</span>
 <span>  layer_name <span class="op">=</span> <span class="st">"Kondo 2020 — CapaR"</span>,</span>
 <span>  shorten    <span class="op">=</span> <span class="cn">TRUE</span>,    <span class="co"># spelunker short URL via banc_shorturl</span></span>
@@ -476,7 +476,7 @@ Kondo 2020 CapaR receptor expression preview
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>

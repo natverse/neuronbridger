@@ -170,7 +170,7 @@ directory</td>
 </tr>
 <tr class="even">
 <td>4</td>
-<td><code><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code></td>
+<td><code><a href="https://natverse.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code></td>
 <td>Build a Spelunker scene with the new LM layer added to the canonical
 public BANC scene</td>
 </tr>
@@ -195,7 +195,7 @@ public BANC scene</td>
 <span><span class="co"># Elastix 5.x: download from https://github.com/SuperElastix/elastix/releases/latest</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/neuronbridger" class="external-link">neuronbridger</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/flyconnectome/bancr" class="external-link">bancr</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/bancr" class="external-link">bancr</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat" class="external-link">nat</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat.flybrains" class="external-link">nat.flybrains</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="http://natverse.org/nat.templatebrains/" class="external-link">nat.templatebrains</a></span><span class="op">)</span></span>
@@ -343,7 +343,7 @@ write there you need either (a) write access granted by the lee-lab
 maintainers, or (b) your own GCS / S3 / static-HTTP host that is
 <strong>public-read</strong> so Neuroglancer can fetch the chunks. Once
 the precomputed directory is reachable over HTTPS, pass its URL to
-<code><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code>.</p>
+<code><a href="https://natverse.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code>.</p>
 </blockquote>
 <blockquote>
 <p><strong>One way to gzip, not two.</strong> Either let
@@ -356,12 +356,12 @@ equivalent; mixing them — <code>.gz</code> files uploaded with
 <code>-Z</code>, or raw files uploaded without it — yields a layer whose
 <code>info</code> is reachable but whose chunks all 404.</p>
 </blockquote>
-<p><code><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code> builds a Neuroglancer state that
+<p><code><a href="https://natverse.github.io/bancr/reference/banc_lm_scene.html" class="external-link">bancr::banc_lm_scene()</a></code> builds a Neuroglancer state that
 starts from the standard public BANC scene (BANC EM + segmentation +
 region outlines + the JRC2018F atlas + imported FAFB / hemibrain / MANC
 meshes) and appends your LM layer on top:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">u</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">u</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span></span>
 <span>  lm_url     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"gs://lee-lab_brain-and-nerve-cord-fly-connectome/"</span>,</span>
 <span>                      <span class="st">"light_level/kondo_et_al_2020/"</span>,</span>
 <span>                      <span class="st">"CapaR_no1_02_aligned240721_to_BANC.ng/CapaR_BANC_pc"</span><span class="op">)</span>,</span>
@@ -387,11 +387,11 @@ scene. The new LM layer matches the public
 for the dim post-Elastix LM signal. Tighten <code>range</code> for
 sparse stains, expand it for brighter sources.</p>
 <p><code>shorten = TRUE</code> (the default) POSTs the state via
-<code>bancr::banc_shorturl()</code> — the same helper
-<code><a href="https://flyconnectome.github.io/bancr/reference/bancsee.html" class="external-link">bancsee()</a></code> uses — and returns a
+<code><a href="https://natverse.github.io/bancr/reference/banc_shorturl.html" class="external-link">bancr::banc_shorturl()</a></code> — the same helper
+<code><a href="https://natverse.github.io/bancr/reference/bancsee.html" class="external-link">bancsee()</a></code> uses — and returns a
 <code>spelunker.cave-explorer.org/...nglstate/api/v1/&lt;id&gt;</code>
 URL. This requires a CAVE token, set once with
-<code><a href="https://flyconnectome.github.io/bancr/reference/banc_set_token.html" class="external-link">bancr::banc_set_token()</a></code>. Pass <code>shorten = FALSE</code>
+<code><a href="https://natverse.github.io/bancr/reference/banc_set_token.html" class="external-link">bancr::banc_set_token()</a></code>. Pass <code>shorten = FALSE</code>
 to skip the round-trip and inline the full state in a long fragment URL
 instead.</p>
 </div>
@@ -431,7 +431,7 @@ skips automatically if the Python module isn’t available.</p>
 <code class="sourceCode R"><span><span class="co"># Build a BANC scene with the local layer (long fragment URL form; no</span></span>
 <span><span class="co"># auth needed). For a real sharable URL you'd upload the precomputed</span></span>
 <span><span class="co"># dir to a public bucket and pass that gs:// URL instead.</span></span>
-<span><span class="va">u</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span><span class="va">out</span>, layer_name <span class="op">=</span> <span class="st">"tiny synthetic"</span>,</span>
+<span><span class="va">u</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_lm_scene.html" class="external-link">banc_lm_scene</a></span><span class="op">(</span><span class="va">out</span>, layer_name <span class="op">=</span> <span class="st">"tiny synthetic"</span>,</span>
 <span>                          shorten <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"URL prefix:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substring</a></span><span class="op">(</span><span class="va">u</span>, <span class="fl">1</span>, <span class="fl">100</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"LM layer present:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">grepl</a></span><span class="op">(</span><span class="st">"synthetic|Synthetic"</span>, <span class="va">u</span>, ignore.case <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span></code></pre></div>
@@ -445,7 +445,7 @@ skips automatically if the Python module isn’t available.</p>
 (BANC EM, segmentation, JRC2018F atlas, region outlines, synapse cloud,
 imported FAFB / hemibrain / MANC meshes) are all served from
 <code>gs://lee-lab_brain-and-nerve-cord-fly-connectome/</code> — see
-<code><a href="https://flyconnectome.github.io/bancr/reference/banc_scene.html" class="external-link">bancr::banc_scene()</a></code> for the canonical entry-point
+<code><a href="https://natverse.github.io/bancr/reference/banc_scene.html" class="external-link">bancr::banc_scene()</a></code> for the canonical entry-point
 state.</li>
 <li>
 <strong>Precomputed format</strong>: Neuroglancer <a href="https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed" class="external-link">precomputed
@@ -474,7 +474,7 @@ Python library.</li>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>

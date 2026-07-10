@@ -192,13 +192,13 @@ identical regardless of which back-end you choose for step 4.</p>
 <tbody>
 <tr class="odd">
 <td>1</td>
-<td><code><a href="https://flyconnectome.github.io/bancr/reference/banc_read_neuron_meshes.html" class="external-link">bancr::banc_read_neuron_meshes()</a></code></td>
+<td><code><a href="https://natverse.github.io/bancr/reference/banc_read_neuron_meshes.html" class="external-link">bancr::banc_read_neuron_meshes()</a></code></td>
 <td>Fetch a BANC mesh by seg ID</td>
 </tr>
 <tr class="even">
 <td>2</td>
 <td>
-<code><a href="https://flyconnectome.github.io/bancr/reference/banc_to_JRC2018F.html" class="external-link">bancr::banc_to_JRC2018F()</a></code> +
+<code><a href="https://natverse.github.io/bancr/reference/banc_to_JRC2018F.html" class="external-link">bancr::banc_to_JRC2018F()</a></code> +
 <code><a href="https://natverse.org/nat.templatebrains/reference/xform_brain.html" class="external-link">nat.templatebrains::xform_brain()</a></code>
 </td>
 <td>Bridge into NeuronBridge-compatible template space</td>
@@ -243,7 +243,7 @@ dims <code>1210 × 566 × 174</code>, voxdims
 <span><span class="fu">reticulate</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/reticulate/reference/py_install.html" class="external-link">py_install</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"banc"</span>, <span class="st">"scikit-image"</span>, <span class="st">"numpy"</span><span class="op">)</span>, pip <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/neuronbridger" class="external-link">neuronbridger</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/flyconnectome/bancr" class="external-link">bancr</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/bancr" class="external-link">bancr</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat" class="external-link">nat</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat.flybrains" class="external-link">nat.flybrains</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="http://natverse.org/nat.templatebrains/" class="external-link">nat.templatebrains</a></span><span class="op">)</span></span>
@@ -259,7 +259,7 @@ cell</em></a> vignette converges on from the SS32423 split-GAL4 line.
 Browse the cells in <a href="https://codex.flywire.ai/app/search?dataset=banc&amp;filter_string=AstA1" class="external-link">BANC
 codex</a>.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ann</span>   <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_codex_annotations.html" class="external-link">banc_codex_annotations</a></span><span class="op">(</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">ann</span>   <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_codex_annotations.html" class="external-link">banc_codex_annotations</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">asta1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">ann</span>, <span class="va">cell_type</span> <span class="op">==</span> <span class="st">"AstA1"</span><span class="op">)</span></span>
 <span><span class="va">asta1</span><span class="op">$</span><span class="va">pt_root_id</span></span>
 <span></span>
@@ -269,10 +269,10 @@ codex</a>.</p>
 <h2 id="step-2-fetch-and-bridge-into-jrc2018u_hr">Step 2 — Fetch and bridge into JRC2018U_HR<a class="anchor" aria-label="anchor" href="#step-2-fetch-and-bridge-into-jrc2018u_hr"></a>
 </h2>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">banc_mesh</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_read_neuron_meshes.html" class="external-link">banc_read_neuron_meshes</a></span><span class="op">(</span><span class="va">asta1_id</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">banc_mesh</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_read_neuron_meshes.html" class="external-link">banc_read_neuron_meshes</a></span><span class="op">(</span><span class="va">asta1_id</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># BANC -&gt; JRC2018F (BANC-specific bridge, tpsreg)</span></span>
-<span><span class="va">mesh_jrc2018f</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_to_JRC2018F.html" class="external-link">banc_to_JRC2018F</a></span><span class="op">(</span><span class="va">banc_mesh</span>, method <span class="op">=</span> <span class="st">"tpsreg"</span>,</span>
+<span><span class="va">mesh_jrc2018f</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_to_JRC2018F.html" class="external-link">banc_to_JRC2018F</a></span><span class="op">(</span><span class="va">banc_mesh</span>, method <span class="op">=</span> <span class="st">"tpsreg"</span>,</span>
 <span>                                         banc.units <span class="op">=</span> <span class="st">"nm"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># JRC2018F -&gt; JRC2018U (natverse bridge from nat.flybrains)</span></span>
@@ -490,7 +490,7 @@ the BANC equivalence check.</li>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>

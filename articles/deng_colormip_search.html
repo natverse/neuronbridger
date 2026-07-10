@@ -158,7 +158,7 @@ template grids. So we re-warp once, just for this workflow.</p>
 <span><span class="co"># (see vignette("publish_lm_layer") for full installation notes)</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/neuronbridger" class="external-link">neuronbridger</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/flyconnectome/bancr" class="external-link">bancr</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/bancr" class="external-link">bancr</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat" class="external-link">nat</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="http://natverse.org/nat.templatebrains/" class="external-link">nat.templatebrains</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/nat.jrcbrains" class="external-link">nat.jrcbrains</a></span><span class="op">)</span></span>
@@ -282,7 +282,7 @@ visual pixel overlap.</p>
 <span><span class="va">lm_dp</span>  <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/dotprops.html" class="external-link">dotprops</a></span><span class="op">(</span><span class="va">lm_pts</span>, k <span class="op">=</span> <span class="fl">5L</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># BANC meshes -&gt; dotprops in JRC2018U_HR (mesh -&gt; JRC2018F via tpsreg, then to U_HR)</span></span>
-<span><span class="va">banc_meshes</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://flyconnectome.github.io/bancr/reference/banc_read_neuron_meshes.html" class="external-link">banc_read_neuron_meshes</a></span><span class="op">(</span><span class="va">hit_ids</span><span class="op">)</span></span>
+<span><span class="va">banc_meshes</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_read_neuron_meshes.html" class="external-link">banc_read_neuron_meshes</a></span><span class="op">(</span><span class="va">hit_ids</span><span class="op">)</span></span>
 <span><span class="va">banc_in_jrcf</span> <span class="op">&lt;-</span> <span class="fu">nat.templatebrains</span><span class="fu">::</span><span class="fu"><a href="https://natverse.org/nat.templatebrains/reference/xform_brain.html" class="external-link">xform_brain</a></span><span class="op">(</span><span class="va">banc_meshes</span>,</span>
 <span>                                                 sample <span class="op">=</span> <span class="st">"BANC"</span>,</span>
 <span>                                                 reference <span class="op">=</span> <span class="st">"JRC2018F"</span><span class="op">)</span></span>
@@ -355,7 +355,7 @@ al. 2016).</li>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>
