@@ -673,7 +673,78 @@ cells, one per side). Both L and R members appear in the top ~10 % of
 the ranking.</p>
 </div>
 <div class="section level2">
-<h2 id="step-9-open-each-match-in-spelunker">Step 9 — Open each match in Spelunker<a class="anchor" aria-label="anchor" href="#step-9-open-each-match-in-spelunker"></a>
+<h2 id="step-9-cycling-through-candidates-and-inspecting-the-deformation">Step 9 — Cycling through candidates and inspecting the
+deformation<a class="anchor" aria-label="anchor" href="#step-9-cycling-through-candidates-and-inspecting-the-deformation"></a>
+</h2>
+<p>Two animated illustrations. Both are the kind of view Neuroglancer
+can show interactively but that a static vignette benefits from as a gif
+— one for the registration deformation itself, one for the candidate
+list.</p>
+<div class="section level3">
+<h3 id="sren-lm-cloud-with-each-top-banc-candidate-in-order">SREN LM cloud with each top BANC candidate, in order<a class="anchor" aria-label="anchor" href="#sren-lm-cloud-with-each-top-banc-candidate-in-order"></a>
+</h3>
+<p>A slow cycle through the top-6 NBLAST hits + the two hypothesised
+SREN candidates (manc_cell_type <code>EN00B016</code>), overlaid on the
+elastix-aligned SREN LM cloud in BANC µm. This is the fastest way to
+“look through” the ranked list and see whether a given candidate’s
+dendritic tree traces the LM signal.</p>
+<div class="float">
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/sren_candidates_cycle.gif" alt="Top NBLAST candidates + hypothesised SREN pair on the SREN LM cloud (BANC um, full-elastix bridge)"><div class="figcaption">Top NBLAST candidates + hypothesised SREN pair
+on the SREN LM cloud (BANC um, full-elastix bridge)</div>
+</div>
+</div>
+<div class="section level3">
+<h3 id="the-jrc2018vncf---banc-deformation-hull-only-via-deformetricar">The JRC2018VNCF -&gt; BANC deformation, hull only, via
+<code>deformetricar</code><a class="anchor" aria-label="anchor" href="#the-jrc2018vncf---banc-deformation-hull-only-via-deformetricar"></a>
+</h3>
+<p>The full-elastix chain (Step 7) is the recommended bridge; it does
+the heavy lifting from JRC2018F voxel intensity to BANC synapse density.
+As a separate experiment we tried an alternative registration using <a href="https://github.com/natverse/deformetricar" class="external-link">deformetricar</a> —
+fitting a diffeomorphism between the two VNC neuropil hulls (the
+JRC2018VNCF outer surface and
+<code><a href="https://natverse.github.io/bancr/reference/banc.surf.html" class="external-link">bancr::banc_vnc_neuropil.surf</a></code>), driven by shape alone, no
+image content.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">deformetricar</span><span class="op">)</span></span>
+<span><span class="co"># Source: JRC2018VNCF hull (isosurface of the female VNC template)</span></span>
+<span><span class="va">jrc_hull</span>  <span class="op">&lt;-</span> <span class="fu">Rvcg</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Rvcg/man/vcgIsosurface.html" class="external-link">vcgIsosurface</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">unclass</a></span><span class="op">(</span><span class="va">tpl</span> <span class="op">&gt;=</span> <span class="va">thr</span><span class="op">)</span>, threshold <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>                                 spacing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.461</span>, <span class="fl">0.461</span>, <span class="fl">0.7</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># Target: BANC VNC neuropil hull (bancr::banc_vnc_neuropil.surf, in um)</span></span>
+<span><span class="va">banc_hull</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="va"><a href="https://natverse.github.io/bancr/reference/banc.surf.html" class="external-link">banc_vnc_neuropil.surf</a></span></span>
+<span></span>
+<span><span class="va">pre</span> <span class="op">&lt;-</span> <span class="fu">affine_prealign</span><span class="op">(</span><span class="va">jrc_hull</span>, <span class="va">banc_hull</span>, type <span class="op">=</span> <span class="st">"similarity"</span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu">deformetrica_register</span><span class="op">(</span></span>
+<span>  source <span class="op">=</span> <span class="va">pre</span><span class="op">$</span><span class="fu">apply</span><span class="op">(</span><span class="va">jrc_hull</span><span class="op">)</span>,</span>
+<span>  target <span class="op">=</span> <span class="va">banc_hull</span>,</span>
+<span>  kernel_width <span class="op">=</span> <span class="fl">50</span>,          <span class="co"># 50 um kernel</span></span>
+<span>  object_type  <span class="op">=</span> <span class="st">"SurfaceMesh"</span>,</span>
+<span>  workdir      <span class="op">=</span> <span class="st">"dfca_out"</span>,</span>
+<span>  device       <span class="op">=</span> <span class="st">"auto"</span><span class="op">)</span></span></code></pre></div>
+<p>The flow gif shows the JRC hull morphing into the BANC hull; the top
+BANC NBLAST hit is drawn as the purple mesh for reference:</p>
+<div class="float">
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/sren_jrc_to_banc_flow.gif" alt="Deformetrica flow: JRC2018VNCF hull morphing onto the BANC VNC hull (top BANC hit in purple)"><div class="figcaption">Deformetrica flow: JRC2018VNCF hull morphing
+onto the BANC VNC hull (top BANC hit in purple)</div>
+</div>
+<p><strong>Bottom line: hull-only isn’t enough for this
+problem.</strong> The deformetrica warp fit hull → hull very well (~20 s
+on CPU), but when we apply the resulting deformation to the SREN cloud,
+the candidate ranks collapse (our hypothesised pair drops to rank
+~700–800, and the top-15 is dominated by <em>hind_leg_motor_neuron</em>
+cells rather than abd_Dsx_OA neurosecretory ones). The reason is that
+the outer hull constrains only the perimeter; the interior gets whatever
+deformation the RKHS kernel prefers, which happens to shift the tip
+signal into the wrong internal compartment. To make deformetrica
+competitive here we’d need to feed it internal landmarks too — a family
+of matched neuropil sub-surfaces on both sides, similarly to what the
+<code>mosquito-to-fly</code> vignette in <code>deformetricar</code>
+does. For now the full image-driven elastix chain is the better bridge;
+this experiment is a useful negative result and a template for a future
+improvement.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="step-10-open-each-match-in-spelunker">Step 10 — Open each match in Spelunker<a class="anchor" aria-label="anchor" href="#step-10-open-each-match-in-spelunker"></a>
 </h2>
 <p>Four Neuroglancer <strong>precomputed</strong> layers ship the SREN
 LM signal in BANC voxel space, corresponding to successive refinements
@@ -715,7 +786,7 @@ of the JRC2018F→BANC bridge:</p>
 <p>Prefer <code>..._fullElastix_400nm.ng</code> — that’s the
 registration-correct version, bilateral signal preserved, matching the
 NBLAST bridge used in Step 7.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">LM_GS</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"precomputed://"</span>, <span class="va">GCS_ROOT</span>,</span>
 <span>                <span class="st">"/light_level/kdrc/"</span>,</span>
 <span>                <span class="st">"SREN_female_aligned240721_to_BANC_fullElastix_400nm.ng"</span><span class="op">)</span></span>
