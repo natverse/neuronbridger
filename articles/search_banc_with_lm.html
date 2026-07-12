@@ -755,27 +755,74 @@ residual L/R ambiguity (PC2 sign). The default
 lands on the wrong hemisphere, re-run with
 <code>--pc2-sign -1</code>.</li>
 <li>
-<strong>Bridge accuracy.</strong> The Saalfeldlab JRC VNC H5 was
-generated from population averages and is small in the body of the VNC
-but can be imprecise at the periphery (where SREN axons leave). For
-sub-voxel precision, register your specific NC82 channel onto
-JRC2018VNCU_HR via Elastix multi-resolution affine + B-spline (the same
-recipe as <code>lm_to_jrc2018u_elastix</code> for the brain).</li>
+<strong>Bridge accuracy — TPS is NOT enough at the abdominal
+tip.</strong> The first published revision of this pipeline used
+<code><a href="https://natverse.github.io/bancr/reference/banc_to_jrc2018f_tpsreg.html" class="external-link">bancr::jrcvnc2018f_to_banc_tpsreg</a></code> (a 5710-landmark TPS
+approximation of the elastix chain) to bridge JRC2018F→BANC. It
+measurably <em>collapses bilateral signal to one side</em> at the
+abdominal tip — the SREN X distribution in JRC2018VNCF was clearly
+bimodal around midline (X = 132 µm) but landed at X ∈ [308, 472] µm in
+BANC, entirely left of the BANC-tip midline (~X = 394 µm). We now use
+the full elastix chain via
+<code>bancr::banc_to_JRC2018F(method="elastix")</code>, which preserves
+the bilateral pattern. The bancr TPS is still fine for the
+<em>brain</em> bridge or for coarse-scale localisation, just not for the
+abdominal-tip topology.</li>
+<li>
+<strong>JRC2018VNCU_HR bridge.</strong> The Saalfeldlab JRC VNC H5
+(used for the cMIP rendering step) is generated from population averages
+and is small in the body of the VNC but can be imprecise at the
+periphery (where SREN axons leave). For sub-voxel precision, register
+your specific NC82 channel onto JRC2018VNCU_HR via Elastix
+multi-resolution affine + B-spline (the same recipe as
+<code>lm_to_jrc2018u_elastix</code> for the brain).</li>
 <li>
 <strong>Library coverage.</strong> Only ~75 % of
-<code>flow == "efferent"</code> BANC v888 cells (782 / 1035) had a
+<code>flow == "efferent"</code> BANC v888 cells (782 / 1033) had a
 colour-MIP rendered at the time of writing. Re-run Step 5 as more get
 rendered.</li>
 <li>
-<strong>Forward-only NBLAST.</strong> This is the right scorer when
-the LM query has only a small in-cord arbor and the targets have long
-extra-cord axons. For symmetric queries (e.g. a complete neuron
-skeleton), use the mean of forward + reverse instead.</li>
+<strong>NBLAST scoring.</strong> With bilateral signal preserved by
+the full elastix bridge, <code>mean(fwd, rev)</code> is the right
+scorer. The earlier <code>forward-only</code> recipe was a workaround
+for the TPS-collapsed unilateral query and is no longer needed.</li>
 <li>
-<strong>Mirror.</strong> We run cMIP and NBLAST with
-<code>mirror = FALSE</code> since SREN is unilateral. The contralateral
-twin of the top hit sits at NBLAST rank 88 — visible only with a
-mirror-aware secondary scoring pass.</li>
+<strong>Mirror.</strong> We still run cMIP and NBLAST with
+<code>mirror = FALSE</code>. The SREN GFP labelling is asymmetric
+(dominant left + dim right in this acquisition), so bilateral candidates
+surface as two individual unilateral hits (a left cell + a right cell of
+the same type family) rather than a single symmetric match. A
+mirror-aware second pass would lift a contralateral counterpart if you
+want the pairing explicit.</li>
+<li>
+<strong>BANC ID drift and cell-type renames.</strong> Two annotation
+gotchas:
+<ol style="list-style-type: decimal">
+<li>The BANC cMIP library and precomputed layers were rendered from the
+v888 snapshot (July 2024) and their filenames encode the frozen
+<code>root_888</code>. The live SeaTable’s default <code>root_id</code>
+column is the <em>current</em> post-proofreading ID and may differ.
+Always join by <code>root_888</code> when going between the frozen
+assets (cMIP filenames, GCS <code>banc_888_meta.feather</code>) and the
+live SeaTable.</li>
+<li>BANC cell-type names have shifted at least twice during this
+pipeline’s lifetime — a legacy “MNANmX” motor-neuron narrative gave way
+to <code>MNadxxF</code>, and the current annotation uses the
+<code>EFFabg**</code> prefix for VNC efferents with
+<code>manc_cell_type</code> as the bridge to MANC nomenclature. Prefer
+<code>manc_cell_type</code> as a reasonably stable pivot; treat any BANC
+<code>cell_type</code> as a moving target.</li>
+</ol>
+</li>
+<li>
+<strong>Cell-class re-assignment.</strong> The
+<code>EFFabg40 / EFFabg43 / EFFabg45</code> cluster that dominates the
+top hits is annotated as
+<code>cell_class = ventral_nerve_cord_neurosecretory_cell</code>
+(specifically in the <code>abd_Dsx_OA</code> — doublesex-expressing
+sex-dimorphic — family) rather than as motor neurons. Earlier revisions
+of this vignette described these cells as “abdominal MNs”; that framing
+is superseded by the current curation.</li>
 </ul>
 </div>
 <div class="section level2">
