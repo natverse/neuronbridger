@@ -243,21 +243,29 @@ cat("\nTop 10 cMIP:\n")
 print(head(res[, c("root_888", "score", "n_match", "mirror")], 10))
 
 # ----- 10. SREN dotprops in BANC um (from npmasked GFP) ---------------
-# Use ALL nonzero voxels of the JRC2018VNCF npmasked GFP (no median
-# filter, no largest-CC selection) so bilateral signal survives to the
-# NBLAST query. Median + largest-CC drop the dimmer contralateral peak
-# and produced an artefactually-unilateral query in the previous
-# revision of this script.
+# Median-filter the npmasked GFP to suppress isolated noise voxels, but
+# keep ALL connected components above the intensity floor -- do NOT
+# select the largest-CC only. The previous revision picked the largest
+# CC, which dropped the contralateral peak of a genuinely-bilateral
+# SREN signal and produced a unilateral query.
 ser <- nat::read.nrrd(gfp_jrcf_int)
+ser <- mmand::medianFilter(ser, mmand::shapeKernel(c(3,3,3), type = "box"))
 storage.mode(ser) <- "integer"
-idx <- which(ser > 0, arr.ind = TRUE)
+cut <- as.integer(stats::quantile(ser[ser > 0], 0.50))
+mask <- ser >= cut
+# Drop tiny components (isolated noise) but keep every component with
+# >= 50 voxels so both bilateral lobes survive if present.
+cc <- mmand::components(mask, mmand::shapeKernel(c(3,3,3), type = "box"))
+tab <- tabulate(cc[!is.na(cc)])
+mask <- !is.na(cc) & cc %in% which(tab >= 50L)
+idx <- which(mask, arr.ind = TRUE)
 ser_full <- data.frame(
   X = (idx[,1] - 1L) * 0.461122 + 0.461122/2,
   Y = (idx[,2] - 1L) * 0.461122 + 0.461122/2,
   Z = (idx[,3] - 1L) * 0.7      + 0.35,
-  I = as.integer(ser[ser > 0]))
+  I = as.integer(ser[mask]))
 saveRDS(ser_full, file.path(REG_DIR, "sren_pts_jrcvncf_npmask.rds"))
-cat("SREN voxels (neuropil-masked, unfiltered):", nrow(ser_full), "\n")
+cat("SREN voxels (neuropil-masked, cleaned, CC>=50):", nrow(ser_full), "\n")
 
 # ----- 11. NBLAST fwd+rev mean against the full efferent library ------
 # Bridge SREN points JRC2018VNCF -> BANC um using the FULL ELASTIX
