@@ -17,12 +17,17 @@ data-import step.
 | `kondo_to_banc.R`         | Bridge **Kondo et al. 2020** receptor LM stacks (IS2 → FCWB → JRC2018F → BANC voxel) and upload `<gene>_<sample>.ng` to GCS. |
 | `deng_brain_to_banc.R`    | Bridge **Deng et al. 2019 BRAIN** LSMs (native → JRC2018U → JRC2018F → BANC) and upload to GCS. |
 | `deng_vnc_to_banc.R`      | Bridge **Deng et al. 2019 VNC** LSMs (native → JRC2018VNCF → BANC via the bancr tpsreg + Python inverse-warp) and upload to GCS. |
-| `make_colormip_library.R` | Re-warp Deng/Kondo source volumes to the **NeuronBridge target template** (`JRC2018U_HR` for brain, `JRC2018VNCU_HR` for VNC) and render colour-MIP PNGs. |
-| `colormip_search_against_banc.R` | Search a directory of query colour-MIPs against the BANC neuron MIP library, NBLAST top-K vs locally-cached L2 SWCs, voxel-attribute LM signal to nearest skeleton, and emit a single master CSV per query batch. |
+| `make_colormip_library.R` | Re-warp Deng/Kondo source volumes to the **NeuronBridge target template** (`JRC2018U_HR` for brain, `JRC2018VNCU_HR` for VNC) and render colour-MIP PNGs (default `--threshold 0.999`: top 0.1% of nonzero voxels for library-matching sparsity). |
+| `build_colormip_index.R`  | One-shot: read every BANC library PNG, write a sparse `(fg_idx, z)` RDS keyed at `<data-root>/banc_colormips/<region>_cache_thr<T>.rds`. Consumed by `colormip_search_against_banc.R --cache` for a ~5× per-query speedup. |
+| `colormip_search_against_banc.R` | Search a directory of query colour-MIPs against the BANC neuron MIP library (via `--cache` when the index exists), NBLAST top-K vs locally-cached L2 SWCs, voxel-attribute LM signal to nearest skeleton, emit `<name>_hits.csv` per query + a single `lm_to_banc_colormip_hits.csv` master. |
+| `nblast_fill.R`           | Post-search: bulk-sync missing L2 SWCs from GCS, walk each `_hits.csv`, and fill in `nblast` + `voxel_attr` for whichever rows now have SWCs available. Refreshes `lm_to_banc_colormip_hits.csv`. |
+
+See `colormip_pipeline.md` for the end-to-end walkthrough of the
+colormip-search half (Stages 0–4).
 
 ### Common arguments
 
-All five pipeline scripts accept:
+Every pipeline script accepts:
 
 * `--data-root <path>`   root for every local source + output. Defaults
   to `~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat`
@@ -38,41 +43,68 @@ The three `*_to_banc.R` registration scripts also accept:
   `registry_entries.json` into the master `registry.json` on GCS,
   then re-mint `bancr::banc_lm_links` (runs
   `bancr/data-raw/make_banc_lm_links.R`). Implies `--upload`.
+* `--one <name>` worker mode: process a single sample and write per-sample
+  RDS stubs. The outer loop invokes this via `Rscript` so each sample
+  runs in a fresh R heap, sidestepping the mid-batch macOS memory-
+  pressure slowdown. Not for hand invocation; use `test`/`all` modes.
+
+`colormip_search_against_banc.R` also accepts `--cache <rds>` (path
+to a `build_colormip_index.R` output). `make_colormip_library.R` also
+accepts `--threshold X` (passed through to `nrrd_to_mip()`; default
+0.999).
 
 ### Typical run order
 
 ```bash
 DATA="$HOME/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat"
 
-# (one-time) sync the BANC neuron MIP libraries
-mkdir -p "$DATA/banc_colormips"
+# (one-time) sync the BANC neuron MIP libraries to a real dir OFF Dropbox
+# (~1 GB total, avoids Dropbox sync churn), then symlink from data-root.
+mkdir -p "$HOME/banc_colormips/JRC2018_UNISEX_20x_HR" \
+         "$HOME/banc_colormips/JRC2018_VNC_UNISEX_461"
 gsutil -m rsync -r \
   gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_UNISEX_20x_HR/ \
-  "$DATA/banc_colormips/JRC2018_UNISEX_20x_HR/"
+  "$HOME/banc_colormips/JRC2018_UNISEX_20x_HR/"
 gsutil -m rsync -r \
   gs://lee-lab_brain-and-nerve-cord-fly-connectome/neuron_colormips/template_alignment_240721/JRC2018_VNC_UNISEX_461/ \
-  "$DATA/banc_colormips/JRC2018_VNC_UNISEX_461/"
+  "$HOME/banc_colormips/JRC2018_VNC_UNISEX_461/"
+mkdir -p "$DATA/banc_colormips"
+ln -s "$HOME/banc_colormips/JRC2018_UNISEX_20x_HR"  "$DATA/banc_colormips/"
+ln -s "$HOME/banc_colormips/JRC2018_VNC_UNISEX_461" "$DATA/banc_colormips/"
 
-# (one-time) sync v888 metadata + L2 skeletons
+# (one-time) sync v888 metadata
 mkdir -p "$DATA/banc_meta/banc_banc_space_swc"
 gsutil cp \
   gs://lee-lab_brain-and-nerve-cord-fly-connectome/compiled_data/banc_888/banc_888_meta.feather \
   "$DATA/banc_meta/"
+# L2 SWCs are synced on demand by `nblast_fill.R` at Stage 4.
+
+# (one-time) build the library index cache for fast search
+Rscript inst/scripts/build_colormip_index.R brain --threshold 100 --mc.cores 8
+Rscript inst/scripts/build_colormip_index.R VNC   --threshold 100 --mc.cores 8
 
 # 1. Register LM data + ship to GCS (skips per-sample outputs that exist)
 Rscript inst/scripts/kondo_to_banc.R       all   --register
 Rscript inst/scripts/deng_brain_to_banc.R  all   --register
 Rscript inst/scripts/deng_vnc_to_banc.R    all   --register
 
-# 2. Make NeuronBridge-compatible MIPs
+# 2. Make NeuronBridge-compatible MIPs (--threshold 0.999 is the default)
 Rscript inst/scripts/make_colormip_library.R deng  brain   all
 Rscript inst/scripts/make_colormip_library.R deng  VNC     all
 Rscript inst/scripts/make_colormip_library.R kondo brain   all
 
-# 3. Search against BANC + emit master ranked CSV
+# 3. Search against BANC + emit master ranked CSV (with cache)
 Rscript inst/scripts/colormip_search_against_banc.R \
   "$DATA/deng_to_banc/colormip_library/brain"  brain \
-  "$DATA/deng_to_banc/colormip_search"  "$DATA/deng_to_banc/colormip_hits"  25
+  "$DATA/deng_to_banc/colormip_library/brain"        \
+  "$DATA/deng_to_banc/colormip_hits"  25             \
+  --cache "$DATA/banc_colormips/brain_cache_thr100.rds"
+
+# 4. NBLAST + voxel_attr fill-in (bulk-syncs L2 SWCs, refreshes master)
+Rscript inst/scripts/nblast_fill.R brain "$DATA/deng_to_banc/colormip_hits" \
+  "$DATA/deng_to_banc/colormip_library/brain"
+Rscript inst/scripts/nblast_fill.R VNC   "$DATA/deng_to_banc/colormip_hits" \
+  "$DATA/deng_to_banc/colormip_library/VNC"
 ```
 
 ### Data paths
@@ -90,7 +122,8 @@ All local paths are derived from `--data-root` (or the
 | Templates                              | `templates/JRC2018_UNISEX_20x_HR.nrrd`, `JRC2018_VNC_UNISEX_HR.nrrd`, `JRC2018_VNC_FEMALE_461.nrrd` |
 | BANC v888 metadata (synced once)       | `banc_meta/banc_888_meta.feather` |
 | BANC v888 L2 SWCs (synced once)        | `banc_meta/banc_banc_space_swc/<root_888>_l2.swc` |
-| BANC neuron colorMIP libraries (synced once) | `banc_colormips/{JRC2018_UNISEX_20x_HR,JRC2018_VNC_UNISEX_461}/` |
+| BANC neuron colorMIP libraries (synced once, symlink from `~/banc_colormips/`) | `banc_colormips/{JRC2018_UNISEX_20x_HR,JRC2018_VNC_UNISEX_461}/` |
+| Sparse library-index cache (`build_colormip_index.R`) | `banc_colormips/{brain,VNC}_cache_thr<T>.rds` |
 
 **Local outputs** (write; relative to `<data-root>/`):
 
@@ -117,7 +150,7 @@ All local paths are derived from `--data-root` (or the
 
 | What | Where |
 |---|---|
-| Master LM-link table (174 rows = 120 Kondo + 54 Deng BRAIN as of 2026-05-09) | `bancr::banc_lm_links` |
+| Master LM-link table (213 rows = 120 Kondo + 54 Deng BRAIN + 39 Deng VNC as of 2026-07-08) | `bancr::banc_lm_links` |
 | `bancr` repo (for re-minting links)                  | `~/Projects/flyconnectome/bancr` |
 | Saalfeldlab JRC2018 H5 bridges (brain + VNC)         | `~/Library/Application Support/R/nat.jrcbrains/{JRC2018U_JRC2018F,JRCVNC2018U_JRCVNC2018F,...}/` (VNC ones symlinked from `~/flybrain-data/` where Python `flybrains.download_jrc_vnc_transforms()` writes them) |
 
