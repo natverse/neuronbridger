@@ -31,6 +31,11 @@
 #     --data-root P   --  override the local data root. Defaults to
 #                         ~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat
 #                         (or $NEURONBRIDGER_DATA_ROOT if set).
+#     --one <name>    --  worker mode: process one sample (path or bare
+#                         basename in LSM_DIR), write per-sample RDS
+#                         stubs, exit. Used internally by outer mode so
+#                         each sample runs in a fresh R heap (avoids
+#                         mid-batch macOS memory-pressure slowdown).
 #
 # Local layout expected under <data-root>:
 #   imaging-CCT-Bowen/   raw LSMs (sources)
@@ -78,6 +83,9 @@ if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
 force    <- "--force" %in% args
 upload   <- "--upload"   %in% args || "--register" %in% args
 register <- "--register" %in% args
+one_idx  <- which(args == "--one")
+one      <- if (length(one_idx) && one_idx < length(args)) args[one_idx + 1L] else NA_character_
+if (length(one_idx)) args <- args[-c(one_idx, one_idx + 1L)]
 args     <- args[!args %in% c("--force", "--upload", "--register")]
 mode     <- if (length(args) && args[1] %in% c("test", "all")) args[1] else "test"
 
@@ -91,6 +99,19 @@ cat("DATA_ROOT: ", DATA_ROOT, "\n", sep = "")
 # --- file-name parser ----------------------------------------------
 parse_lsm <- function(fname) {
   bn <- sub("\\.lsm$", "", basename(fname), ignore.case = TRUE)
+  # If the filename has multiple delimited BRAIN|VNC tokens (e.g.
+  # "brain+vnc-vnc.lsm"), splice out the middle so the region tag we pick
+  # up below is the trailing one. Word-bounded match so substrings inside
+  # tokens like "VNCGFP" don't count.
+  tag_pat <- "(^|[^A-Za-z])([Bb][Rr][Aa][Ii][Nn]|[Vv][Nn][Cc])(?![A-Za-z])"
+  tag_matches <- gregexpr(tag_pat, bn, perl = TRUE)[[1]]
+  if (length(tag_matches) > 1L && !any(tag_matches == -1L)) {
+    first <- tag_matches[1L]; last <- tag_matches[length(tag_matches)]
+    first_actual <- if (first == 1L) 1L else first + 1L
+    last_actual  <- if (last  == 1L) 1L else last  + 1L
+    bn <- paste0(substr(bn, 1L, first_actual - 2L), "-",
+                 substr(bn, last_actual, nchar(bn)))
+  }
   m <- regmatches(bn, regexec("^(.*?)[-_].*?(BRAIN|VNC)([-_][FM])?", bn,
                               ignore.case = TRUE))[[1]]
   if (!length(m) || length(m) < 3L) return(NULL)
@@ -116,11 +137,46 @@ list_lsms <- function(mode) {
 if (!dir.exists(LSM_DIR)) stop("LSM dir not found: ", LSM_DIR)
 out_dir <- normalizePath(OUT_DIR, mustWork = FALSE)
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+stubs_dir <- file.path(out_dir, "_per_sample")
+dir.create(stubs_dir, showWarnings = FALSE, recursive = TRUE)
+
+# --- worker mode: one sample, fresh R heap, drop RDS stubs, exit ---
+if (!is.na(one)) {
+  src <- if (file.exists(one)) one else file.path(LSM_DIR, sub("\\.lsm$", "", basename(one), ignore.case = TRUE))
+  if (!file.exists(src) && !grepl("\\.lsm$", src, ignore.case = TRUE))
+    src <- paste0(src, ".lsm")
+  if (!file.exists(src)) stop("--one target not found: ", one)
+  meta <- parse_lsm(src)
+  if (is.null(meta) || meta$region != "BRAIN") stop("--one target didn't parse as BRAIN: ", src)
+  name <- paste(meta$gene, meta$sample, sep = "_")
+  message("--- ", name, " (worker, PID=", Sys.getpid(), ") ---")
+  res <- lsm_to_banc_layer(
+    input              = src,
+    gene               = meta$gene,
+    sample             = meta$sample,
+    channel            = "GFP",
+    dataset            = DATASET,
+    output_dir         = out_dir,
+    source_path        = src,
+    keep_intermediates = FALSE
+  )
+  saveRDS(data.frame(name = name,
+                     elastix_metric = res$elastix_metric,
+                     total          = res$timings[["total"]]),
+          file.path(stubs_dir, paste0(name, ".timings.rds")))
+  saveRDS(res$registry_entry,
+          file.path(stubs_dir, paste0(name, ".registry.rds")))
+  quit(save = "no", status = 0L)
+}
 
 targets <- list_lsms(mode)
 cat(sprintf("== %d BRAIN LSM target(s), mode '%s' ==\n", length(targets), mode))
 
-results <- list(); timings <- list()
+processed_names <- character(0); failed_names <- character(0)
+self <- sub("^--file=", "",
+            commandArgs(trailingOnly = FALSE)[grep("--file=", commandArgs(trailingOnly = FALSE))][1L])
+self <- normalizePath(self, mustWork = TRUE)
+
 for (src in targets) {
   if (!file.exists(src)) {
     message("SKIP  ", basename(src), " --- file not found"); next
@@ -130,35 +186,46 @@ for (src in targets) {
   name   <- paste(meta$gene, meta$sample, sep = "_")
   pc_dir <- file.path(out_dir, paste0(name, ".ng"))
   if (dir.exists(pc_dir) && length(list.files(pc_dir)) && !force) {
-    message("SKIP  ", name, " (precomputed dir exists; pass --force to recompute)"); next
+    message("SKIP  ", name, " (precomputed dir exists; pass --force to recompute)")
+    if (file.exists(file.path(stubs_dir, paste0(name, ".registry.rds"))))
+      processed_names <- c(processed_names, name)
+    next
   }
-  message("\n--- ", name, " ---")
-  res <- try(lsm_to_banc_layer(
-    input              = src,
-    gene               = meta$gene,
-    sample             = meta$sample,
-    channel            = "GFP",
-    dataset            = DATASET,
-    output_dir         = out_dir,
-    source_path        = src,
-    keep_intermediates = FALSE
-  ), silent = TRUE)
-  if (inherits(res, "try-error")) {
-    message("  FAILED: ", attr(res, "condition")$message); next
+  worker_args <- c(shQuote(self), "--one", shQuote(src),
+                   "--data-root", shQuote(DATA_ROOT))
+  if (force) worker_args <- c(worker_args, "--force")
+  rc <- system2("Rscript", worker_args)
+  if (rc != 0L) {
+    message("  FAILED: ", name, " (worker exit ", rc, ")")
+    failed_names <- c(failed_names, name); next
   }
-  results[[name]] <- res
-  timings[[length(timings) + 1L]] <- data.frame(
-    name = name, elastix_metric = res$elastix_metric, total = res$timings[["total"]]
-  )
+  processed_names <- c(processed_names, name)
 }
 
-if (!length(results)) { cat("\nNo new volumes processed.\n"); quit(save = "no") }
+if (length(failed_names))
+  cat(sprintf("\n%d sample(s) FAILED: %s\n",
+              length(failed_names), paste(failed_names, collapse = ", ")))
+
+# Aggregate per-sample RDS stubs into batch timings + registry
+timings <- lapply(processed_names, function(nm) {
+  f <- file.path(stubs_dir, paste0(nm, ".timings.rds"))
+  if (file.exists(f)) readRDS(f) else NULL
+})
+timings <- Filter(Negate(is.null), timings)
+results_reg <- lapply(processed_names, function(nm) {
+  f <- file.path(stubs_dir, paste0(nm, ".registry.rds"))
+  if (file.exists(f)) readRDS(f) else NULL
+})
+results_reg <- Filter(Negate(is.null), results_reg)
+
+if (!length(results_reg)) { cat("\nNo new volumes processed.\n"); quit(save = "no") }
+if (!length(timings)) { cat("\nNo timings — RDS stubs missing?\n"); quit(save = "no") }
 
 times_df <- do.call(rbind, timings)
 write.csv(times_df, file.path(out_dir, "timings.csv"), row.names = FALSE)
 cat("\n=== timings ===\n"); print(times_df, row.names = FALSE)
 
-reg_entries <- do.call(rbind, lapply(results, `[[`, "registry_entry"))
+reg_entries <- do.call(rbind, results_reg)
 reg_json <- list(
   schema_version = 1L,
   volumes = lapply(seq_len(nrow(reg_entries)), function(i) {

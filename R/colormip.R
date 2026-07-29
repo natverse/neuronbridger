@@ -478,6 +478,12 @@ nrrd_to_mip_fiji_impl <- function(fiji.path = NULL,
 #'   shift). Default \code{FALSE}.
 #' @param top_n integer or \code{NULL}; if non-\code{NULL} return only
 #'   the top \code{top_n} hits by score.
+#' @param library_index optional path to a cache RDS built by
+#'   \code{\link{build_colormip_index}}, or the loaded list. When present,
+#'   \code{colormip_search} skips PNG decode + depth-LUT indexing for the
+#'   library entirely (5-10x faster). The cache's \code{threshold} must
+#'   match this call's \code{threshold}. When set, \code{library} is
+#'   ignored.
 #' @param mc.cores integer; number of cores for parallel scoring via
 #'   \code{parallel::mclapply}. \code{1} (default) runs sequentially.
 #' @param verbose logical; emit progress ticks (one dot per 100
@@ -489,32 +495,48 @@ nrrd_to_mip_fiji_impl <- function(fiji.path = NULL,
 #' @seealso \code{\link{nrrd_to_mip}}
 #' @export
 colormip_search <- function(query,
-                            library,
-                            threshold   = 100L,
-                            z_tolerance = 2L,
-                            xy_shift    = 2L,
-                            mirror      = FALSE,
-                            top_n       = NULL,
-                            mc.cores    = 1L,
-                            verbose     = TRUE) {
+                            library       = NULL,
+                            threshold     = 100L,
+                            z_tolerance   = 2L,
+                            xy_shift      = 2L,
+                            mirror        = FALSE,
+                            top_n         = NULL,
+                            library_index = NULL,
+                            mc.cores      = 1L,
+                            verbose       = TRUE) {
   threshold   <- as.integer(threshold)
   z_tolerance <- as.integer(z_tolerance)
   xy_shift    <- as.integer(xy_shift)
   stopifnot(is.finite(threshold), is.finite(z_tolerance),
             is.finite(xy_shift), xy_shift >= 0L)
 
-  # Resolve library to a character vector of file paths.
-  if (is.character(library) && length(library) == 1L && dir.exists(library)) {
+  # Resolve the library. If a cache is passed, it wins over `library`.
+  cache <- NULL
+  if (!is.null(library_index)) {
+    cache <- if (is.character(library_index) && length(library_index) == 1L) {
+      if (!file.exists(library_index))
+        stop("library_index path not found: ", library_index)
+      readRDS(library_index)
+    } else if (is.list(library_index)) library_index
+    else stop("library_index must be a path or a loaded cache list.")
+    if (!all(c("paths", "H", "W", "threshold", "fg_idx", "z") %in% names(cache)))
+      stop("library_index is not a valid cache (missing fields).")
+    if (!identical(cache$threshold, threshold))
+      stop("library_index was built with threshold=", cache$threshold,
+           "; this call uses threshold=", threshold,
+           ". Rebuild the cache or align the threshold.")
+    library_paths <- cache$paths
+  } else if (is.character(library) && length(library) == 1L && dir.exists(library)) {
     library_paths <- list.files(library, pattern = "\\.(png|tif|tiff)$",
                                 full.names = TRUE, ignore.case = TRUE)
   } else if (is.character(library)) {
     library_paths <- library
   } else {
-    stop("`library` must be a directory path or a character vector of file paths.")
+    stop("Pass `library` (directory or character vector) or `library_index` (cache path).")
   }
   if (!length(library_paths))
     stop("No library candidates found.")
-  if (!all(file.exists(library_paths)))
+  if (is.null(cache) && !all(file.exists(library_paths)))
     stop("Some library paths do not exist; first missing: ",
          library_paths[!file.exists(library_paths)][1])
 
@@ -522,6 +544,9 @@ colormip_search <- function(query,
   q_idx <- .colormip_index_image(.colormip_read_rgb(query), threshold)
   H <- nrow(q_idx$fg); W <- ncol(q_idx$fg)
   q_fg_count <- sum(q_idx$fg)
+  if (!is.null(cache) && (cache$H != H || cache$W != W))
+    stop("Query dims ", H, "x", W, " do not match cache dims ",
+         cache$H, "x", cache$W, ".")
   if (!q_fg_count)
     stop("Query has zero foreground pixels at threshold = ", threshold,
          "; pass a lower threshold.")
@@ -546,7 +571,7 @@ colormip_search <- function(query,
   shifts <- expand.grid(dx = seq.int(-xy_shift, xy_shift),
                         dy = seq.int(-xy_shift, xy_shift))
 
-  score_one <- function(path) {
+  score_one_pngpath <- function(path) {
     rgb <- tryCatch(.colormip_read_rgb(path), error = function(e) NULL)
     if (is.null(rgb)) return(c(score = NA_real_, n_match = NA_integer_,
                                 dx = 0L, dy = 0L, mirror = 0L))
@@ -562,10 +587,28 @@ colormip_search <- function(query,
       bm <- .colormip_best_shift(qm_data$y, qm_data$x, qm_data$z,
                                  l_idx$fg, l_idx$z,
                                  H, W, shifts, z_tolerance)
-      if (bm$n_match > best$n_match) {
-        bm$mirror <- 1L
-        best <- bm
-      }
+      if (bm$n_match > best$n_match) { bm$mirror <- 1L; best <- bm }
+    }
+    c(score   = best$n_match / q_fg_count,
+      n_match = best$n_match,
+      dx      = best$dx,
+      dy      = best$dy,
+      mirror  = best$mirror)
+  }
+
+  score_one_cached <- function(i) {
+    l_fg_idx <- cache$fg_idx[[i]]
+    l_z_fg   <- cache$z[[i]]
+    if (!length(l_fg_idx))
+      return(c(score = 0, n_match = 0L, dx = 0L, dy = 0L, mirror = 0L))
+    best <- .colormip_best_shift_sparse(q_y, q_x, q_z, l_fg_idx, l_z_fg,
+                                        H, W, shifts, z_tolerance)
+    best$mirror <- 0L
+    if (!is.null(qm_data)) {
+      bm <- .colormip_best_shift_sparse(qm_data$y, qm_data$x, qm_data$z,
+                                        l_fg_idx, l_z_fg,
+                                        H, W, shifts, z_tolerance)
+      if (bm$n_match > best$n_match) { bm$mirror <- 1L; best <- bm }
     }
     c(score   = best$n_match / q_fg_count,
       n_match = best$n_match,
@@ -575,12 +618,24 @@ colormip_search <- function(query,
   }
 
   ticks <- if (verbose) ceiling(length(library_paths) / 100) else 0L
-  if (mc.cores > 1L) {
-    out <- parallel::mclapply(library_paths, score_one, mc.cores = mc.cores)
+  if (!is.null(cache)) {
+    iter <- seq_along(library_paths)
+    if (mc.cores > 1L) {
+      out <- parallel::mclapply(iter, score_one_cached, mc.cores = mc.cores)
+    } else {
+      out <- vector("list", length(iter))
+      for (i in iter) {
+        out[[i]] <- score_one_cached(i)
+        if (verbose && i %% 100L == 0L) cat(".")
+      }
+      if (verbose && ticks > 0L) cat("\n")
+    }
+  } else if (mc.cores > 1L) {
+    out <- parallel::mclapply(library_paths, score_one_pngpath, mc.cores = mc.cores)
   } else {
     out <- vector("list", length(library_paths))
     for (i in seq_along(library_paths)) {
-      out[[i]] <- score_one(library_paths[i])
+      out[[i]] <- score_one_pngpath(library_paths[i])
       if (verbose && i %% 100L == 0L) cat(".")
     }
     if (verbose && ticks > 0L) cat("\n")
@@ -673,6 +728,111 @@ colormip_search <- function(query,
   }
   list(n_match = as.integer(best_n), dx = as.integer(best_dx),
        dy = as.integer(best_dy))
+}
+
+# Sparse-index variant: library represented as (fg_idx, z_at_fg) rather
+# than dense H*W matrices. Used by the cache path in colormip_search().
+# fg_idx is the sorted linear indices (1..H*W) of foreground pixels; z is
+# the aligned depth-LUT index for each. Lookup is via match().
+.colormip_best_shift_sparse <- function(q_y, q_x, q_z, l_fg_idx, l_z_fg,
+                                        H, W, shifts, z_tolerance) {
+  best_n  <- 0L
+  best_dx <- 0L
+  best_dy <- 0L
+  for (s in seq_len(nrow(shifts))) {
+    dx <- shifts$dx[s]; dy <- shifts$dy[s]
+    yl <- q_y + dy
+    xl <- q_x + dx
+    ok <- yl >= 1L & yl <= H & xl >= 1L & xl <= W
+    if (!any(ok)) next
+    lin <- (xl[ok] - 1L) * H + yl[ok]
+    pos <- match(lin, l_fg_idx)
+    hit <- !is.na(pos)
+    if (!any(hit)) next
+    n <- sum(abs(q_z[ok][hit] - l_z_fg[pos[hit]]) <= z_tolerance)
+    if (n > best_n) { best_n <- n; best_dx <- dx; best_dy <- dy }
+  }
+  list(n_match = as.integer(best_n), dx = as.integer(best_dx),
+       dy = as.integer(best_dy))
+}
+
+#' @title Build a sparse library-index cache for colormip_search
+#'
+#' @description Read every candidate MIP once, run the depth-LUT indexer,
+#' and store the foreground linear indices + z values per candidate in a
+#' single RDS file. Subsequent \code{\link{colormip_search}} calls pass
+#' the RDS path as \code{library_index =} to skip the PNG decode +
+#' depth-LUT re-computation entirely (5-10x speedup end-to-end).
+#'
+#' @param library directory of MIP PNGs, or character vector of paths.
+#' @param out_path where to write the cache RDS. The parent dir is created.
+#' @param threshold integer brightness cutoff, must match what
+#'   \code{colormip_search()} will use later (default \code{100}, same
+#'   default as \code{colormip_search}).
+#' @param mc.cores parallel workers for the one-shot decode + index pass.
+#' @param verbose emit progress every 1000 candidates.
+#' @return Invisibly, the same list written to \code{out_path}: a list
+#'   with elements \code{paths}, \code{H}, \code{W}, \code{threshold},
+#'   \code{fg_idx} (list of integer vectors), \code{z} (list of integer
+#'   vectors, aligned with \code{fg_idx}).
+#' @export
+build_colormip_index <- function(library, out_path,
+                                 threshold = 100L,
+                                 mc.cores  = 1L,
+                                 verbose   = TRUE) {
+  if (is.character(library) && length(library) == 1L && dir.exists(library)) {
+    paths <- list.files(library, pattern = "\\.(png|tif|tiff)$",
+                        full.names = TRUE, ignore.case = TRUE)
+  } else if (is.character(library)) {
+    paths <- library
+  } else stop("`library` must be a directory or a character vector of paths.")
+  if (!length(paths)) stop("No library candidates found.")
+  threshold <- as.integer(threshold)
+
+  index_one <- function(p) {
+    rgb <- tryCatch(.colormip_read_rgb(p), error = function(e) NULL)
+    if (is.null(rgb)) return(list(H = NA_integer_, W = NA_integer_,
+                                  fg_idx = integer(0), z = integer(0)))
+    idx <- .colormip_index_image(rgb, threshold)
+    fg  <- which(idx$fg)
+    list(H = nrow(idx$fg), W = ncol(idx$fg),
+         fg_idx = as.integer(fg), z = as.integer(idx$z[fg]))
+  }
+
+  t0 <- Sys.time()
+  if (mc.cores > 1L) {
+    out <- parallel::mclapply(paths, index_one, mc.cores = mc.cores)
+  } else {
+    out <- vector("list", length(paths))
+    for (i in seq_along(paths)) {
+      out[[i]] <- index_one(paths[i])
+      if (verbose && i %% 1000L == 0L)
+        cat(sprintf("  indexed %d/%d (%.1f min elapsed)\n", i, length(paths),
+                    as.numeric(difftime(Sys.time(), t0, units = "mins"))))
+    }
+  }
+  Hs <- vapply(out, `[[`, integer(1), "H")
+  Ws <- vapply(out, `[[`, integer(1), "W")
+  ok <- !is.na(Hs) & !is.na(Ws)
+  if (!all(ok)) {
+    warning(sum(!ok), " candidate(s) failed to decode; dropped from cache.")
+    out <- out[ok]; paths <- paths[ok]; Hs <- Hs[ok]; Ws <- Ws[ok]
+  }
+  if (length(unique(Hs)) != 1L || length(unique(Ws)) != 1L)
+    stop("Cache candidates have inconsistent H/W dims: cannot pool.")
+  cache <- list(paths     = paths,
+                H         = Hs[1L],
+                W         = Ws[1L],
+                threshold = threshold,
+                fg_idx    = lapply(out, `[[`, "fg_idx"),
+                z         = lapply(out, `[[`, "z"),
+                built     = format(Sys.time()))
+  dir.create(dirname(out_path), showWarnings = FALSE, recursive = TRUE)
+  saveRDS(cache, out_path)
+  cat(sprintf("wrote %s (%d candidates, %.1f min build)\n",
+              out_path, length(paths),
+              as.numeric(difftime(Sys.time(), t0, units = "mins"))))
+  invisible(cache)
 }
 
 # Tiny rbind for 3-D arrays along the first axis (no abind dependency)

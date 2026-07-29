@@ -31,6 +31,12 @@
 #     --data-root P   override local data root. Default:
 #                     ~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat
 #                     (or $NEURONBRIDGER_DATA_ROOT).
+#     --threshold X   MIP threshold passed to nrrd_to_mip(). Default 0.999
+#                     (top 0.1% of nonzero voxels). Matches BANC library
+#                     MIP sparsity so colormip_search actually finds real
+#                     matches; the old "auto" (Triangle) default left LM
+#                     stains ~40-80% foreground vs the ~0.001% typical of
+#                     library MIPs, drowning the search signal.
 #
 # Local layout expected under <data-root>:
 #   imaging-CCT-Bowen/         Deng raw LSMs
@@ -63,8 +69,14 @@ if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
 force <- "--force" %in% args
 args  <- args[args != "--force"]
 
+thr_idx <- which(args == "--threshold")
+mip_threshold <- if (length(thr_idx) && thr_idx < length(args)) {
+  as.numeric(args[thr_idx + 1L])
+} else 0.999
+if (length(thr_idx)) args <- args[-c(thr_idx, thr_idx + 1L)]
+
 if (length(args) < 2) {
-  stop("usage: make_colormip_library.R DATASET REGION [test|all] [--force] [--data-root <path>]")
+  stop("usage: make_colormip_library.R DATASET REGION [test|all] [--force] [--threshold X] [--data-root <path>]")
 }
 dataset <- match.arg(args[1], c("deng", "kondo"))
 region  <- match.arg(args[2], c("brain", "VNC"))
@@ -137,7 +149,8 @@ process_deng <- function(lsm) {
   v <- nat::read.nrrd(reg$gfp_jrc2018u); storage.mode(v) <- "integer"
   png_path <- nrrd_to_mip(v, save = TRUE, format = "png",
                           target_space = region, method = "direct",
-                          savefolder = file.path(OUT_ROOT, "_mip_tmp"))
+                          savefolder = file.path(OUT_ROOT, "_mip_tmp"),
+                          threshold = mip_threshold)
   file.rename(png_path, out_png)
   unlink(file.path(OUT_ROOT, "_mip_tmp"), recursive = TRUE)
   # Keep the warped GFP NRRD next to the PNG; the colormip search step
@@ -176,7 +189,8 @@ process_kondo <- function(nrrd) {
   v <- nat::read.nrrd(jrcu_nrrd); storage.mode(v) <- "integer"
   png_path <- nrrd_to_mip(v, save = TRUE, format = "png",
                           target_space = region, method = "direct",
-                          savefolder = file.path(OUT_ROOT, "_mip_tmp"))
+                          savefolder = file.path(OUT_ROOT, "_mip_tmp"),
+                          threshold = mip_threshold)
   file.rename(png_path, out_png)
   unlink(file.path(OUT_ROOT, "_mip_tmp"), recursive = TRUE)
   # Keep <name>.nrrd next to the PNG for downstream search NBLAST.

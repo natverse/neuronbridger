@@ -38,6 +38,10 @@
 #     --data-root P   --  override the local data root. Defaults to
 #                         ~/Library/CloudStorage/Dropbox-HMS/Alexander Bates/neuroanat
 #                         (or $NEURONBRIDGER_DATA_ROOT if set).
+#     --one <name>    --  worker mode: process one sample "<gene>_<sample>"
+#                         (e.g. "GluRIIA_no1"), write per-sample RDS
+#                         stubs, exit. Used internally by outer mode so
+#                         each sample runs in a fresh R heap.
 #
 # Local layout expected under <data-root>:
 #   kondo_et_al_2020/nrrd/    G-Node IS2-aligned NRRDs (sources)
@@ -119,6 +123,9 @@ if (length(dr_idx)) .args <- .args[-c(dr_idx, dr_idx + 1L)]
 force    <- "--force" %in% .args
 upload   <- "--upload"   %in% .args || "--register" %in% .args
 register <- "--register" %in% .args
+one_idx  <- which(.args == "--one")
+one      <- if (length(one_idx) && one_idx < length(.args)) .args[one_idx + 1L] else NA_character_
+if (length(one_idx)) .args <- .args[-c(one_idx, one_idx + 1L)]
 mode <- {
   m <- .args[!.args %in% c("--force", "--upload", "--register")]
   if (!length(m)) "test" else m[1]
@@ -268,15 +275,54 @@ find_source <- function(gene, sample) {
 if (!dir.exists(DROP_DIR))
   stop("Kondo NRRD dir not found: ", DROP_DIR)
 
-nat.jrcbrains::register_saalfeldlab_registrations()
 out_root <- normalizePath(path.expand(OUT_ROOT), mustWork = FALSE)
 out_dir  <- file.path(out_root, DATASET)
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+stubs_dir <- file.path(out_dir, "_per_sample")
+dir.create(stubs_dir, showWarnings = FALSE, recursive = TRUE)
+
+# --- worker mode: one sample, fresh R heap, drop RDS stubs, exit ---
+if (!is.na(one)) {
+  # `one` is "<gene>_<sample>" (e.g. "GluRIIA_no1"). Split on the LAST
+  # underscore so gene names containing "_" survive; Kondo genes don't
+  # normally, but a "no1"/"no2" tail is deterministic.
+  parts <- regmatches(one, regexec("^(.*)_(no\\d+)$", one))[[1]]
+  if (length(parts) < 3L) stop("--one must be '<gene>_<sample>', got: ", one)
+  gene <- parts[[2]]; sample <- parts[[3]]
+  name <- paste(gene, sample, sep = "_")
+  if (.is_corrupt(gene, sample)) stop("source marked corrupt: ", name)
+  src <- find_source(gene, sample)
+  if (is.na(src)) stop("no source NRRD for ", name)
+  nat.jrcbrains::register_saalfeldlab_registrations()
+  message("--- ", name, " (worker, PID=", Sys.getpid(), ") ---")
+  res <- lm_to_banc_layer(
+    input        = src,
+    gene         = gene,
+    sample       = sample,
+    channel      = "02",
+    dataset      = DATASET,
+    output_dir   = out_dir,
+    source_path  = src
+  )
+  saveRDS(data.frame(name = name,
+                     stageA = res$timings[["stageA_is2_to_fcwb"]],
+                     stageB = res$timings[["stageB_fcwb_to_jrcf"]],
+                     stageC = res$timings[["stageC_jrcf_to_banc"]],
+                     stageD = res$timings[["stageD_precomputed"]],
+                     total  = res$timings[["total"]]),
+          file.path(stubs_dir, paste0(name, ".timings.rds")))
+  saveRDS(res$registry_entry,
+          file.path(stubs_dir, paste0(name, ".registry.rds")))
+  quit(save = "no", status = 0L)
+}
 
 # --- run --------------------------------------------------------------
 
-results  <- list()
-timings  <- list()
+processed_names <- character(0); failed_names <- character(0)
+self <- sub("^--file=", "",
+            commandArgs(trailingOnly = FALSE)[grep("--file=", commandArgs(trailingOnly = FALSE))][1L])
+self <- normalizePath(self, mustWork = TRUE)
+
 for (gs in target_set) {
   gene   <- gs[[1]]; sample <- gs[[2]]
   name   <- paste(gene, sample, sep = "_")
@@ -292,38 +338,42 @@ for (gs in target_set) {
   pc_dir <- file.path(out_dir, paste0(name, ".ng"))
   if (dir.exists(pc_dir) && length(list.files(pc_dir)) && !force) {
     message(sprintf("SKIP  %s (precomputed dir exists; pass --force to recompute)", name))
+    if (file.exists(file.path(stubs_dir, paste0(name, ".registry.rds"))))
+      processed_names <- c(processed_names, name)
     next
   }
-  message(sprintf("\n--- %s ---", name))
-  message("  source: ", basename(src))
-  res <- try(lm_to_banc_layer(
-    input        = src,
-    gene         = gene,
-    sample       = sample,
-    channel      = "02",
-    dataset      = DATASET,
-    output_dir   = out_dir,
-    source_path  = src
-  ), silent = TRUE)
-  if (inherits(res, "try-error")) {
-    message("  FAILED:\n  ", attr(res, "condition")$message)
-    next
+  worker_args <- c(shQuote(self), "--one", shQuote(name),
+                   "--data-root", shQuote(DATA_ROOT))
+  if (force) worker_args <- c(worker_args, "--force")
+  rc <- system2("Rscript", worker_args)
+  if (rc != 0L) {
+    message("  FAILED: ", name, " (worker exit ", rc, ")")
+    failed_names <- c(failed_names, name); next
   }
-  results[[name]] <- res
-  timings[[length(timings) + 1L]] <- data.frame(
-    name   = name,
-    stageA = res$timings[["stageA_is2_to_fcwb"]],
-    stageB = res$timings[["stageB_fcwb_to_jrcf"]],
-    stageC = res$timings[["stageC_jrcf_to_banc"]],
-    stageD = res$timings[["stageD_precomputed"]],
-    total  = res$timings[["total"]]
-  )
+  processed_names <- c(processed_names, name)
 }
 
-if (!length(results)) {
+if (length(failed_names))
+  cat(sprintf("\n%d sample(s) FAILED: %s\n",
+              length(failed_names), paste(failed_names, collapse = ", ")))
+
+# Aggregate per-sample RDS stubs into batch timings + registry
+timings <- lapply(processed_names, function(nm) {
+  f <- file.path(stubs_dir, paste0(nm, ".timings.rds"))
+  if (file.exists(f)) readRDS(f) else NULL
+})
+timings <- Filter(Negate(is.null), timings)
+results_reg <- lapply(processed_names, function(nm) {
+  f <- file.path(stubs_dir, paste0(nm, ".registry.rds"))
+  if (file.exists(f)) readRDS(f) else NULL
+})
+results_reg <- Filter(Negate(is.null), results_reg)
+
+if (!length(results_reg)) {
   message("\nNo new volumes processed (all already on disk).")
   quit(save = "no", status = 0L)
 }
+if (!length(timings)) { cat("\nNo timings — RDS stubs missing?\n"); quit(save = "no") }
 
 # --- emit per-batch timings + registry-entries stub -------------------
 
@@ -333,7 +383,7 @@ write.csv(times_df, file.path(out_dir, "timings.csv"), row.names = FALSE)
 cat("\n=== timings (s) ===\n")
 print(times_df, row.names = FALSE)
 
-reg_entries <- do.call(rbind, lapply(results, `[[`, "registry_entry"))
+reg_entries <- do.call(rbind, results_reg)
 reg_json    <- list(
   schema_version = 1L,
   volumes        = lapply(seq_len(nrow(reg_entries)), function(i) {

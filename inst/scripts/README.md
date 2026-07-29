@@ -101,7 +101,7 @@ All local paths are derived from `--data-root` (or the
 | Per-batch registry stub + timings      | `<dataset_out>/registry_entries.json`, `timings.csv` |
 | NB-template MIPs                       | `{deng,kondo}_to_banc/colormip_library/{brain,VNC}/<name>.png` |
 | Search hits per sample                 | `deng_to_banc/colormip_hits/<name>_hits.csv` |
-| Master ranked CSV                      | `deng_to_banc/colormip_hits/master_augmented.csv` |
+| Master ranked CSV                      | `deng_to_banc/colormip_hits/lm_to_banc_colormip_hits.csv` |
 
 **GCS** (`gs://lee-lab_brain-and-nerve-cord-fly-connectome/`):
 

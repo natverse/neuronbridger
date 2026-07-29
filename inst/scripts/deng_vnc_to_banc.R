@@ -86,6 +86,19 @@ cat("DATA_ROOT: ", DATA_ROOT, "\n", sep = "")
 
 parse_lsm <- function(fname) {
   bn <- sub("\\.lsm$", "", basename(fname), ignore.case = TRUE)
+  # If the filename has multiple delimited BRAIN|VNC tokens (e.g.
+  # "brain+vnc-vnc.lsm"), splice out the middle so the region tag we pick
+  # up below is the trailing one. Word-bounded match so substrings inside
+  # tokens like "VNCGFP" don't count.
+  tag_pat <- "(^|[^A-Za-z])([Bb][Rr][Aa][Ii][Nn]|[Vv][Nn][Cc])(?![A-Za-z])"
+  tag_matches <- gregexpr(tag_pat, bn, perl = TRUE)[[1]]
+  if (length(tag_matches) > 1L && !any(tag_matches == -1L)) {
+    first <- tag_matches[1L]; last <- tag_matches[length(tag_matches)]
+    first_actual <- if (first == 1L) 1L else first + 1L
+    last_actual  <- if (last  == 1L) 1L else last  + 1L
+    bn <- paste0(substr(bn, 1L, first_actual - 2L), "-",
+                 substr(bn, last_actual, nchar(bn)))
+  }
   m <- regmatches(bn, regexec("^(.*?)[-_].*?(BRAIN|VNC)([-_][FM])?", bn,
                               ignore.case = TRUE))[[1]]
   if (!length(m) || length(m) < 3L) return(NULL)

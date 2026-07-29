@@ -21,7 +21,7 @@
 #      vote-fraction is the third score column.
 #   5. Combine cm_score, nblast, voxel_attr into mean_rank.
 #
-# Output: a single master CSV at <OUT>/master_augmented.csv with one
+# Output: a single master CSV at <OUT>/lm_to_banc_colormip_hits.csv with one
 # row per (query, BANC hit) carrying all three scores plus
 # super_cluster / cell_function / neurotransmitter_predicted.
 #
@@ -83,7 +83,13 @@ if (length(dr_idx)) args <- args[-c(dr_idx, dr_idx + 1L)]
 force <- "--force" %in% args
 args  <- args[args != "--force"]
 
-if (length(args) < 4) stop("usage: colormip_search_against_banc.R QUERY_DIR REGION WARPS_ROOT OUT_DIR [TOP_K] [--force] [--data-root <path>]")
+cache_idx <- which(args == "--cache")
+CACHE_PATH <- if (length(cache_idx) && cache_idx < length(args)) {
+  path.expand(args[cache_idx + 1L])
+} else NA_character_
+if (length(cache_idx)) args <- args[-c(cache_idx, cache_idx + 1L)]
+
+if (length(args) < 4) stop("usage: colormip_search_against_banc.R QUERY_DIR REGION WARPS_ROOT OUT_DIR [TOP_K] [--force] [--cache <rds>] [--data-root <path>]")
 QUERY_DIR  <- path.expand(args[1])
 REGION     <- match.arg(args[2], c("brain", "VNC"))
 WARPS_ROOT <- path.expand(args[3])
@@ -132,7 +138,9 @@ process_query <- function(mip_path) {
   message("\n=== ", name, " ===")
 
   # 1. colorMIP search
-  hits <- colormip_search(query = mip_path, library = LIB_DIR,
+  hits <- colormip_search(query = mip_path,
+                          library = if (is.na(CACHE_PATH)) LIB_DIR else NULL,
+                          library_index = if (is.na(CACHE_PATH)) NULL else CACHE_PATH,
                           threshold = 100L, z_tolerance = 2L, xy_shift = 2L,
                           mirror = TRUE, top_n = TOP_K, mc.cores = 8L,
                           verbose = FALSE)
@@ -256,7 +264,7 @@ if (length(csvs)) {
       readr::read_csv(f, show_col_types = FALSE,
                       col_types = readr::cols(banc_id = "c", root_888 = "c",
                                               preferred_id = "c"))))
-  master_path <- file.path(OUT_DIR, "master_augmented.csv")
+  master_path <- file.path(OUT_DIR, "lm_to_banc_colormip_hits.csv")
   readr::write_csv(master, master_path)
   cat(sprintf("\nwrote %d rows -> %s\n", nrow(master), master_path))
   print(master |> dplyr::group_by(deng_sample) |>
