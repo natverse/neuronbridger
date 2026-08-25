@@ -737,6 +737,132 @@ deformation the RKHS kernel prefers, which happens to shift the tip
 signal into the wrong internal compartment. To make deformetrica
 competitive here we’d need to feed it internal landmarks too — a family
 of matched neuropil sub-surfaces on both sides, similarly to what the
+<code>mosquito-to-fly</code> vignette does. The follow-up experiment
+below (MANC- cognate driven refinement) tries exactly that.</p>
+</div>
+<div class="section level3">
+<h3 id="the-manc-cognate-refinement-of-the-jrc2018vncf---banc-bridge">The MANC-cognate refinement of the JRC2018VNCF -&gt; BANC
+bridge<a class="anchor" aria-label="anchor" href="#the-manc-cognate-refinement-of-the-jrc2018vncf---banc-bridge"></a>
+</h3>
+<p>Following the pattern of the <code>malecns-to-banc</code> vignette in
+<code>deformetricar</code>, we tried to improve the JRC → BANC bridge in
+the <strong>abdominal region specifically</strong> by using cognate cell
+pairs from the male VNC connectome (MANC) that BANC’s SeaTable annotates
+via its <code>manc_match</code> column. There are ~102
+<code>abd_Dsx_OA</code> / <code>abdomen_neurosecretory_cell</code> BANC
+cells with a MANC match.</p>
+<p>Two headline pieces of work were needed to get this off the
+ground:</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Bootstrap a MANC → JRCVNC2018F bridge.</strong> The
+<code>nat.jrcbrains</code> graph carries
+<code>MANC ↔︎ JRCFIB2022M</code>, <code>JRCFIB2022M ↔︎ JRC2018M</code> and
+<code>JRCVNC2018F ↔︎ JRCVNC2018U/M</code>, but <strong>no chain from MANC
+to any JRCVNC template</strong>. We built one from the cognate pairs
+themselves: for each of the 102 BANC-MANC pairs, bridge the BANC
+skeleton into JRC2018VNCF via the elastix chain and pair with the MANC
+skeleton in its native 8-nm-voxel space, then fit a thin-plate spline
+(<code><a href="https://rdrr.io/pkg/nat/man/tpsreg.html" class="external-link">nat::tpsreg</a></code>) on the centroid landmarks.</li>
+<li>
+<strong>Multi-object deformetrica fit</strong> with the
+malecns-to-banc pattern: <code>deformetrica_register_multi()</code> per
+(cell_type, side) using core-frame skeletons (Varifold), plus a weak
+whole-VNC-hull landmark anchor. Kernel = target-diagonal / 12 per the
+updated <a href="https://natverse.github.io/deformetricar/" class="external-link">deformetricar
+README</a>. Both sources and targets were placed in BANC µm (MANC
+bridged through JRC then through elastix) so the fit is a <em>small
+refinement</em> on top of the elastix bridge — that’s what the malecns
+pattern does for the brain.</li>
+</ol>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">deformetricar</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># ~102 BANC-MANC cognate pairs in abd_Dsx_OA / abdomen_neurosecretory</span></span>
+<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banctable_query.html" class="external-link">banctable_query</a></span><span class="op">(</span><span class="st">"SELECT root_id, cell_type, manc_match, side FROM banc_meta</span></span>
+<span><span class="st">                              WHERE (cell_sub_class='abd_Dsx_OA' OR</span></span>
+<span><span class="st">                                     cell_sub_class='abdomen_neurosecretory_cell')</span></span>
+<span><span class="st">                                AND manc_match IS NOT NULL AND manc_match != ''"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Bootstrap a MANC -&gt; JRCVNC2018F TPS from cognate-pair centroids.</span></span>
+<span><span class="co"># (BANC side goes native -&gt; JRC via banc_to_JRC2018F(method="elastix");</span></span>
+<span><span class="co">#  MANC side comes from neuprintr in 8-nm voxels, scaled to um.)</span></span>
+<span><span class="co"># ... build src (MANC um centroid) + tgt (JRC um centroid) matrices ...</span></span>
+<span><span class="va">manc_to_jrc</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/tpsreg.html" class="external-link">tpsreg</a></span><span class="op">(</span>sample <span class="op">=</span> <span class="va">src_centroids</span>, reference <span class="op">=</span> <span class="va">tgt_centroids</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Bring MANC skels into JRC then BANC (composed with the elastix bridge)</span></span>
+<span><span class="va">manc_in_banc</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/nlapply.html" class="external-link">nlapply</a></span><span class="op">(</span><span class="va">manc_sk</span>, <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">pts</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/xform.html" class="external-link">xform</a></span><span class="op">(</span><span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/xyzmatrix.html" class="external-link">xyzmatrix</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span>, <span class="va">manc_to_jrc</span><span class="op">)</span></span>
+<span>  <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/xyzmatrix.html" class="external-link">xyzmatrix</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_to_JRC2018F.html" class="external-link">banc_to_JRC2018F</a></span><span class="op">(</span></span>
+<span>    <span class="va">pts</span>, region <span class="op">=</span> <span class="st">"vnc"</span>, banc.units <span class="op">=</span> <span class="st">"um"</span>,</span>
+<span>    inverse <span class="op">=</span> <span class="cn">TRUE</span>, method <span class="op">=</span> <span class="st">"elastix"</span><span class="op">)</span>; <span class="va">x</span></span>
+<span><span class="op">}</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Multi-object fit, per (cell_type, side) group, on core-frame skels</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu">deformetrica_register_multi</span><span class="op">(</span></span>
+<span>  srcs <span class="op">=</span> <span class="va">manc_cores_by_group</span>, tgts <span class="op">=</span> <span class="va">banc_cores_by_group</span>,</span>
+<span>  kernel_width <span class="op">=</span> <span class="va">diag</span> <span class="op">/</span> <span class="fl">12</span>,          <span class="co"># ~50 um</span></span>
+<span>  data_sigma <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  landmarks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>source <span class="op">=</span> <span class="va">banc_hull_pts</span>, target <span class="op">=</span> <span class="va">banc_hull_pts</span><span class="op">)</span>,</span>
+<span>  landmark_sigma <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  timepoints <span class="op">=</span> <span class="fl">10L</span>, max_iterations <span class="op">=</span> <span class="fl">40L</span>, device <span class="op">=</span> <span class="st">"cpu"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Compose for the SREN cloud: elastix JRC -&gt; BANC first, then refine.</span></span>
+<span><span class="va">pts_banc_elx</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_to_JRC2018F.html" class="external-link">banc_to_JRC2018F</a></span><span class="op">(</span><span class="va">sren_pts_jrc</span>, region <span class="op">=</span> <span class="st">"vnc"</span>,</span>
+<span>                                         banc.units <span class="op">=</span> <span class="st">"um"</span>,</span>
+<span>                                         inverse <span class="op">=</span> <span class="cn">TRUE</span>, method <span class="op">=</span> <span class="st">"elastix"</span><span class="op">)</span></span>
+<span><span class="va">pts_banc_refined</span> <span class="op">&lt;-</span> <span class="fu">nat</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/nat/man/xform.html" class="external-link">xform</a></span><span class="op">(</span><span class="va">pts_banc_elx</span>, <span class="va">fit</span><span class="op">)</span></span></code></pre></div>
+<div class="section level4">
+<h4 id="results-scoring-fwd-rev-independently">Results (scoring fwd + rev independently)<a class="anchor" aria-label="anchor" href="#results-scoring-fwd-rev-independently"></a>
+</h4>
+<p>Under this refinement, the SREN’s hypothesised
+<strong>EN00B016</strong> pair sits at rank_fwd = <strong>67</strong> /
+rank_rev = <strong>57</strong> for the right cell, and 90 / 84 for the
+left — essentially unchanged from the elastix-only baseline (58/59 for
+right, 88/86 for left). The refinement doesn’t materially move the
+candidate ranks.</p>
+<p>But the <strong>top-10 under the refinement is much more biologically
+coherent</strong> than under elastix alone — nearly every top entry is a
+<code>EFFabg40</code>/<code>EFFabg43</code>/<code>EFFabg45</code> cell
+in the <code>abd_Dsx_OA</code> or
+<code>abdomen_neurosecretory_cell</code> family, i.e. the correct broad
+identity for a sex-peptide-receptor abdominal neurosecretory
+population.</p>
+<p>There is also a useful diagnostic that would be <strong>hidden by the
+fwd+rev mean</strong>: several top candidates by forward-NBLAST are far
+worse by reverse. E.g. the rank-1 forward hit (<code>EN00B010</code>)
+ranks 47 by reverse — a signature that the warped SREN cloud partially
+maps inside that neuron’s arbour but the neuron extends much further
+than the LM signal covers (or vice-versa). Scoring both directions
+separately catches this; the mean would flatten it. This is the reason
+the vignette now reports fwd and rev as independent columns.</p>
+<div class="float">
+<img src="https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/sren_manc_banc_flow.gif" alt="Geodesic flow of MANC cognate neurons (pink) morphing onto their BANC counterparts (blue) inside the BANC VNC hull, under the deformetrica refinement fit"><div class="figcaption">Geodesic flow of MANC cognate neurons (pink)
+morphing onto their BANC counterparts (blue) inside the BANC VNC hull,
+under the deformetrica refinement fit</div>
+</div>
+<p><strong>Verdict</strong>: The MANC-cognate refinement is a working <a href="https://natverse.github.io/deformetricar/articles/malecns-to-banc.html" class="external-link">malecns-to-banc</a>-style
+pattern for the VNC and produces a top-hit list that’s more biologically
+consistent than the elastix bridge alone, but for <em>this specific SREN
+identification</em> it doesn’t rescue the candidates that the elastix
+bridge already puts in the top ~10 %. That’s an honest result: the
+elastix chain is already doing most of the alignment work for this cell
+family; the refinement is polish. It would matter more for cells with
+sparser cognate coverage or where the elastix bridge has bigger local
+errors — a fair use case for future runs.</p>
+<p>Note also that a followup approach would be to keep going with
+the</p>
+</div>
+</div>
+<div class="section level3">
+<h3 id="where-the-hull-only-approach-falls-down-historical-experiment">Where the hull-only approach falls down (historical experiment)<a class="anchor" aria-label="anchor" href="#where-the-hull-only-approach-falls-down-historical-experiment"></a>
+</h3>
+<p>The originally-experimented “just fit the two VNC outer hulls” case
+is documented above and remains as a cautionary tale — a nice
+demonstration of the READMEs “hull alone is not enough; add matched
+interior landmarks” rule. To skip through it: to make deformetrica
+competitive here we’d need to feed it internal landmarks too — a family
+of matched neuropil sub-surfaces on both sides, similarly to what the
 <code>mosquito-to-fly</code> vignette in <code>deformetricar</code>
 does. For now the full image-driven elastix chain is the better bridge;
 this experiment is a useful negative result and a template for a future
@@ -786,7 +912,7 @@ of the JRC2018F→BANC bridge:</p>
 <p>Prefer <code>..._fullElastix_400nm.ng</code> — that’s the
 registration-correct version, bilateral signal preserved, matching the
 NBLAST bridge used in Step 7.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">LM_GS</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"precomputed://"</span>, <span class="va">GCS_ROOT</span>,</span>
 <span>                <span class="st">"/light_level/kdrc/"</span>,</span>
 <span>                <span class="st">"SREN_female_aligned240721_to_BANC_fullElastix_400nm.ng"</span><span class="op">)</span></span>
