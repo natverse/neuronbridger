@@ -527,6 +527,125 @@ the RKHS kernel prefers, which happens to shift the tip signal into
 the wrong internal compartment. To make deformetrica competitive here
 we'd need to feed it internal landmarks too — a family of matched
 neuropil sub-surfaces on both sides, similarly to what the
+`mosquito-to-fly` vignette does. The follow-up experiment below (MANC-
+cognate driven refinement) tries exactly that.
+
+## The MANC-cognate refinement of the JRC2018VNCF -> BANC bridge
+
+Following the pattern of the `malecns-to-banc` vignette in
+`deformetricar`, we tried to improve the JRC → BANC bridge in the
+**abdominal region specifically** by using cognate cell pairs from
+the male VNC connectome (MANC) that BANC's SeaTable annotates via
+its `manc_match` column. There are ~102 `abd_Dsx_OA` /
+`abdomen_neurosecretory_cell` BANC cells with a MANC match.
+
+Two headline pieces of work were needed to get this off the ground:
+
+1. **Bootstrap a MANC → JRCVNC2018F bridge.** The `nat.jrcbrains`
+   graph carries `MANC ↔ JRCFIB2022M`, `JRCFIB2022M ↔ JRC2018M` and
+   `JRCVNC2018F ↔ JRCVNC2018U/M`, but **no chain from MANC to any
+   JRCVNC template**. We built one from the cognate pairs themselves:
+   for each of the 102 BANC-MANC pairs, bridge the BANC skeleton into
+   JRC2018VNCF via the elastix chain and pair with the MANC skeleton
+   in its native 8-nm-voxel space, then fit a thin-plate spline
+   (`nat::tpsreg`) on the centroid landmarks.
+2. **Multi-object deformetrica fit** with the malecns-to-banc pattern:
+   `deformetrica_register_multi()` per (cell_type, side) using
+   core-frame skeletons (Varifold), plus a weak whole-VNC-hull
+   landmark anchor. Kernel = target-diagonal / 12 per the updated
+   [deformetricar README](https://natverse.github.io/deformetricar/).
+   Both sources and targets were placed in BANC µm (MANC bridged
+   through JRC then through elastix) so the fit is a *small refinement*
+   on top of the elastix bridge — that's what the malecns pattern does
+   for the brain.
+
+```{r deformetrica-refine, eval = FALSE}
+library(deformetricar)
+
+# ~102 BANC-MANC cognate pairs in abd_Dsx_OA / abdomen_neurosecretory
+r <- bancr::banctable_query("SELECT root_id, cell_type, manc_match, side FROM banc_meta
+                              WHERE (cell_sub_class='abd_Dsx_OA' OR
+                                     cell_sub_class='abdomen_neurosecretory_cell')
+                                AND manc_match IS NOT NULL AND manc_match != ''")
+
+# Bootstrap a MANC -> JRCVNC2018F TPS from cognate-pair centroids.
+# (BANC side goes native -> JRC via banc_to_JRC2018F(method="elastix");
+#  MANC side comes from neuprintr in 8-nm voxels, scaled to um.)
+# ... build src (MANC um centroid) + tgt (JRC um centroid) matrices ...
+manc_to_jrc <- nat::tpsreg(sample = src_centroids, reference = tgt_centroids)
+
+# Bring MANC skels into JRC then BANC (composed with the elastix bridge)
+manc_in_banc <- nat::nlapply(manc_sk, function(x) {
+  pts <- nat::xform(nat::xyzmatrix(x), manc_to_jrc)
+  nat::xyzmatrix(x) <- bancr::banc_to_JRC2018F(
+    pts, region = "vnc", banc.units = "um",
+    inverse = TRUE, method = "elastix"); x
+})
+
+# Multi-object fit, per (cell_type, side) group, on core-frame skels
+fit <- deformetrica_register_multi(
+  srcs = manc_cores_by_group, tgts = banc_cores_by_group,
+  kernel_width = diag / 12,          # ~50 um
+  data_sigma = 0.5,
+  landmarks = list(source = banc_hull_pts, target = banc_hull_pts),
+  landmark_sigma = 5,
+  timepoints = 10L, max_iterations = 40L, device = "cpu")
+
+# Compose for the SREN cloud: elastix JRC -> BANC first, then refine.
+pts_banc_elx <- bancr::banc_to_JRC2018F(sren_pts_jrc, region = "vnc",
+                                         banc.units = "um",
+                                         inverse = TRUE, method = "elastix")
+pts_banc_refined <- nat::xform(pts_banc_elx, fit)
+```
+
+### Results (scoring fwd + rev independently)
+
+Under this refinement, the SREN's hypothesised **EN00B016** pair sits
+at rank_fwd = **67** / rank_rev = **57** for the right cell, and
+90 / 84 for the left — essentially unchanged from the elastix-only
+baseline (58/59 for right, 88/86 for left). The refinement doesn't
+materially move the candidate ranks.
+
+But the **top-10 under the refinement is much more biologically
+coherent** than under elastix alone — nearly every top entry is a
+`EFFabg40`/`EFFabg43`/`EFFabg45` cell in the `abd_Dsx_OA` or
+`abdomen_neurosecretory_cell` family, i.e. the correct broad
+identity for a sex-peptide-receptor abdominal neurosecretory
+population.
+
+There is also a useful diagnostic that would be **hidden by the
+fwd+rev mean**: several top candidates by forward-NBLAST are far
+worse by reverse. E.g. the rank-1 forward hit (`EN00B010`) ranks 47
+by reverse — a signature that the warped SREN cloud partially maps
+inside that neuron's arbour but the neuron extends much further than
+the LM signal covers (or vice-versa). Scoring both directions
+separately catches this; the mean would flatten it. This is the
+reason the vignette now reports fwd and rev as independent columns.
+
+![Geodesic flow of MANC cognate neurons (pink) morphing onto their BANC counterparts (blue) inside the BANC VNC hull, under the deformetrica refinement fit](https://raw.githubusercontent.com/natverse/neuronbridger/main/inst/images/sren_manc_banc_flow.gif)
+
+**Verdict**: The MANC-cognate refinement is a working
+[malecns-to-banc](https://natverse.github.io/deformetricar/articles/malecns-to-banc.html)-style
+pattern for the VNC and produces a top-hit list that's more
+biologically consistent than the elastix bridge alone, but for *this
+specific SREN identification* it doesn't rescue the candidates that
+the elastix bridge already puts in the top ~10 %. That's an honest
+result: the elastix chain is already doing most of the alignment
+work for this cell family; the refinement is polish. It would matter
+more for cells with sparser cognate coverage or where the elastix
+bridge has bigger local errors — a fair use case for future runs.
+
+Note also that a followup approach would be to keep going with the
+
+## Where the hull-only approach falls down (historical experiment)
+
+The originally-experimented "just fit the two VNC outer hulls" case
+is documented above and remains as a cautionary tale — a nice
+demonstration of the READMEs "hull alone is not enough; add matched
+interior landmarks" rule. To skip through it: to make deformetrica
+competitive here
+we'd need to feed it internal landmarks too — a family of matched
+neuropil sub-surfaces on both sides, similarly to what the
 `mosquito-to-fly` vignette in `deformetricar` does. For now the full
 image-driven elastix chain is the better bridge; this experiment is a
 useful negative result and a template for a future improvement.
