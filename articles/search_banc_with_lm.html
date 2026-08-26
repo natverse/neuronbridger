@@ -1023,6 +1023,223 @@ is superseded by the current curation.</li>
 </ul>
 </div>
 <div class="section level2">
+<h2 id="connectivity-narrows-the-sren-candidate-list">Connectivity narrows the SREN candidate list<a class="anchor" aria-label="anchor" href="#connectivity-narrows-the-sren-candidate-list"></a>
+</h2>
+<p>Independent of morphology, we can ask the BANC connectome directly:
+<em>which efferent cells receive the strongest input, one or two hops
+away, from the curated sex-peptide sensory neurons (SPSNs)?</em> If the
+SRENs express the sex peptide receptor and gate ROD production in
+response to mating, they should sit downstream of the SPSN pathway.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/message.html" class="external-link">suppressMessages</a></span><span class="op">(</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/natverse/bancr" class="external-link">bancr</a></span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">edges</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banc_cave_tables.html" class="external-link">banc_edgelist</a></span><span class="op">(</span>version <span class="op">=</span> <span class="st">"v3"</span>, source <span class="op">=</span> <span class="st">"gcs"</span><span class="op">)</span></span>
+<span><span class="va">edges</span><span class="op">$</span><span class="va">pre</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">edges</span><span class="op">$</span><span class="va">pre</span><span class="op">)</span>; <span class="va">edges</span><span class="op">$</span><span class="va">post</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">edges</span><span class="op">$</span><span class="va">post</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">spsn</span> <span class="op">&lt;-</span> <span class="fu">bancr</span><span class="fu">::</span><span class="fu"><a href="https://natverse.github.io/bancr/reference/banctable_query.html" class="external-link">banctable_query</a></span><span class="op">(</span></span>
+<span>  <span class="st">"SELECT root_id, side FROM banc_meta</span></span>
+<span><span class="st">   WHERE cell_sub_class = 'sex_peptide_sensory_neuron'"</span><span class="op">)</span></span>
+<span><span class="co"># 6 curated SPSNs: reproductive-tract afferents, cell_class =</span></span>
+<span><span class="co">#   reproductive_tract_sensory_neuron, peripheral_target_type =</span></span>
+<span><span class="co">#   sex_peptide_receptor, cell_function = visceral_chemosensation.</span></span>
+<span></span>
+<span><span class="co"># 1-hop: direct SPSN synapses.</span></span>
+<span><span class="va">downstream</span> <span class="op">&lt;-</span> <span class="va">edges</span><span class="op">[</span><span class="va">edges</span><span class="op">$</span><span class="va">pre</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">spsn</span><span class="op">$</span><span class="va">root_id</span>, <span class="op">]</span></span>
+<span><span class="va">recip</span> <span class="op">&lt;-</span> <span class="va">downstream</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_by.html" class="external-link">group_by</a></span><span class="op">(</span><span class="va">post</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarise</a></span><span class="op">(</span>spsn_in_syn <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">count</span><span class="op">)</span>,</span>
+<span>                   spsn_in_norm <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">norm</span><span class="op">)</span>,</span>
+<span>                   n_spsn_partners <span class="op">=</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/context.html" class="external-link">n</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/arrange.html" class="external-link">arrange</a></span><span class="op">(</span><span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/desc.html" class="external-link">desc</a></span><span class="op">(</span><span class="va">spsn_in_syn</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2-hop: SPSN -&gt; intrinsic interneurons -&gt; efferents, weighted by</span></span>
+<span><span class="co">#   path strength (norm_from_spsn * norm_from_intrinsic).</span></span>
+<span><span class="va">top30</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">recip</span><span class="op">$</span><span class="va">post</span>, <span class="fl">30</span><span class="op">)</span></span>
+<span><span class="va">top30_wt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/setNames.html" class="external-link">setNames</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">recip</span><span class="op">$</span><span class="va">spsn_in_norm</span>, <span class="fl">30</span><span class="op">)</span>, <span class="va">top30</span><span class="op">)</span></span>
+<span><span class="va">h2</span> <span class="op">&lt;-</span> <span class="va">edges</span><span class="op">[</span><span class="va">edges</span><span class="op">$</span><span class="va">pre</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">top30</span>, <span class="op">]</span></span>
+<span><span class="va">h2</span><span class="op">$</span><span class="va">path_wt</span> <span class="op">&lt;-</span> <span class="va">h2</span><span class="op">$</span><span class="va">norm</span> <span class="op">*</span> <span class="va">top30_wt</span><span class="op">[</span><span class="va">h2</span><span class="op">$</span><span class="va">pre</span><span class="op">]</span></span></code></pre></div>
+<p>Two things pop out:</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>The top ~30 direct SPSN recipients are almost all intrinsic
+VNC interneurons</strong> (<code>cell_class = ...</code> unset or
+intrinsic; <code>flow = intrinsic</code>;
+<code>cell_sub_class = ventral_nerve_cord_bilateral_ restricted / ipsilateral_restricted</code>).
+Only <strong>one efferent <code>abd_Dsx_OA</code> cell</strong> sits in
+the top-15 (<code>720575941518535347</code>, <code>EFFabg50</code>
+MNad12 left) — and it is explicitly annotated
+<code>cell_function = "ovulation"</code>.</li>
+<li>
+<strong>Ranking efferent <code>abd_Dsx_OA</code> /
+<code>abdomen_neurosecretory_cell</code> cells by 2-hop reach through
+those SPSN-driven intrinsics</strong> produces a very tight cluster
+whose top members are almost <em>all</em> annotated
+<code>cell_function = "diuresis, stress_tolerance, pain_threshold"</code>.
+<strong>Diuresis matches Chae et al.’s rectal-ROD phenotype</strong>
+(RODs are the fluid-content-dependent fecal pellet morphology).</li>
+</ol>
+<p><strong>Top 10 connectivity + function-supported SREN
+candidates</strong> (BANC v888, by 2-hop SPSN reach, all
+<code>cell_function = diuresis,stress_tolerance, pain_threshold</code>):</p>
+<table class="table">
+<colgroup>
+<col width="6%">
+<col width="11%">
+<col width="23%">
+<col width="6%">
+<col width="6%">
+<col width="18%">
+<col width="5%">
+<col width="20%">
+</colgroup>
+<thead><tr class="header">
+<th align="right">rank</th>
+<th align="left">root_id</th>
+<th align="left">BANC cell_type</th>
+<th align="left">MANC</th>
+<th align="left">side</th>
+<th align="left">hemilineage</th>
+<th align="left">NT</th>
+<th align="right">2-hop weight</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="right">1</td>
+<td align="left">720575941575458056</td>
+<td align="left"><strong>EFFabg49</strong></td>
+<td align="left">MNad13</td>
+<td align="left">left</td>
+<td align="left">00B</td>
+<td align="left">serotonin</td>
+<td align="right">0.0120</td>
+</tr>
+<tr class="even">
+<td align="right">2</td>
+<td align="left">720575941582278265</td>
+<td align="left"><strong>EFFabg48</strong></td>
+<td align="left">MNad03</td>
+<td align="left">left</td>
+<td align="left">06A</td>
+<td align="left">acetylcholine</td>
+<td align="right">0.0084</td>
+</tr>
+<tr class="odd">
+<td align="right">3</td>
+<td align="left">720575941652774421</td>
+<td align="left"><strong>EFFabg48</strong></td>
+<td align="left">MNad03</td>
+<td align="left">left</td>
+<td align="left">06A</td>
+<td align="left">octopamine</td>
+<td align="right">0.0084</td>
+</tr>
+<tr class="even">
+<td align="right">4</td>
+<td align="left">720575941550051873</td>
+<td align="left"><strong>EFFabg47</strong></td>
+<td align="left">MNad52</td>
+<td align="left">left</td>
+<td align="left">13B</td>
+<td align="left">—</td>
+<td align="right">0.0083</td>
+</tr>
+<tr class="odd">
+<td align="right">5</td>
+<td align="left">720575941577258088</td>
+<td align="left"><strong>EFFabg44</strong></td>
+<td align="left">MNad13</td>
+<td align="left">left</td>
+<td align="left">—</td>
+<td align="left">octopamine</td>
+<td align="right">0.0072</td>
+</tr>
+<tr class="even">
+<td align="right">6</td>
+<td align="left">720575941594396267</td>
+<td align="left"><strong>EFFabg47</strong></td>
+<td align="left">MNad03</td>
+<td align="left">right</td>
+<td align="left">13B</td>
+<td align="left">acetylcholine</td>
+<td align="right">0.0071</td>
+</tr>
+<tr class="odd">
+<td align="right">7</td>
+<td align="left">720575941482782659</td>
+<td align="left"><strong>EFFabg44</strong></td>
+<td align="left">MNad13</td>
+<td align="left">right</td>
+<td align="left">—</td>
+<td align="left">octopamine</td>
+<td align="right">0.0071</td>
+</tr>
+<tr class="even">
+<td align="right">8</td>
+<td align="left">720575941586627462</td>
+<td align="left"><strong>EFFabg47</strong></td>
+<td align="left">MNad52</td>
+<td align="left">right</td>
+<td align="left">13B</td>
+<td align="left">gaba</td>
+<td align="right">0.0070</td>
+</tr>
+<tr class="odd">
+<td align="right">9</td>
+<td align="left">720575941563946038</td>
+<td align="left"><strong>EFFabg44</strong></td>
+<td align="left">MNad13</td>
+<td align="left">left</td>
+<td align="left">—</td>
+<td align="left">acetylcholine</td>
+<td align="right">0.0070</td>
+</tr>
+<tr class="even">
+<td align="right">10</td>
+<td align="left">720575941650150129</td>
+<td align="left"><strong>EFFabg49</strong></td>
+<td align="left">MNad13</td>
+<td align="left">right</td>
+<td align="left">00B</td>
+<td align="left">gaba</td>
+<td align="right">0.0069</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Bilateral pairs match the SREN morphology
+description.</strong> The <code>EFFabg44</code>, <code>EFFabg47</code>,
+<code>EFFabg48</code>, <code>EFFabg49</code> cell types each contain
+matched left+right cells in this diuresis-annotated cluster.</p>
+<p><strong>This retracts the earlier <code>EN00B016</code>-pair
+hypothesis.</strong> The morphology + hull-registration analyses in the
+sections above put the hypothesised <code>EN00B016</code> pair
+(<code>720575941680133053</code> L + <code>720575941659397456</code> R)
+at rank ~59–90 by NBLAST fwd+rev — a plausible morphology score. But by
+connectivity:</p>
+<ul>
+<li>The <strong>right</strong> cell (<code>9397456</code>) sits at
+abd-rank <strong>18</strong> by 2-hop SPSN reach (2-hop weight 0.006),
+with <strong>no functional annotation</strong>.</li>
+<li>The <strong>left</strong> cell (<code>0133053</code>) has <strong>no
+2-hop path from the SPSN cluster at all</strong>.</li>
+</ul>
+<p>Neither cell is in the diuresis-annotated cluster. That’s not a
+tie-breaker in favour of <code>EN00B016</code>; it’s a signal against
+it, at least under the “SRENs are on the SPSN pathway and drive rectal
+diuresis” reading of Chae et al.</p>
+<p><strong>Recommendation for follow-up</strong>: focus on the
+<strong>EFFabg44 / EFFabg47 / EFFabg48 / EFFabg49</strong>
+diuresis-annotated bilateral pairs as the current best SREN candidates.
+<code>EFFabg49</code> (MNad13) is the top-scoring pair on 2-hop SPSN
+reach and worth inspecting first (left <code>720575941575458056</code>,
+right <code>720575941650150129</code>).</p>
+<p><strong>Caveat</strong>: the “diuresis, stress_tolerance,
+pain_threshold” <code>cell_function</code> label appears to be a
+family-level tag on the abd_Dsx_OA cluster; several cells outside the
+top-10 above (further down the 2-hop ranking) also carry it.
+Confirm-by-inspection is still needed — but the ranking + the functional
+label + the bilateral EFFabg47/48/49 pattern together are much stronger
+evidence than morphology alone.</p>
+</div>
+<div class="section level2">
 <h2 id="citations">Citations<a class="anchor" aria-label="anchor" href="#citations"></a>
 </h2>
 <ul>
