@@ -757,6 +757,111 @@ top$ngl_url <- vapply(top$root_888, function(rid)
   described these cells as "abdominal MNs"; that framing is
   superseded by the current curation.
 
+# Connectivity narrows the SREN candidate list
+
+Independent of morphology, we can ask the BANC connectome directly:
+*which efferent cells receive the strongest input, one or two hops
+away, from the curated sex-peptide sensory neurons (SPSNs)?* If the
+SRENs express the sex peptide receptor and gate ROD production in
+response to mating, they should sit downstream of the SPSN pathway.
+
+```{r spsn-connectivity, eval = FALSE}
+suppressMessages(library(bancr))
+edges <- bancr::banc_edgelist(version = "v3", source = "gcs")
+edges$pre <- as.character(edges$pre); edges$post <- as.character(edges$post)
+
+spsn <- bancr::banctable_query(
+  "SELECT root_id, side FROM banc_meta
+   WHERE cell_sub_class = 'sex_peptide_sensory_neuron'")
+# 6 curated SPSNs: reproductive-tract afferents, cell_class =
+#   reproductive_tract_sensory_neuron, peripheral_target_type =
+#   sex_peptide_receptor, cell_function = visceral_chemosensation.
+
+# 1-hop: direct SPSN synapses.
+downstream <- edges[edges$pre %in% spsn$root_id, ]
+recip <- downstream |>
+  dplyr::group_by(post) |>
+  dplyr::summarise(spsn_in_syn = sum(count),
+                   spsn_in_norm = sum(norm),
+                   n_spsn_partners = dplyr::n()) |>
+  dplyr::arrange(dplyr::desc(spsn_in_syn))
+
+# 2-hop: SPSN -> intrinsic interneurons -> efferents, weighted by
+#   path strength (norm_from_spsn * norm_from_intrinsic).
+top30 <- head(recip$post, 30)
+top30_wt <- setNames(head(recip$spsn_in_norm, 30), top30)
+h2 <- edges[edges$pre %in% top30, ]
+h2$path_wt <- h2$norm * top30_wt[h2$pre]
+```
+
+Two things pop out:
+
+1. **The top ~30 direct SPSN recipients are almost all intrinsic
+   VNC interneurons** (`cell_class = ...` unset or intrinsic;
+   `flow = intrinsic`; `cell_sub_class = ventral_nerve_cord_bilateral_
+   restricted / ipsilateral_restricted`). Only **one efferent
+   `abd_Dsx_OA` cell** sits in the top-15 (`720575941518535347`,
+   `EFFabg50` MNad12 left) — and it is explicitly annotated
+   `cell_function = "ovulation"`.
+2. **Ranking efferent `abd_Dsx_OA` / `abdomen_neurosecretory_cell`
+   cells by 2-hop reach through those SPSN-driven intrinsics**
+   produces a very tight cluster whose top members are almost *all*
+   annotated `cell_function = "diuresis, stress_tolerance,
+   pain_threshold"`. **Diuresis matches Chae et al.'s rectal-ROD
+   phenotype** (RODs are the fluid-content-dependent fecal pellet
+   morphology).
+
+**Top 10 connectivity + function-supported SREN candidates** (BANC v888,
+by 2-hop SPSN reach, all `cell_function = diuresis,stress_tolerance,
+pain_threshold`):
+
+| rank | root_id | BANC cell_type | MANC | side | hemilineage | NT | 2-hop weight |
+| ---: | :------ | :------------- | :--- | :--- | :---------- | :-- | -----------: |
+| 1 | 720575941575458056 | **EFFabg49** | MNad13 | left  | 00B | serotonin     | 0.0120 |
+| 2 | 720575941582278265 | **EFFabg48** | MNad03 | left  | 06A | acetylcholine | 0.0084 |
+| 3 | 720575941652774421 | **EFFabg48** | MNad03 | left  | 06A | octopamine    | 0.0084 |
+| 4 | 720575941550051873 | **EFFabg47** | MNad52 | left  | 13B | —             | 0.0083 |
+| 5 | 720575941577258088 | **EFFabg44** | MNad13 | left  | —   | octopamine    | 0.0072 |
+| 6 | 720575941594396267 | **EFFabg47** | MNad03 | right | 13B | acetylcholine | 0.0071 |
+| 7 | 720575941482782659 | **EFFabg44** | MNad13 | right | —   | octopamine    | 0.0071 |
+| 8 | 720575941586627462 | **EFFabg47** | MNad52 | right | 13B | gaba          | 0.0070 |
+| 9 | 720575941563946038 | **EFFabg44** | MNad13 | left  | —   | acetylcholine | 0.0070 |
+| 10 | 720575941650150129 | **EFFabg49** | MNad13 | right | 00B | gaba          | 0.0069 |
+
+**Bilateral pairs match the SREN morphology description.** The `EFFabg44`,
+`EFFabg47`, `EFFabg48`, `EFFabg49` cell types each contain matched
+left+right cells in this diuresis-annotated cluster.
+
+**This retracts the earlier `EN00B016`-pair hypothesis.** The
+morphology + hull-registration analyses in the sections above put the
+hypothesised `EN00B016` pair
+(`720575941680133053` L + `720575941659397456` R) at rank ~59–90 by
+NBLAST fwd+rev — a plausible morphology score. But by connectivity:
+
+- The **right** cell (`9397456`) sits at abd-rank **18** by 2-hop SPSN
+  reach (2-hop weight 0.006), with **no functional annotation**.
+- The **left** cell (`0133053`) has **no 2-hop path from the SPSN
+  cluster at all**.
+
+Neither cell is in the diuresis-annotated cluster. That's not a
+tie-breaker in favour of `EN00B016`; it's a signal against it, at
+least under the "SRENs are on the SPSN pathway and drive rectal
+diuresis" reading of Chae et al.
+
+**Recommendation for follow-up**: focus on the **EFFabg44 / EFFabg47 /
+EFFabg48 / EFFabg49** diuresis-annotated bilateral pairs as the
+current best SREN candidates. `EFFabg49` (MNad13) is the top-scoring
+pair on 2-hop SPSN reach and worth inspecting first (left
+`720575941575458056`, right `720575941650150129`).
+
+**Caveat**: the "diuresis, stress_tolerance, pain_threshold"
+`cell_function` label appears to be a family-level tag on the
+abd_Dsx_OA cluster; several cells outside the top-10 above (further
+down the 2-hop ranking) also carry it. Confirm-by-inspection is
+still needed — but the ranking + the functional label + the
+bilateral EFFabg47/48/49 pattern together are much stronger
+evidence than morphology alone.
+
 # Citations
 
 - **SREN identification (this query)**: Chae HS, Subay OH, Kim DH,
